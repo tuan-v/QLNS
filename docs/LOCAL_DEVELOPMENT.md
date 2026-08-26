@@ -25,6 +25,13 @@ docker compose exec app php artisan migrate
 
 Ứng dụng chạy tại `http://localhost:8080`. Có thể đổi cổng bằng `APP_PORT` trong `.env`.
 
+Nếu máy đã có MySQL/Redis chạy sẵn ở host (ví dụ Laragon, XAMPP) chiếm cổng
+`3306`/`6379`, đổi `FORWARD_DB_PORT`/`FORWARD_REDIS_PORT` trong `.env` sang
+cổng khác (ví dụ `3307`) — không ảnh hưởng tới kết nối nội bộ giữa các
+container vì Laravel trong container `app` luôn dùng hostname `mysql`/`redis`
+theo mạng Docker, chỉ có công cụ ở host (DBeaver, TablePlus...) mới cần cổng
+forward này.
+
 ## Lệnh thường dùng
 
 ```text

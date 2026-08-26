@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>QLNS - Test JWT Auth (tạm, không thuộc luồng chính)</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    max-width: 760px;
+    margin: 32px auto;
+    padding: 0 16px;
+  }
+  h1 { font-size: 1.25rem; margin-bottom: 4px; }
+  .warn {
+    background: #422006;
+    border: 1px solid #92400e;
+    color: #fdba74;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+  }
+  fieldset {
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  legend { padding: 0 6px; color: #94a3b8; font-size: 0.85rem; }
+  label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 4px; }
+  input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    margin-bottom: 12px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #e2e8f0;
+    font-size: 0.9rem;
+  }
+  button {
+    padding: 8px 14px;
+    margin: 0 8px 8px 0;
+    background: #4338ca;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  button:hover { background: #4f46e5; }
+  button:disabled { background: #334155; cursor: not-allowed; }
+  button.secondary { background: #334155; }
+  button.secondary:hover { background: #475569; }
+  .accounts {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    line-height: 1.6;
+  }
+  .accounts code { color: #a5b4fc; cursor: pointer; }
+  pre {
+    background: #020617;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 320px;
+    overflow: auto;
+  }
+  .status-ok { color: #4ade80; }
+  .status-err { color: #f87171; }
+  .token-box {
+    font-size: 0.75rem;
+    color: #64748b;
+    word-break: break-all;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<h1>QLNS — Test JWT Auth</h1>
+<div class="warn">
+  Trang tạm để test nhanh API Auth (Ngày 06). Không phải giao diện chính thức —
+  Login UI thật sẽ làm ở Ngày 11-15 bằng Vue Router + Pinia + Vuetify. File này
+  có thể xóa bất cứ lúc nào.
+</div>
+
+<fieldset>
+  <legend>1. Đăng nhập</legend>
+  <div class="accounts">
+    Tài khoản mẫu (từ UserSeeder) — bấm để điền nhanh:
+    <code onclick="fillAccount('admin@qlns.local','Admin@123')">admin@qlns.local / Admin@123</code> ·
+    <code onclick="fillAccount('hr@qlns.local','Hr@123456')">hr@qlns.local / Hr@123456</code> ·
+    <code onclick="fillAccount('manager@qlns.local','Manager@123')">manager@qlns.local / Manager@123</code> ·
+    <code onclick="fillAccount('employee@qlns.local','Employee@123')">employee@qlns.local / Employee@123</code>
+  </div>
+  <br>
+  <label for="email">Email</label>
+  <input id="email" type="email" value="admin@qlns.local">
+  <label for="password">Mật khẩu</label>
+  <input id="password" type="password" value="Admin@123">
+  <button onclick="login()">Đăng nhập</button>
+  <span id="login-status"></span>
+</fieldset>
+
+<fieldset>
+  <legend>2. Token hiện tại</legend>
+  <div class="token-box"><b>access_token:</b> <span id="access-token">(chưa có)</span></div>
+  <div class="token-box"><b>refresh_token:</b> <span id="refresh-token">(chưa có)</span></div>
+  <button class="secondary" onclick="callMe()">GET /auth/me</button>
+  <button class="secondary" onclick="callRefresh()">POST /auth/refresh</button>
+  <button class="secondary" onclick="callLogout()">POST /auth/logout</button>
+</fieldset>
+
+<fieldset>
+  <legend>3. Kết quả (JSON thô)</legend>
+  <pre id="output">Chưa có request nào.</pre>
+</fieldset>
+
+<script>
+  const API_BASE = '/api/v1/auth';
+  let accessToken = null;
+  let refreshToken = null;
+
+  function fillAccount(email, password) {
+    document.getElementById('email').value = email;
+    document.getElementById('password').value = password;
+  }
+
+  function setStatus(elId, ok, text) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.textContent = text;
+    el.className = ok ? 'status-ok' : 'status-err';
+  }
+
+  function renderOutput(label, status, body) {
+    const el = document.getElementById('output');
+    el.textContent = `${label}  ->  HTTP ${status}\n\n` + JSON.stringify(body, null, 2);
+  }
+
+  function renderTokens() {
+    document.getElementById('access-token').textContent = accessToken || '(chưa có)';
+    document.getElementById('refresh-token').textContent = refreshToken || '(chưa có)';
+  }
+
+  async function callApi(path, options = {}) {
+    const res = await fetch(API_BASE + path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(accessToken ? { Authorization: 'Bearer ' + accessToken } : {}),
+        ...(options.headers || {}),
+      },
+    });
+    let body;
+    try {
+      body = await res.json();
+    } catch {
+      body = { message: '(không parse được JSON)' };
+    }
+    return { status: res.status, body };
+  }
+
+  async function login() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const { status, body } = await callApi('/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    renderOutput('POST /auth/login', status, body);
+    if (status === 200) {
+      accessToken = body.access_token;
+      refreshToken = body.refresh_token;
+      renderTokens();
+      setStatus('login-status', true, `✓ Đăng nhập thành công (user #${body.user.id})`);
+    } else {
+      setStatus('login-status', false, '✗ Đăng nhập thất bại');
+    }
+  }
+
+  async function callMe() {
+    const { status, body } = await callApi('/me');
+    renderOutput('GET /auth/me', status, body);
+  }
+
+  async function callRefresh() {
+    const { status, body } = await callApi('/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    renderOutput('POST /auth/refresh', status, body);
+    if (status === 200) {
+      accessToken = body.access_token;
+      refreshToken = body.refresh_token;
+      renderTokens();
+    }
+  }
+
+  async function callLogout() {
+    const { status, body } = await callApi('/logout', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    renderOutput('POST /auth/logout', status, body);
+    if (status === 200) {
+      accessToken = null;
+      refreshToken = null;
+      renderTokens();
+      setStatus('login-status', false, 'Đã đăng xuất');
+    }
+  }
+</script>
+
+</body>
+</html>

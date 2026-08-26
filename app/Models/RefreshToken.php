@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class RefreshToken extends Model
 {
-    const UPDATED_AT = null; // bảng chỉ có created_at
+    public const UPDATED_AT = null; // bảng chỉ có created_at
 
     protected $fillable = [
         'user_id',
