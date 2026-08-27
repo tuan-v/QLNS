@@ -118,4 +118,30 @@ class AuthTest extends TestCase
 
         $reused->assertStatus(401);
     }
+
+    public function test_expired_access_token_is_rejected(): void
+    {
+        $this->createUser();
+        config(['config_jwt.access_ttl_minutes' => -1]);
+
+        $login = $this->postJson('/api/v1/auth/login', [
+            'email' => 'user@qlns.local',
+            'password' => 'Secret@123',
+        ])->json();
+
+        $response = $this->getJson('/api/v1/auth/me', [
+            'Authorization' => 'Bearer '.$login['access_token'],
+        ]);
+
+        $response->assertStatus(401);
+    }
+
+    public function test_malformed_access_token_is_rejected(): void
+    {
+        $response = $this->getJson('/api/v1/auth/me', [
+            'Authorization' => 'Bearer this-is-not-a-valid-jwt',
+        ]);
+
+        $response->assertStatus(401);
+    }
 }
