@@ -4,11 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Concerns\Auditable;
 
 class Role extends Model
 {
     use SoftDeletes;
-
+    use Auditable;
     protected $fillable = ['name', 'guard_name', 'description'];
 
     public function permissions()

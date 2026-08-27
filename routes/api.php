@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Api\V1\AuthController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -11,13 +10,12 @@ Route::prefix('v1')->group(function (): void {
         ]);
     });
 
-    Route::prefix('auth')->group(function (): void {
-        Route::post('/login', [AuthController::class, 'login']);
-        Route::post('/refresh', [AuthController::class, 'refresh']);
-
-        Route::middleware('auth:api')->group(function (): void {
-            Route::get('/me', [AuthController::class, 'me']);
-            Route::post('/logout', [AuthController::class, 'logout']);
-        });
-    });
+    require __DIR__.'/api/v1/auth.php';
+    require __DIR__.'/api/v1/departments.php';
+    require __DIR__.'/api/v1/employees.php';
+    require __DIR__.'/api/v1/attendances.php';
+    require __DIR__.'/api/v1/leave-requests.php';
+    require __DIR__.'/api/v1/payrolls.php';
+    require __DIR__.'/api/v1/reports.php';
+    require __DIR__.'/api/v1/notifications.php';
 });
