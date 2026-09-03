@@ -19,7 +19,7 @@ class PermissionMiddlewareTest extends TestCase
         $this->seed();
 
         Route::middleware(['auth:api', 'permission:rbac.manage'])
-            ->get('/test-permission-check', fn () => response()->json(['ok' => true]));
+            ->get('/api/v1/test-permission-check', fn () => response()->json(['ok' => true]));
     }
 
     private function loginAs(string $email, string $password): string
@@ -36,7 +36,7 @@ class PermissionMiddlewareTest extends TestCase
     {
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
 
-        $response = $this->getJson('/test-permission-check', [
+        $response = $this->getJson('/api/v1/test-permission-check', [
             'Authorization' => 'Bearer '.$token,
         ]);
 
@@ -47,7 +47,7 @@ class PermissionMiddlewareTest extends TestCase
     {
         $token = $this->loginAs('employee@qlns.local', 'Employee@123');
 
-        $response = $this->getJson('/test-permission-check', [
+        $response = $this->getJson('/api/v1/test-permission-check', [
             'Authorization' => 'Bearer '.$token,
         ]);
 
@@ -56,7 +56,7 @@ class PermissionMiddlewareTest extends TestCase
 
     public function test_unauthenticated_request_is_rejected(): void
     {
-        $response = $this->getJson('/test-permission-check');
+        $response = $this->getJson('/api/v1/test-permission-check');
 
         $response->assertStatus(401);
     }

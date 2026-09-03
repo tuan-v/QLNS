@@ -8,6 +8,7 @@ Project sử dụng Laravel 12, Vue 3, MySQL và Redis. Trong quá trình phát 
 - Quy chuẩn mã nguồn: [`docs/CODING_STANDARDS.md`](docs/CODING_STANDARDS.md)
 - Quy tắc đọc tài liệu nghiệp vụ: [`AGENTS.md`](AGENTS.md)
 - Prompt điều hướng nhanh cho AI/người mới: [`docs/PROMPT_ONBOARDING.md`](docs/PROMPT_ONBOARDING.md)
+- Bản đồ mã nguồn (tính năng nằm ở file nào): [`CODE_MAP.md`](CODE_MAP.md)
 
 ---
 

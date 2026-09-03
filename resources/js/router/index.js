@@ -5,6 +5,12 @@ const routes = [
         path: '/login',
         name: 'login',
         component: ()=> import('../views/Login.vue'),
+        meta: { layout: 'blank' }
+    },
+    {
+        path: '/',
+        name: 'dashboard',
+        component: ()=> import('../views/Dashboard.vue'),
     },
 
 ];

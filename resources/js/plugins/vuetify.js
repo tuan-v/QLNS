@@ -13,6 +13,14 @@ export default createVuetify({
                     success: '#36d399',
                     background: '#0f1729',
                 }
+            },
+            qlnsLight: {
+                dark: false,
+                colors: {
+                    primary: '#7575db',
+                    success: '#36d399',
+                    background: '#f8fafc',
+                }
             }
         }
     }

@@ -7,7 +7,6 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RefreshTokenRequest;
 use App\Models\User;
 use App\Services\AuthService;
-use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
