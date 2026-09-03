@@ -1,7 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
 const routes = [
-    // các route thật sẽ thêm dần từ Ngày 13 trở đi
+    {
+        path: '/login',
+        name: 'login',
+        component: ()=> import('../views/Login.vue'),
+    },
+
 ];
 
 export default createRouter({
