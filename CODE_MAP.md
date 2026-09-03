@@ -7,7 +7,7 @@ Tài liệu tra cứu "tính năng nằm ở file nào" — bắt buộc theo [`
 | Hạng mục | Chi tiết |
 |---|---|
 | Giao diện Frontend | [`resources/js/views/Login.vue`](resources/js/views/Login.vue), [`resources/js/stores/authStore.js`](resources/js/stores/authStore.js), [`resources/js/services/authService.js`](resources/js/services/authService.js) |
-| Xử lý Backend | [`app/Http/Controllers/Api/v1/AuthController.php`](app/Http/Controllers/Api/v1/AuthController.php), [`app/Services/AuthService.php`](app/Services/AuthService.php), [`app/Services/Jwt/JwtService.php`](app/Services/Jwt/JwtService.php), [`app/Auth/JwtGuard.php`](app/Auth/JwtGuard.php), [`app/Repositories/UserRepository.php`](app/Repositories/UserRepository.php), [`app/Repositories/RefreshTokenRepository.php`](app/Repositories/RefreshTokenRepository.php) |
+| Xử lý Backend | [`app/Http/Controllers/Api/V1/AuthController.php`](app/Http/Controllers/Api/V1/AuthController.php), [`app/Services/AuthService.php`](app/Services/AuthService.php), [`app/Services/Jwt/JwtService.php`](app/Services/Jwt/JwtService.php), [`app/Auth/JwtGuard.php`](app/Auth/JwtGuard.php), [`app/Repositories/UserRepository.php`](app/Repositories/UserRepository.php), [`app/Repositories/RefreshTokenRepository.php`](app/Repositories/RefreshTokenRepository.php) |
 | Validation | [`app/Http/Requests/Auth/LoginRequest.php`](app/Http/Requests/Auth/LoginRequest.php), [`app/Http/Requests/Auth/RefreshTokenRequest.php`](app/Http/Requests/Auth/RefreshTokenRequest.php) |
 | Database & API | Bảng `users`, `refresh_tokens`. Endpoint `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, `GET /api/v1/auth/me`, `POST /api/v1/auth/logout` — khai báo tại [`routes/api/v1/auth.php`](routes/api/v1/auth.php) |
 | Test | [`tests/Feature/Auth/AuthTest.php`](tests/Feature/Auth/AuthTest.php), [`tests/Feature/Auth/LoginValidationTest.php`](tests/Feature/Auth/LoginValidationTest.php) |
@@ -55,6 +55,7 @@ Tài liệu tra cứu "tính năng nằm ở file nào" — bắt buộc theo [`
 | Axios & Interceptor | [`resources/js/bootstrap.js`](resources/js/bootstrap.js) — tự gắn `Authorization` header, tự xử lý 401 (đá về `/login`, trừ chính request login) và 403 |
 | Icon set | `@mdi/font`, import tại [`resources/js/plugins/vuetify.js`](resources/js/plugins/vuetify.js) |
 | Docker / môi trường local | [`docker-compose.yml`](docker-compose.yml), [`docker/`](docker), chi tiết tại [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md) |
+| Tài liệu API (Swagger/OpenAPI) | Cấu hình: [`config/l5-swagger.php`](config/l5-swagger.php). Xem tại `/api/documentation`. Annotation dùng chung (`OA\Info`, `OA\SecurityScheme`) đặt tại [`app/Http/Controllers/Controller.php`](app/Http/Controllers/Controller.php); mỗi Controller tự khai `#[OA\Get\|Post(...)]` phía trên từng hàm (xem mẫu tại [`app/Http/Controllers/Api/V1/AuthController.php`](app/Http/Controllers/Api/V1/AuthController.php)). Sinh lại tài liệu bằng `php artisan l5-swagger:generate` sau khi thêm/sửa annotation |
 
 ---
 

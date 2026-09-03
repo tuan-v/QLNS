@@ -50,7 +50,14 @@ class JwtGuard implements Guard
             return $this->user = null;
         }
 
-        return $this->user = $this->provider->retrieveById($payload->sub);
+        $user = $this->provider->retrieveById($payload->sub);
+
+        if (! $user || $user->status !== 'active') {
+            return $this->user = null;
+        }
+
+        return $this->user = $user;
+
     }
 
     public function id(): int|string|null
