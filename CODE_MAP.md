@@ -48,7 +48,18 @@ Tài liệu tra cứu "tính năng nằm ở file nào" — bắt buộc theo [`
 | Giao diện Frontend | [`resources/js/views/Dashboard.vue`](resources/js/views/Dashboard.vue), [`resources/js/components/dashboard/StatCards.vue`](resources/js/components/dashboard/StatCards.vue) |
 | Ghi chú | Đang dùng **dữ liệu minh họa** (hardcode), chưa nối API thật — Dashboard thật (biểu đồ, số liệu động) thuộc Phase Báo cáo & Thống kê (Ngày 51-60 theo kế hoạch) |
 
-## 6. Hạ tầng chung (không thuộc 1 module cụ thể)
+## 6. Phòng ban (Departments)
+
+| Hạng mục | Chi tiết |
+|---|---|
+| Xử lý Backend | [`app/Http/Controllers/Api/V1/DepartmentController.php`](app/Http/Controllers/Api/V1/DepartmentController.php), [`app/Services/DepartmentService.php`](app/Services/DepartmentService.php), [`app/Repositories/DepartmentRepository.php`](app/Repositories/DepartmentRepository.php) |
+| Model | [`app/Models/Department.php`](app/Models/Department.php) — tự tham chiếu `parent()`/`children()` (cây phân cấp), dùng `Auditable`. Quan hệ `manager()` **chưa viết** (chờ Model `Employee` ở Ngày 21) |
+| Validation | [`app/Http/Requests/Department/StoreDepartmentRequest.php`](app/Http/Requests/Department/StoreDepartmentRequest.php), [`app/Http/Requests/Department/UpdateDepartmentRequest.php`](app/Http/Requests/Department/UpdateDepartmentRequest.php) |
+| Database & API | Bảng `departments` (migration từ Ngày 04). Endpoint `GET/POST /api/v1/departments`, `PUT/DELETE /api/v1/departments/{department}` — khai báo tại [`routes/api/v1/departments.php`](routes/api/v1/departments.php), yêu cầu quyền `department.view`/`department.manage` |
+| Ghi chú | Mới có CRUD cơ bản; logic cây phân cấp nâng cao (di chuyển node, chống vòng lặp cha-con...) làm ở Ngày 17 |
+| Danh sách tệp cần sửa khi bảo trì | Toàn bộ các file trên; nhớ bổ sung `manager()` vào `Department.php` khi Model `Employee` đã tồn tại |
+
+## 7. Hạ tầng chung (không thuộc 1 module cụ thể)
 
 | Hạng mục | Chi tiết |
 |---|---|
