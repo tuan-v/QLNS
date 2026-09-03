@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import laravel from 'laravel-vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
-
+import vuetify from 'vite-plugin-vuetify';
 export default defineConfig({
     plugins: [
         laravel({
@@ -11,6 +11,12 @@ export default defineConfig({
         }),
         vue(),
         tailwindcss(),
+        vuetify({
+            autoImport: true,
+            styles: {
+                configFile: 'resources/css/settings.scss',
+            },
+        })
     ],
     server: {
         watch: {

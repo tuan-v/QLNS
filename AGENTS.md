@@ -2,7 +2,7 @@
 
 ## Tài liệu nghiệp vụ bắt buộc
 
-Trước khi chỉnh sửa bất kỳ chức năng, quy trình, dữ liệu, phân quyền, API, giao diện có hành vi nghiệp vụ, hoặc yêu cầu nghiệp vụ nào, phải đọc lại đầy đủ cả hai tài liệu sau:
+Trước khi thực hiện bất kỳ thay đổi nào trong dự án — chức năng, quy trình, dữ liệu, phân quyền, API, giao diện, cấu hình, cấu trúc thư mục, hay bất kỳ thay đổi nào khác — phải đọc lại đầy đủ cả hai tài liệu sau để xác minh thay đổi đó đúng hướng:
 
 1. `docs/Ke-hoach-trien-khai-du-an-QLNS.docx`
 2. `docs/YEU_CAU_DU_AN_QLNS.html`
@@ -19,4 +19,4 @@ Khi triển khai thay đổi:
 - Nếu thay đổi nằm ngoài phạm vi được mô tả, nêu rõ giả định trước khi triển khai.
 - Trong phần bàn giao, ghi ngắn gọn các mục tài liệu đã dùng để đối chiếu.
 
-Các thay đổi thuần kỹ thuật không làm thay đổi hành vi nghiệp vụ (ví dụ định dạng mã, sửa typo trong comment, hoặc nâng cấp tooling không ảnh hưởng chức năng) không bắt buộc đọc lại, trừ khi có nghi ngờ tác động tới nghiệp vụ.
+Mọi thao tác có ghi/sửa file trong dự án — kể cả cấu hình build/tooling, cài thêm thư viện, đổi tên/di chuyển file, dọn dẹp file thừa, hay sửa nội dung công cụ đã sinh ra (ví dụ: nội dung file mà Pint tự định dạng lại) — đều phải đối chiếu lại hai tài liệu trước khi thực hiện. Chỉ miễn đọc lại với thao tác **không ghi/sửa file** (chạy lệnh kiểm tra, đọc file, chạy test để xem kết quả) hoặc thao tác **chỉ chạy lại y nguyên 1 công cụ tự động đã được phê duyệt trước đó** (ví dụ chạy `pint` để tự sửa khoảng trắng/thụt lề, không có nội dung nào do người/AI tự viết thêm).
