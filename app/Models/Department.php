@@ -22,10 +22,10 @@ class Department extends Model
     {
         return $this->belongsTo(Department::class, 'parent_id', 'id');
     }
-    // public function manager()
-    // {
-    //     return $this->belongsTo(User::class,'manager_id','id');
-    // }
+    public function manager()
+    {
+        return $this->belongsTo(Employee::class, 'manager_id', 'id');
+    }
     public function children()
     {
         return $this->hasMany(Department::class, 'parent_id', 'id');

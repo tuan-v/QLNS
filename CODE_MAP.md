@@ -54,14 +54,23 @@ Tài liệu tra cứu "tính năng nằm ở file nào" — bắt buộc theo [`
 |---|---|
 | Giao diện Frontend | [`resources/js/views/Department/Departments.vue`](resources/js/views/Department/Departments.vue) (danh sách dạng cây thụt lề + tìm kiếm + lọc trạng thái), [`resources/js/views/Department/DepartmentForm.vue`](resources/js/views/Department/DepartmentForm.vue) (modal Thêm/Sửa, dựng trên `FormDialog`/`FormSection` dùng chung — xem mục 7), [`resources/js/stores/useDepartmentStore.js`](resources/js/stores/useDepartmentStore.js), [`resources/js/services/departmentService.js`](resources/js/services/departmentService.js) |
 | Xử lý Backend | [`app/Http/Controllers/Api/V1/DepartmentController.php`](app/Http/Controllers/Api/V1/DepartmentController.php), [`app/Services/DepartmentService.php`](app/Services/DepartmentService.php) (gồm `generateCode()` tự sinh mã, xem Ghi chú), [`app/Repositories/DepartmentRepository.php`](app/Repositories/DepartmentRepository.php) (có `tree()`/`buildTree()` dựng cây và `wouldCreateCycle()` chống vòng lặp cha-con) |
-| Model | [`app/Models/Department.php`](app/Models/Department.php) — tự tham chiếu `parent()`/`children()` (cây phân cấp), dùng `Auditable`. Quan hệ `manager()` **chưa viết** (chờ Model `Employee` ở Ngày 21) |
+| Model | [`app/Models/Department.php`](app/Models/Department.php) — tự tham chiếu `parent()`/`children()` (cây phân cấp), `manager()` trỏ tới `Employee` (khóa `manager_id`), dùng `Auditable` |
 | Validation | [`app/Http/Requests/Department/StoreDepartmentRequest.php`](app/Http/Requests/Department/StoreDepartmentRequest.php), [`app/Http/Requests/Department/UpdateDepartmentRequest.php`](app/Http/Requests/Department/UpdateDepartmentRequest.php) — **không** có rule cho `code` (xem Ghi chú) |
 | Database & API | Bảng `departments` (migration từ Ngày 04, khóa ngoại `manager_id` → `employees` thêm ở migration riêng). Endpoint `GET/POST /api/v1/departments`, `GET /api/v1/departments/tree`, `PUT/DELETE /api/v1/departments/{department}` — khai báo tại [`routes/api/v1/departments.php`](routes/api/v1/departments.php), yêu cầu quyền `department.view`/`department.manage` |
 | Test | [`tests/Feature/Department/DepartmentTest.php`](tests/Feature/Department/DepartmentTest.php) — quyền hạn (401/403), tạo (mã tự sinh đúng định dạng, bỏ qua `code` client gửi, không đọc nhầm mã cũ dạng `PB-01`, không tái dùng mã đã xóa mềm), sửa (bỏ qua `code`, chống vòng lặp cha-con — cả tự làm cha chính mình lẫn chuyển cha xuống dưới con), xóa (chặn khi còn con, xóa mềm khi không còn con), cây phân cấp lồng nhau |
 | Ghi chú | CRUD + cây phân cấp (dựng cây, chống vòng lặp) xong Ngày 16-17. UI đầy đủ (danh sách, modal Thêm/Sửa, xác nhận Xóa, tìm kiếm/lọc) xong Ngày 18-19. **Mã `code` do `DepartmentService::generateCode()` tự sinh** (`PB001`, `PB002`...), request Store/Update không nhận `code` từ client — sửa định dạng mã thì chỉ cần sửa hàm này. **Xóa phòng ban còn con nay bị chặn ở backend** (`DepartmentService::delete()` — 422 nếu còn con), không còn phụ thuộc riêng vào chặn phía UI. PHPUnit test xong Ngày 20 |
-| Danh sách tệp cần sửa khi bảo trì | Toàn bộ các file trên; nhớ bổ sung `manager()` vào `Department.php` + ô chọn Trưởng phòng vào `DepartmentForm.vue` khi Model `Employee` đã tồn tại (Ngày 21) |
+| Danh sách tệp cần sửa khi bảo trì | Toàn bộ các file trên; còn nợ: thêm ô chọn Trưởng phòng vào `DepartmentForm.vue` (Model `Employee` đã có từ Ngày 21, chỉ còn phần UI) |
 
-## 7. Hạ tầng chung (không thuộc 1 module cụ thể)
+## 7. Nhân viên (Employee) — mới có Model, chưa có API
+
+| Hạng mục | Chi tiết |
+|---|---|
+| Model | [`app/Models/Employee.php`](app/Models/Employee.php) — quan hệ `user()` (belongsTo User, đối ứng `User::employee()`), `department()`, `position()`, tự tham chiếu `manager()`/`subordinates()` (giống cặp `parent()`/`children()` của Department), `contracts()`/`bankAccounts()`. [`app/Models/Position.php`](app/Models/Position.php) — `belongsTo` Department. [`app/Models/EmployeeContract.php`](app/Models/EmployeeContract.php), [`app/Models/EmployeeBankAccount.php`](app/Models/EmployeeBankAccount.php) — đều `belongsTo` Employee. Cả 4 Model dùng `Auditable` + `SoftDeletes` |
+| Database | Bảng `employees` (migration Ngày 04: `user_id`, `department_id`, `position_id`, `manager_id` tự tham chiếu, `code`, `full_name`, `date_of_birth`, `gender`, `phone`, `company_email`, `personal_email`, `cccd`, `addresses`, `personal_tax_code`, `avatar`, `hire_date`, `probation_end_date`, `termination_date`, `employment_status`), `positions`, `employee_contracts`, `employee_bank_accounts` — schema có sẵn, đã khớp với 3 Model trên |
+| Ghi chú | Ngày 21 mới xong **Model**, chưa có Controller/Service/Repository/Request/Route — chưa gọi được qua API. Đã bàn nhưng **chưa quyết dứt điểm**: mã `code` của Employee có tự sinh như `PB001` của Department không — sẽ chốt khi viết `EmployeeService` (Ngày 23) |
+| Danh sách tệp cần sửa khi bảo trì | Ngày 22: `StoreEmployeeRequest`/`UpdateEmployeeRequest`. Ngày 23: `EmployeeController`, `EmployeeService`, `EmployeeRepository`, route `routes/api/v1/employees.php`, permission `employee.*` đã có sẵn trong `PermissionSeeder.php` (`employee.view`, `employee.create`, `employee.update`, `employee.delete`) — chỉ cần gắn middleware, không cần seed thêm |
+
+## 8. Hạ tầng chung (không thuộc 1 module cụ thể)
 
 | Hạng mục | Chi tiết |
 |---|---|
