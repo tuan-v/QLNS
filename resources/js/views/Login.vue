@@ -39,8 +39,8 @@
       </div>
 
       <v-card
-        style="border-radius: 1.5rem; backdrop-filter: blur(12px); background: rgba(30, 41, 68, 0.76);"
-        class="pa-6"
+        style="border-radius: 1.5rem;"
+        class="pa-6 glass-panel"
       >
         <v-card-title class="text-h5 font-weight-bold px-0">Đăng nhập</v-card-title>
         <v-card-subtitle class="px-0 text-wrap" style="opacity: 0.75;">

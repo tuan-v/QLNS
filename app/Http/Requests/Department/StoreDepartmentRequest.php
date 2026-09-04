@@ -15,7 +15,7 @@ class StoreDepartmentRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'max:30', 'unique:departments,code'],
+            // "code" không nhận từ client — DepartmentService tự sinh mã.
             'parent_id' => ['nullable', 'exists:departments,id'],
             'description' => ['nullable', 'string'],
             'is_active' => ['boolean'],
@@ -25,8 +25,6 @@ class StoreDepartmentRequest extends FormRequest
     {
         return [
             'name.required' => 'Tên phòng ban không được để trống',
-            'code.required' => 'Mã phòng ban không được để trống',
-            'code.unique' => 'Mã phòng ban đã tồn tại',
             'parent_id.exists' => 'Phòng ban cha không tồn tại',
             'description.string' => 'Mô tả phải là chuỗi',
             'is_active.boolean' => 'Trạng thái phải là 1 hoặc 0',

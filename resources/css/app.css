@@ -24,3 +24,30 @@ body {
 .v-application {
     font-family: var(--font-sans) !important;
 }
+
+/* Nút bấm: bỏ giãn chữ mặc định của Vuetify, thêm hiệu ứng nhấc nhẹ khi hover.
+   Class này được gắn tự động cho mọi VBtn qua `defaults` trong plugins/vuetify.js. */
+.qlns-btn {
+    letter-spacing: 0 !important;
+    transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease,
+        background-color 0.18s ease;
+}
+
+/* Chỉ nhấc nút đặc (variant="flat"/"elevated"), không áp cho nút icon/text
+   để tránh bảng danh sách bị nhảy khi rê chuột. */
+.qlns-btn.v-btn--variant-flat:hover:not(.v-btn--disabled),
+.qlns-btn.v-btn--variant-elevated:hover:not(.v-btn--disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(var(--v-theme-primary), 0.28);
+}
+
+/* Hiệu ứng kính mờ (Glassmorphism nhẹ) cho card/dialog nổi bật trên nền —
+   mục 6, YEU_CAU_DU_AN_QLNS.html. Dùng biến màu --v-theme-surface của Vuetify
+   (thay vì mã màu cứng) để tự đổi đúng theo theme sáng/tối đang chọn. */
+.glass-panel {
+    background: rgba(var(--v-theme-surface), 0.72) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}

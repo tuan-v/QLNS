@@ -1,5 +1,6 @@
 <script setup>
 import StatCards from '../components/dashboard/StatCards.vue';
+import PageHeader from '../components/common/PageHeader.vue';
 
 const stats = [
     { label: 'Tổng số nhân viên', value: '128', icon: 'mdi-account-group-outline', color: 'primary' },
@@ -11,8 +12,10 @@ const stats = [
 
 <template>
   <div>
-    <h1 class="text-h5 font-weight-bold">Tổng quan</h1>
-    <p class="text-body-2 mt-1" style="opacity: 0.65;">Số liệu nhân sự cập nhật tới hôm nay.</p>
+    <PageHeader
+      title="Tổng quan"
+      subtitle="Số liệu nhân sự cập nhật tới hôm nay."
+    />
 
     <StatCards :stats="stats" />
 
