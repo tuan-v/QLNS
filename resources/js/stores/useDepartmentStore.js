@@ -35,6 +35,10 @@ export const useDepartmentStore = defineStore("department", () => {
             departments.value = data;
             pagination.value = meta;
         } catch (e) {
+            // Xóa dữ liệu cũ khi fetch lỗi — tránh hiện lại dữ liệu của
+            // phiên/người dùng trước đó (vd: đổi tài khoản không tải lại trang).
+            departments.value = [];
+            pagination.value = null;
             handleError(e);
         } finally {
             loading.value = false;
@@ -48,6 +52,7 @@ export const useDepartmentStore = defineStore("department", () => {
             const response = await departmentService.tree();
             tree.value = response.data;
         } catch (e) {
+            tree.value = [];
             handleError(e);
         } finally {
             loading.value = false;

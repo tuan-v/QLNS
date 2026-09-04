@@ -7,6 +7,7 @@ use App\Repositories\DepartmentRepository;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+
 class DepartmentService
 {
     public function __construct(private readonly DepartmentRepository $departmentRepository)
@@ -48,18 +49,24 @@ class DepartmentService
 
     public function update(Department $department, array $data): Department
     {
-    if (array_key_exists('parent_id', $data)
-        && $this->departmentRepository->wouldCreateCycle($department->id, $data['parent_id'])) {
-        throw ValidationException::withMessages([
-            'parent_id' => 'Không thể chọn phòng ban này làm cha vì sẽ tạo vòng lặp trong cơ cấu tổ chức.',
-        ]);
-    }
+        if (array_key_exists('parent_id', $data)
+            && $this->departmentRepository->wouldCreateCycle($department->id, $data['parent_id'])) {
+            throw ValidationException::withMessages([
+                'parent_id' => 'Không thể chọn phòng ban này làm cha vì sẽ tạo vòng lặp trong cơ cấu tổ chức.',
+            ]);
+        }
 
-    return DB::transaction(fn () => $this->departmentRepository->update($department, $data));
+        return DB::transaction(fn () => $this->departmentRepository->update($department, $data));
     }
 
     public function delete(Department $department): void
     {
+        if ($department->children()->exists()) {
+            throw ValidationException::withMessages([
+                'department' => 'Không thể xóa phòng ban đang có phòng ban trực thuộc.',
+            ]);
+        }
+
         $this->departmentRepository->delete($department);
     }
     public function tree(): \Illuminate\Support\Collection
@@ -67,5 +74,5 @@ class DepartmentService
         return $this->departmentRepository->tree();
     }
 
-    
+
 }
