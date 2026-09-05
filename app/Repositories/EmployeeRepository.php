@@ -51,15 +51,25 @@ class EmployeeRepository
             return false;
         }
 
-        $current = $viewer->manager;
+        return in_array($target->id, $this->ancestorIds($viewer), true);
+    }
+
+    /**
+     * Danh sách ID toàn bộ cấp trên (mọi cấp) của 1 nhân viên, đi ngược từ manager
+     * lên tới người không còn quản lý. Tách riêng khỏi isSuperiorOf() để nơi gọi
+     * (EmployeeResource) có thể tính đúng 1 lần cho cả danh sách, thay vì lặp lại
+     * phép duyệt này cho từng dòng — cùng 1 người xem thì chuỗi cấp trên không đổi.
+     */
+    public function ancestorIds(Employee $employee): array
+    {
+        $ids = [];
+        $current = $employee->manager;
 
         while ($current !== null) {
-            if ($current->id === $target->id) {
-                return true;
-            }
+            $ids[] = $current->id;
             $current = $current->manager;
         }
 
-        return false;
+        return $ids;
     }
 }

@@ -8,6 +8,25 @@ use Illuminate\Support\Facades\Storage;
 
 class EmployeeResource extends JsonResource
 {
+    // Cache tập ID cấp trên theo từng viewer, dùng chung cho mọi EmployeeResource
+    // được tạo trong cùng 1 request (vd: mỗi dòng của index()). Không cache thì
+    // mỗi dòng trong danh sách sẽ tự đi duyệt lại toàn bộ chuỗi quản lý của CÙNG
+    // MỘT người xem — tốn N lần query giống hệt nhau cho N dòng, dù kết quả không đổi.
+    private static array $ancestorIdsCache = [];
+
+    private static function ancestorIdsFor(?\App\Models\Employee $viewer): array
+    {
+        if ($viewer === null) {
+            return [];
+        }
+
+        if (! array_key_exists($viewer->id, self::$ancestorIdsCache)) {
+            self::$ancestorIdsCache[$viewer->id] = app(EmployeeRepository::class)->ancestorIds($viewer);
+        }
+
+        return self::$ancestorIdsCache[$viewer->id];
+    }
+
     public function toArray($request)
     {
         // show()/store()/update() không đi qua EmployeeRepository::find() nên không có
@@ -16,7 +35,7 @@ class EmployeeResource extends JsonResource
         $this->resource->loadMissing(['department', 'position', 'manager']);
 
         $viewer = $request->user()?->employee;
-        $hideSensitive = app(EmployeeRepository::class)->isSuperiorOf($this->resource, $viewer);
+        $hideSensitive = in_array($this->resource->id, self::ancestorIdsFor($viewer), true);
 
         return [
             'id' => $this->id,

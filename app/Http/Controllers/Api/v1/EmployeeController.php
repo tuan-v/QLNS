@@ -23,19 +23,19 @@ class EmployeeController extends Controller
     }
     public function show(Employee $employee): JsonResponse
     {
-        return response()->json(new EmployeeResource($employee));
+        return (new EmployeeResource($employee))->response();
     }
     public function store(StoreEmployeeRequest $request): JsonResponse
     {
         $employee = $this->employeeService->create($request->validated());
 
-        return response()->json(new EmployeeResource($employee), 201);
+        return (new EmployeeResource($employee))->response()->setStatusCode(201);
     }
     public function update(UpdateEmployeeRequest $request, Employee $employee): JsonResponse
     {
         $employee = $this->employeeService->update($employee, $request->validated());
 
-        return response()->json(new EmployeeResource($employee));
+        return (new EmployeeResource($employee))->response();
     }
     public function destroy(Employee $employee): JsonResponse
     {
@@ -51,6 +51,6 @@ class EmployeeController extends Controller
 
         $employee = $this->employeeService->updateAvatar($employee, $request->file('avatar'));
 
-        return response()->json(new EmployeeResource($employee));
+        return (new EmployeeResource($employee))->response();
     }
 }
