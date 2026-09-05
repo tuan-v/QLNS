@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Repositories\EmployeeRepository;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 class EmployeeResource extends JsonResource
 {
@@ -21,6 +22,7 @@ class EmployeeResource extends JsonResource
             'id' => $this->id,
             'code' => $this->code,
             'full_name' => $this->full_name,
+            'avatar_url' => $this->avatar ? Storage::disk('public')->url($this->avatar) : null,
             'company_email' => $this->company_email,
             'employment_status' => $this->employment_status,
             'hire_date' => $this->hire_date,

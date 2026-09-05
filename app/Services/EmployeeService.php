@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Models\Employee;
 use App\Repositories\EmployeeRepository;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class EmployeeService
@@ -52,5 +54,20 @@ class EmployeeService
     public function delete(Employee $employee): void
     {
         $this->employeeRepository->delete($employee);
+    }
+
+
+    public function updateAvatar(Employee $employee, UploadedFile $file): Employee
+    {
+        $oldPath = $employee->avatar;
+
+        $path = $file->store('avatars', 'public');
+        $this->employeeRepository->update($employee, ['avatar' => $path]);
+
+        if ($oldPath) {
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        return $employee;
     }
 }

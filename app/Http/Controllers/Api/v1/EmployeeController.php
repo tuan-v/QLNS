@@ -9,6 +9,7 @@ use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
 use App\Services\EmployeeService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class EmployeeController extends Controller
@@ -41,5 +42,15 @@ class EmployeeController extends Controller
         $this->employeeService->delete($employee);
 
         return response()->json(null, 204);
+    }
+    public function uploadAvatar(Request $request, Employee $employee): JsonResponse
+    {
+        $request->validate([
+            'avatar' => ['required', 'image', 'max:2048'],
+        ]);
+
+        $employee = $this->employeeService->updateAvatar($employee, $request->file('avatar'));
+
+        return response()->json(new EmployeeResource($employee));
     }
 }
