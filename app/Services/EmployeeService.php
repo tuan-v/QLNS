@@ -15,9 +15,9 @@ class EmployeeService
     public function __construct(private readonly EmployeeRepository $employeeRepository)
     {
     }
-    public function list(): LengthAwarePaginator
+    public function list(array $filters = []): LengthAwarePaginator
     {
-        return $this->employeeRepository->paginate();
+        return $this->employeeRepository->paginate(filters: $filters);
     }
     public function create(array $data): Employee
     {

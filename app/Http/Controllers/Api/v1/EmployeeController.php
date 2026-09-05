@@ -17,9 +17,11 @@ class EmployeeController extends Controller
     public function __construct(private readonly EmployeeService $employeeService)
     {
     }
-    public function index(): AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
-        return EmployeeResource::collection($this->employeeService->list());
+        $filters = $request->only(['search', 'department_id', 'employment_status']);
+
+        return EmployeeResource::collection($this->employeeService->list($filters));
     }
     public function show(Employee $employee): JsonResponse
     {

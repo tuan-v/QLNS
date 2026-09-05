@@ -78,6 +78,38 @@ class EmployeeTest extends TestCase
         $response->assertStatus(200);
     }
 
+    public function test_can_search_employees_by_name(): void
+    {
+        $this->makeEmployee(['full_name' => 'Nguyen Van Anh']);
+        $this->makeEmployee(['full_name' => 'Tran Thi Binh']);
+        $token = $this->loginAs('manager@qlns.local', 'Manager@123');
+
+        $response = $this->getJson('/api/v1/employees?search=Anh', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $names = collect($response->json('data'))->pluck('full_name');
+        $this->assertTrue($names->contains('Nguyen Van Anh'));
+        $this->assertFalse($names->contains('Tran Thi Binh'));
+    }
+
+    public function test_can_filter_employees_by_employment_status(): void
+    {
+        $this->makeEmployee(['full_name' => 'Active One', 'employment_status' => 'active']);
+        $this->makeEmployee(['full_name' => 'Probation One', 'employment_status' => 'probation']);
+        $token = $this->loginAs('manager@qlns.local', 'Manager@123');
+
+        $response = $this->getJson('/api/v1/employees?employment_status=probation', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $names = collect($response->json('data'))->pluck('full_name');
+        $this->assertTrue($names->contains('Probation One'));
+        $this->assertFalse($names->contains('Active One'));
+    }
+
     public function test_user_without_create_permission_cannot_create(): void
     {
         $token = $this->loginAs('manager@qlns.local', 'Manager@123');

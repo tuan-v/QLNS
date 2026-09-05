@@ -7,9 +7,20 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class EmployeeRepository
 {
-    public function paginate(int $perPage = 15): LengthAwarePaginator
+    public function paginate(int $perPage = 15, array $filters = []): LengthAwarePaginator
     {
-        return Employee::with(['department', 'position', 'manager'])->latest()->paginate($perPage);
+        return Employee::with(['department', 'position', 'manager'])
+            ->when($filters['search'] ?? null, function ($query, $search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('full_name', 'like', "%{$search}%")
+                        ->orWhere('code', 'like', "%{$search}%")
+                        ->orWhere('company_email', 'like', "%{$search}%");
+                });
+            })
+            ->when($filters['department_id'] ?? null, fn ($query, $departmentId) => $query->where('department_id', $departmentId))
+            ->when($filters['employment_status'] ?? null, fn ($query, $status) => $query->where('employment_status', $status))
+            ->latest()
+            ->paginate($perPage);
     }
     public function find(int $id): ?Employee
     {

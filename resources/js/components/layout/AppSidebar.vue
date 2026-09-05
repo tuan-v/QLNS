@@ -62,7 +62,7 @@
                 prepend-icon="mdi-account-group-outline"
                 title="Nhân viên"
                 rounded="lg"
-                disabled
+                to="/employees"
             />
             <v-list-item
                 prepend-icon="mdi-office-building-outline"
