@@ -1,0 +1,45 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Employee\StoreEmployeeRequest;
+use App\Http\Requests\Employee\UpdateEmployeeRequest;
+use App\Http\Resources\EmployeeResource;
+use App\Models\Employee;
+use App\Services\EmployeeService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+
+class EmployeeController extends Controller
+{
+    public function __construct(private readonly EmployeeService $employeeService)
+    {
+    }
+    public function index(): AnonymousResourceCollection
+    {
+        return EmployeeResource::collection($this->employeeService->list());
+    }
+    public function show(Employee $employee): JsonResponse
+    {
+        return response()->json(new EmployeeResource($employee));
+    }
+    public function store(StoreEmployeeRequest $request): JsonResponse
+    {
+        $employee = $this->employeeService->create($request->validated());
+
+        return response()->json(new EmployeeResource($employee), 201);
+    }
+    public function update(UpdateEmployeeRequest $request, Employee $employee): JsonResponse
+    {
+        $employee = $this->employeeService->update($employee, $request->validated());
+
+        return response()->json(new EmployeeResource($employee));
+    }
+    public function destroy(Employee $employee): JsonResponse
+    {
+        $this->employeeService->delete($employee);
+
+        return response()->json(null, 204);
+    }
+}
