@@ -31,7 +31,7 @@
 
         <!-- Thanh lọc: tìm kiếm + trạng thái -->
         <v-sheet class="border rounded-lg pa-4 mb-4 glass-panel" color="transparent">
-            <div class="d-flex flex-wrap ga-3">
+            <div class="d-flex flex-wrap align-center ga-3">
                 <SearchField
                     v-model="search"
                     placeholder="Tìm mã hoặc tên phòng ban..."
@@ -55,6 +55,10 @@
             <template #item.index="{ index }">
                 <span style="opacity: 0.6">{{ index + 1 }}</span>
             </template>
+            <template #item.manager_name="{ item }">
+                <span v-if="item.manager_name">{{ item.manager_name }}</span>
+                <span v-else style="opacity: 0.4">—</span>
+            </template>
             <template #item.description="{ item }">
                 <span v-if="item.description">{{ item.description }}</span>
                 <span v-else style="opacity: 0.4">—</span>
@@ -72,13 +76,7 @@
                 </span>
             </template>
             <template #item.is_active="{ item }">
-                <v-chip
-                    :color="item.is_active ? 'success' : 'default'"
-                    variant="tonal"
-                    size="small"
-                >
-                    {{ item.is_active ? "Hoạt động" : "Ngừng hoạt động" }}
-                </v-chip>
+                <StatusChip :status="item.is_active" :map="ACTIVE_STATUS_MAP" />
             </template>
             <template #item.actions="{ item }">
                 <div class="d-flex justify-end ga-2">
@@ -165,6 +163,12 @@ import DataTable from "../../components/common/DataTable.vue";
 import SearchField from "../../components/common/SearchField.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
 import DepartmentFormDialog from "./DepartmentForm.vue";
+import StatusChip from "../../components/common/StatusChip.vue";
+
+const ACTIVE_STATUS_MAP = {
+    1: { label: "Hoạt động", color: "success" },
+    0: { label: "Ngừng hoạt động", color: "default" },
+};
 
 const store = useDepartmentStore();
 const auth = useAuthStore();
@@ -192,6 +196,7 @@ const headers = computed(() => {
         { title: "Mã", key: "code", width: 110 },
         { title: "Tên phòng ban", key: "name" },
         { title: "Phòng ban cha", key: "parent_name" },
+        { title: "Trưởng phòng", key: "manager_name" },
         { title: "Mô tả", key: "description", sortable: false },
         { title: "Trạng thái", key: "is_active", width: 150 },
     ];
@@ -217,6 +222,8 @@ function flattenTree(nodes, parentName = "", depth = 0) {
             name: node.name,
             parent_id: node.parent_id,
             parent_name: parentName || "—",
+            manager_id: node.manager_id,
+            manager_name: node.manager?.full_name ?? null,
             description: node.description,
             is_active: node.is_active,
             depth,

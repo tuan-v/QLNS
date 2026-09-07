@@ -20,8 +20,9 @@ class EmployeeController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $filters = $request->only(['search', 'department_id', 'employment_status']);
+        $perPage = (int) $request->input('per_page', 15);
 
-        return EmployeeResource::collection($this->employeeService->list($filters));
+        return EmployeeResource::collection($this->employeeService->list($filters, $perPage));
     }
     public function show(Employee $employee): JsonResponse
     {

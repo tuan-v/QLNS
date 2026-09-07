@@ -1,9 +1,8 @@
 <template>
     <v-navigation-drawer
-        v-model:rail="rail"
+        :rail="rail"
         rail-width="80"
         width="264"
-        expand-on-hover
         permanent
         class="border-e"
     >
@@ -133,7 +132,13 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
-
-const rail = ref(true);
+// "rail" giờ đến từ AppLayout.vue (component cha chung với AppHeader) — không
+// còn tự giữ state riêng, để nút hamburger ở AppHeader điều khiển được sidebar.
+const { rail } = defineProps({
+    rail: {
+        type: Boolean,
+        default: true,
+    },
+});
+defineEmits(["update:rail"]);
 </script>

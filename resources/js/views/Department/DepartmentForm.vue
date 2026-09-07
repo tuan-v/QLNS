@@ -70,6 +70,25 @@
             </div>
 
             <div class="mb-3">
+                <div class="text-body-2 font-weight-medium mb-1">
+                    Trưởng phòng
+                </div>
+                <v-select
+                    v-model="form.manager_id"
+                    :items="managerOptions"
+                    item-title="title"
+                    item-value="id"
+                    placeholder="Chưa phân công"
+                    variant="outlined"
+                    density="comfortable"
+                    rounded="lg"
+                    clearable
+                    persistent-placeholder
+                    :error-messages="store.errors.manager_id"
+                />
+            </div>
+
+            <div class="mb-3">
                 <div class="text-body-2 font-weight-medium mb-1">Mô tả</div>
                 <v-textarea
                     v-model="form.description"
@@ -111,8 +130,9 @@
 </template>
 
 <script setup>
-import { computed, reactive, watch } from "vue";
+import { computed, onMounted, reactive, watch } from "vue";
 import { useDepartmentStore } from "../../stores/useDepartmentStore";
+import { useEmployeeStore } from "../../stores/useEmployeeStore";
 import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
 
@@ -135,12 +155,14 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue", "saved"]);
 
 const store = useDepartmentStore();
+const employeeStore = useEmployeeStore();
 
 const isEdit = computed(() => props.department !== null);
 
 const form = reactive({
     name: "",
     parent_id: null,
+    manager_id: null,
     description: "",
     is_active: true,
 });
@@ -148,10 +170,24 @@ const form = reactive({
 function fillForm() {
     form.name = props.department?.name ?? "";
     form.parent_id = props.department?.parent_id ?? null;
+    form.manager_id = props.department?.manager_id ?? null;
     form.description = props.department?.description ?? "";
     // DB trả về 1/0, ép về boolean cho v-switch
     form.is_active = Boolean(props.department?.is_active ?? true);
 }
+
+// Danh sách chọn Trưởng phòng — lấy toàn bộ nhân viên đang có (per_page lớn để
+// không bị cắt trang), vì đây là dropdown chọn 1 người chứ không phải bảng liệt kê.
+const managerOptions = computed(() =>
+    employeeStore.employees.map((employee) => ({
+        id: employee.id,
+        title: `${employee.full_name} (${employee.code})`,
+    })),
+);
+
+onMounted(() => {
+    employeeStore.fetchList({ per_page: 1000 });
+});
 
 // Mỗi lần mở modal: nạp lại dữ liệu và xóa lỗi của lần mở trước
 watch(

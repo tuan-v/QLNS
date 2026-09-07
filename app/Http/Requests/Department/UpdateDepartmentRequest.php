@@ -17,6 +17,7 @@ class UpdateDepartmentRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             // "code" do hệ thống tự sinh lúc tạo, không cho sửa sau đó.
             'parent_id' => ['nullable', 'exists:departments,id'],
+            'manager_id' => ['nullable', 'exists:employees,id'],
             'description' => ['nullable', 'string'],
             'is_active' => ['boolean'],
         ];
@@ -26,6 +27,7 @@ class UpdateDepartmentRequest extends FormRequest
         return [
             'name.required' => 'Tên phòng ban không được để trống',
             'parent_id.exists' => 'Phòng ban cha không tồn tại',
+            'manager_id.exists' => 'Trưởng phòng không tồn tại',
             'description.string' => 'Mô tả phải là chuỗi',
             'is_active.boolean' => 'Trạng thái phải là 1 hoặc 0',
         ];

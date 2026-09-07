@@ -9,12 +9,12 @@ class DepartmentRepository
 {
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
-        return Department::query()->with('parent')->latest()->paginate($perPage);
+        return Department::query()->with(['parent', 'manager'])->latest()->paginate($perPage);
     }
 
     public function find(int $id): ?Department
     {
-        return Department::query()->find($id);
+        return Department::query()->with('manager')->find($id);
     }
 
     public function create(array $data): Department
@@ -57,7 +57,7 @@ class DepartmentRepository
     }
     public function tree(): \Illuminate\Support\Collection
     {
-        $all = Department::query()->orderBy('name')->get();
+        $all = Department::query()->with('manager')->orderBy('name')->get();
 
         return $this->buildTree($all, null);
     }

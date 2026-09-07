@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Department\StoreDepartmentRequest;
 use App\Http\Requests\Department\UpdateDepartmentRequest;
+use App\Http\Resources\DepartmentResource;
 use App\Models\Department;
 use App\Services\DepartmentService;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\JsonResponse;
 
 class DepartmentController extends Controller
@@ -15,23 +17,25 @@ class DepartmentController extends Controller
     {
     }
 
-    public function index(): JsonResponse
+    public function index(): AnonymousResourceCollection
     {
-        return response()->json($this->departmentService->list());
+        return DepartmentResource::collection($this->departmentService->list());
     }
 
     public function store(StoreDepartmentRequest $request): JsonResponse
     {
         $department = $this->departmentService->create($request->validated());
+        $department->loadMissing('manager');
 
-        return response()->json($department, 201);
+        return response()->json(new DepartmentResource($department), 201);
     }
 
     public function update(UpdateDepartmentRequest $request, Department $department): JsonResponse
     {
         $department = $this->departmentService->update($department, $request->validated());
+        $department->loadMissing('manager');
 
-        return response()->json($department);
+        return response()->json(new DepartmentResource($department));
     }
 
     public function destroy(Department $department): JsonResponse
@@ -42,7 +46,9 @@ class DepartmentController extends Controller
     }
     public function tree(): JsonResponse
     {
-        return response()->json($this->departmentService->tree());
+        // Trả mảng phẳng (không bọc "data") để không phá cấu trúc frontend
+        // đang đọc trực tiếp response.data làm cây phòng ban.
+        return response()->json(DepartmentResource::collection($this->departmentService->tree()));
     }
 
 }

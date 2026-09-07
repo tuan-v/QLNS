@@ -7,6 +7,8 @@ const theme = useTheme();
 const auth = useAuthStore();
 const router = useRouter();
 
+defineEmits(["toggle-sidebar"]);
+
 function toggleTheme() {
     theme.global.name.value = theme.global.current.value.dark
         ? "qlnsLight"
@@ -21,7 +23,7 @@ async function handleLogout() {
 
 <template>
     <v-app-bar flat class="border-b">
-        <v-app-bar-nav-icon />
+        <v-app-bar-nav-icon @click="$emit('toggle-sidebar')" />
         <v-spacer />
 
         <v-btn icon variant="text" @click="toggleTheme">

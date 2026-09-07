@@ -3,6 +3,9 @@
 namespace Tests\Feature\Department;
 
 use App\Models\Department;
+use App\Models\Employee;
+use App\Models\Role;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -24,6 +27,16 @@ class DepartmentTest extends TestCase
         ]);
 
         return $response->json('access_token');
+    }
+
+    private function makeEmployee(array $overrides = []): Employee
+    {
+        return Employee::create(array_merge([
+            'full_name' => 'Nhan vien '.uniqid(),
+            'company_email' => uniqid().'@qlns.local',
+            'hire_date' => now(),
+            'code' => 'NV-'.uniqid(),
+        ], $overrides));
     }
 
     public function test_user_without_view_permission_is_forbidden(): void
@@ -246,5 +259,65 @@ class DepartmentTest extends TestCase
         $response->assertJsonCount(1);
         $response->assertJsonPath('0.name', 'Cha');
         $response->assertJsonPath('0.children.0.name', 'Con');
+    }
+
+    // --- Trưởng phòng (manager_id) ---
+
+    public function test_admin_can_set_department_manager(): void
+    {
+        $boss = $this->makeEmployee(['code' => 'NV001', 'full_name' => 'Nguyen Van Truong']);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $response = $this->postJson('/api/v1/departments', [
+            'name' => 'Phong Ke toan',
+            'manager_id' => $boss->id,
+        ], [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(201);
+        $this->assertSame($boss->id, $response->json('manager_id'));
+        $this->assertSame('Nguyen Van Truong', $response->json('manager.full_name'));
+        $this->assertDatabaseHas('departments', ['name' => 'Phong Ke toan', 'manager_id' => $boss->id]);
+    }
+
+    public function test_department_manager_id_must_exist(): void
+    {
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $response = $this->postJson('/api/v1/departments', [
+            'name' => 'Phong Ke toan',
+            'manager_id' => 999999,
+        ], [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('manager_id');
+    }
+
+    public function test_tree_endpoint_hides_manager_sensitive_fields_from_subordinate_viewer(): void
+    {
+        $subUser = User::create([
+            'email' => 'dept-sub@qlns.local',
+            'user_name' => 'Sub',
+            'password' => bcrypt('Secret@123'),
+            'status' => 'active',
+        ]);
+        $boss = $this->makeEmployee(['cccd' => '111122223333']);
+        $subordinate = $this->makeEmployee(['manager_id' => $boss->id, 'user_id' => $subUser->id]);
+        Department::create(['name' => 'Phong Ke toan', 'code' => 'PB001', 'manager_id' => $boss->id]);
+
+        // Role "Manager" có sẵn cả department.view lẫn employee.view.
+        Role::where('name', 'Manager')->first()->users()->attach($subUser->id);
+
+        $token = $this->loginAs('dept-sub@qlns.local', 'Secret@123');
+
+        $response = $this->getJson('/api/v1/departments/tree', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertSame($boss->id, $response->json('0.manager.id'));
+        $this->assertNull($response->json('0.manager.cccd'));
     }
 }

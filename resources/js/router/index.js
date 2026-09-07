@@ -17,6 +17,11 @@ const routes = [
         name: "departments",
         component: () => import("../views/Department/Departments.vue"),
     },
+    {
+        path: "/employees",
+        name: "employees",
+        component: () => import("../views/Employee/Employees.vue"),
+    },
 ];
 
 export default createRouter({
