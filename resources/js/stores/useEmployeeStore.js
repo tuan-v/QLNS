@@ -41,5 +41,43 @@ export const useEmployeeStore = defineStore("employee", () => {
         }
     }
 
-    return { employees, pagination, loading, errors, loadError, fetchList };
+    async function create(employee) {
+        resetErrors();
+        loading.value = true;
+        try {
+            const response = await employeeService.create(employee);
+            return response.data;
+        } catch (e) {
+            handleError(e);
+            throw e;
+        } finally {
+            loading.value = false;
+        }
+    }
+
+    async function update(id, employee) {
+        resetErrors();
+        loading.value = true;
+        try {
+            const response = await employeeService.update(id, employee);
+            return response.data;
+        } catch (e) {
+            handleError(e);
+            throw e;
+        } finally {
+            loading.value = false;
+        }
+    }
+
+    return {
+        employees,
+        pagination,
+        loading,
+        errors,
+        loadError,
+        resetErrors,
+        fetchList,
+        create,
+        update,
+    };
 });

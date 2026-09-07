@@ -9,7 +9,9 @@ import vuetify from './plugins/vuetify.js';
 import { createPinia } from 'pinia';
 
 const app = createApp(App);
+// Pinia phải đăng ký TRƯỚC router: guard của router gọi useLoadingStore(), mà
+// store chỉ dùng được sau khi Pinia đã được cài vào app.
+app.use(createPinia());
 app.use(router);
 app.use(vuetify);
-app.use(createPinia());
 app.mount('#app');

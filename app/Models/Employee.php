@@ -23,7 +23,9 @@ class Employee extends Model
         'company_email',
         'personal_email',
         'cccd',
-        'addresses',
+        'address_detail',
+        'province_code',
+        'commune_code',
         'personal_tax_code',
         'avatar',
         'hire_date',
@@ -64,5 +66,13 @@ class Employee extends Model
     public function bankAccounts()
     {
         return $this->hasMany(EmployeeBankAccount::class);
+    }
+    public function province()
+    {
+        return $this->belongsTo(Province::class, 'province_code', 'code');
+    }
+    public function commune()
+    {
+        return $this->belongsTo(Commune::class, 'commune_code', 'code');
     }
 }

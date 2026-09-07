@@ -2,7 +2,11 @@
 
 namespace Tests\Feature\Employee;
 
+use App\Models\Commune;
+use App\Models\Department;
 use App\Models\Employee;
+use App\Models\Position;
+use App\Models\Province;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -27,6 +31,81 @@ class EmployeeTest extends TestCase
         ]);
 
         return $response->json('access_token');
+    }
+
+    private ?int $departmentId = null;
+
+    private ?int $positionId = null;
+
+    /**
+     * Phòng ban + chức vụ dùng chung cho mọi payload trong file này. Tạo một lần
+     * rồi giữ lại — department_id bắt buộc và phải tồn tại thật (rule "exists"),
+     * position_id không bắt buộc nhưng vẫn tạo sẵn để payload mặc định có đủ.
+     */
+    private function organisationIds(): array
+    {
+        if ($this->departmentId === null) {
+            $department = Department::create(['name' => 'Phong Test', 'code' => 'PB-TEST']);
+            $position = Position::create([
+                'department_id' => $department->id,
+                'code' => 'CV-TEST',
+                'name' => 'Nhan vien',
+            ]);
+
+            $this->departmentId = $department->id;
+            $this->positionId = $position->id;
+        }
+
+        return [$this->departmentId, $this->positionId];
+    }
+
+    private ?int $provinceCode = null;
+
+    private ?int $communeCode = null;
+
+    /**
+     * Tỉnh/Xã dùng chung cho mọi payload — lấy từ dữ liệu thật đã nạp bởi
+     * ProvinceCommuneSeeder (chạy trong setUp() qua $this->seed()), không tự
+     * tạo bản ghi giả vì bảng này chỉ đọc, không có endpoint tạo mới.
+     */
+    private function addressIds(): array
+    {
+        if ($this->provinceCode === null) {
+            $province = Province::query()->firstOrFail();
+            $commune = Commune::query()->where('province_code', $province->code)->firstOrFail();
+
+            $this->provinceCode = $province->code;
+            $this->communeCode = $commune->code;
+        }
+
+        return [$this->provinceCode, $this->communeCode];
+    }
+
+    /**
+     * Payload đầy đủ mọi trường bắt buộc. Test nào muốn kiểm một rule cụ thể thì
+     * ghi đè đúng trường đó, tránh việc thiếu trường khác làm 422 vì lý do khác.
+     */
+    private function validPayload(array $overrides = []): array
+    {
+        [$departmentId, $positionId] = $this->organisationIds();
+        [$provinceCode, $communeCode] = $this->addressIds();
+
+        return array_merge([
+            'full_name' => 'Nguyen Van A',
+            'company_email' => uniqid().'@qlns.local',
+            'hire_date' => '2024-01-01',
+            'date_of_birth' => '1995-05-20',
+            'gender' => 'male',
+            'phone' => '0900000000',
+            'personal_email' => uniqid().'@gmail.com',
+            'cccd' => str_pad((string) random_int(0, 999999999999), 12, '0', STR_PAD_LEFT),
+            'personal_tax_code' => 'MST'.uniqid(),
+            'address_detail' => 'So 1, Ha Noi',
+            'province_code' => $provinceCode,
+            'commune_code' => $communeCode,
+            'department_id' => $departmentId,
+            'position_id' => $positionId,
+        ], $overrides);
     }
 
     private function makeEmployee(array $overrides = []): Employee
@@ -131,11 +210,10 @@ class EmployeeTest extends TestCase
     {
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
 
-        $response = $this->postJson('/api/v1/employees', [
+        $response = $this->postJson('/api/v1/employees', $this->validPayload([
             'full_name' => 'Nguyen Van A',
             'company_email' => 'nva@qlns.local',
-            'hire_date' => '2024-01-01',
-        ], [
+        ]), [
             'Authorization' => 'Bearer '.$token,
         ]);
 
@@ -148,12 +226,11 @@ class EmployeeTest extends TestCase
     {
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
 
-        $response = $this->postJson('/api/v1/employees', [
+        $response = $this->postJson('/api/v1/employees', $this->validPayload([
             'full_name' => 'Nguyen Van B',
             'company_email' => 'nvb@qlns.local',
-            'hire_date' => '2024-01-01',
             'code' => 'HACK999',
-        ], [
+        ]), [
             'Authorization' => 'Bearer '.$token,
         ]);
 
@@ -161,7 +238,7 @@ class EmployeeTest extends TestCase
         $this->assertNotSame('HACK999', $response->json('data.code'));
     }
 
-    public function test_create_requires_full_name_company_email_and_hire_date(): void
+    public function test_create_requires_full_employee_profile(): void
     {
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
 
@@ -169,7 +246,53 @@ class EmployeeTest extends TestCase
             'Authorization' => 'Bearer '.$token,
         ]);
 
-        $response->assertStatus(422)->assertJsonValidationErrors(['full_name', 'company_email', 'hire_date']);
+        // Hồ sơ chỉ được tạo sau khi nhân viên đã ký hợp đồng và đi làm, nên mọi
+        // thông tin nhân thân + tổ chức đều phải có ngay từ lúc tạo.
+        $response->assertStatus(422)->assertJsonValidationErrors([
+            'full_name',
+            'company_email',
+            'hire_date',
+            'date_of_birth',
+            'gender',
+            'phone',
+            'personal_email',
+            'cccd',
+            'personal_tax_code',
+            'address_detail',
+            'province_code',
+            'commune_code',
+            'department_id',
+        ]);
+    }
+
+    public function test_optional_fields_stay_optional_on_create(): void
+    {
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        // manager_id / employment_status / probation_end_date / termination_date
+        // cố ý KHÔNG bắt buộc: giám đốc không có quản lý cấp trên, và hai mốc
+        // ngày kia chỉ có khi thực sự phát sinh.
+        $response = $this->postJson('/api/v1/employees', $this->validPayload(), [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(201);
+    }
+
+    public function test_position_id_is_optional_on_create(): void
+    {
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        // Chức vụ có thể chưa xếp ngay lúc tạo hồ sơ (chờ phân công sau) — khác
+        // Phòng ban vẫn bắt buộc phải có ngay từ đầu.
+        $response = $this->postJson('/api/v1/employees', $this->validPayload([
+            'position_id' => null,
+        ]), [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(201);
+        $this->assertNull($response->json('data.position'));
     }
 
     // --- Sửa (Update) ---
@@ -179,11 +302,11 @@ class EmployeeTest extends TestCase
         $employee = $this->makeEmployee(['full_name' => 'Ten cu']);
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
 
-        $response = $this->putJson('/api/v1/employees/'.$employee->id, [
+        $response = $this->putJson('/api/v1/employees/'.$employee->id, $this->validPayload([
             'full_name' => 'Ten moi',
             'company_email' => $employee->company_email,
             'hire_date' => $employee->hire_date->toDateString(),
-        ], [
+        ]), [
             'Authorization' => 'Bearer '.$token,
         ]);
 
@@ -195,12 +318,12 @@ class EmployeeTest extends TestCase
         $employee = $this->makeEmployee(['code' => 'NV001']);
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
 
-        $response = $this->putJson('/api/v1/employees/'.$employee->id, [
+        $response = $this->putJson('/api/v1/employees/'.$employee->id, $this->validPayload([
             'full_name' => $employee->full_name,
             'company_email' => $employee->company_email,
             'hire_date' => $employee->hire_date->toDateString(),
             'code' => 'ZZZ',
-        ], [
+        ]), [
             'Authorization' => 'Bearer '.$token,
         ]);
 
@@ -213,12 +336,12 @@ class EmployeeTest extends TestCase
         $employee = $this->makeEmployee();
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
 
-        $response = $this->putJson('/api/v1/employees/'.$employee->id, [
+        $response = $this->putJson('/api/v1/employees/'.$employee->id, $this->validPayload([
             'full_name' => $employee->full_name,
             'company_email' => $employee->company_email,
             'hire_date' => $employee->hire_date->toDateString(),
             'manager_id' => $employee->id,
-        ], [
+        ]), [
             'Authorization' => 'Bearer '.$token,
         ]);
 
@@ -231,12 +354,12 @@ class EmployeeTest extends TestCase
         $subordinate = $this->makeEmployee(['code' => 'NV002', 'manager_id' => $boss->id]);
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
 
-        $response = $this->putJson('/api/v1/employees/'.$boss->id, [
+        $response = $this->putJson('/api/v1/employees/'.$boss->id, $this->validPayload([
             'full_name' => $boss->full_name,
             'company_email' => $boss->company_email,
             'hire_date' => $boss->hire_date->toDateString(),
             'manager_id' => $subordinate->id,
-        ], [
+        ]), [
             'Authorization' => 'Bearer '.$token,
         ]);
 

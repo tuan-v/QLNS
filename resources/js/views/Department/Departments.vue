@@ -51,6 +51,7 @@
             :items="departments"
             :loading="store.loading"
             :search="search"
+            :actions="actions"
         >
             <template #item.index="{ index }">
                 <span style="opacity: 0.6">{{ index + 1 }}</span>
@@ -78,32 +79,6 @@
             <template #item.is_active="{ item }">
                 <StatusChip :status="item.is_active" :map="ACTIVE_STATUS_MAP" />
             </template>
-            <template #item.actions="{ item }">
-                <div class="d-flex justify-end ga-2">
-                    <v-btn
-                        icon="mdi-pencil-outline"
-                        variant="tonal"
-                        color="primary"
-                        size="small"
-                        rounded="lg"
-                        @click="openEdit(item)"
-                    >
-                        <v-icon icon="mdi-pencil-outline" />
-                        <v-tooltip activator="parent" location="top">Sửa</v-tooltip>
-                    </v-btn>
-                    <v-btn
-                        icon="mdi-delete-outline"
-                        variant="tonal"
-                        size="small"
-                        rounded="lg"
-                        color="error"
-                        @click="openDelete(item)"
-                    >
-                        <v-icon icon="mdi-delete-outline" />
-                        <v-tooltip activator="parent" location="top">Xóa</v-tooltip>
-                    </v-btn>
-                </div>
-            </template>
         </DataTable>
 
         <DepartmentFormDialog
@@ -112,47 +87,6 @@
             :parent-options="parentOptions"
         />
 
-        <v-dialog v-model="deleteDialog" max-width="440">
-            <v-card rounded="xl" elevation="12" class="glass-panel">
-                <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
-                    Xóa phòng ban
-                </v-card-title>
-                <v-card-text class="px-5">
-                    Bạn có chắc muốn xóa phòng ban
-                    <strong>{{ deleting?.name }}</strong> không?
-                    <v-alert
-                        v-if="deletingHasChildren"
-                        type="warning"
-                        variant="tonal"
-                        density="compact"
-                        class="mt-3"
-                        icon="mdi-alert-outline"
-                    >
-                        Phòng ban này đang có phòng ban trực thuộc. Hãy chuyển
-                        các phòng ban con sang phòng ban cha khác trước khi xóa.
-                    </v-alert>
-                </v-card-text>
-                <v-card-actions class="px-5 pb-5">
-                    <v-spacer />
-                    <v-btn
-                        variant="text"
-                        :disabled="store.loading"
-                        @click="deleteDialog = false"
-                    >
-                        Hủy
-                    </v-btn>
-                    <v-btn
-                        color="error"
-                        variant="flat"
-                        :loading="store.loading"
-                        :disabled="deletingHasChildren"
-                        @click="confirmDelete"
-                    >
-                        Xóa
-                    </v-btn>
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
     </div>
 </template>
 <script setup>
@@ -164,6 +98,7 @@ import SearchField from "../../components/common/SearchField.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
 import DepartmentFormDialog from "./DepartmentForm.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
+import { useToastStore } from "../../stores/useToastStore";
 
 const ACTIVE_STATUS_MAP = {
     1: { label: "Hoạt động", color: "success" },
@@ -171,13 +106,12 @@ const ACTIVE_STATUS_MAP = {
 };
 
 const store = useDepartmentStore();
+const toast = useToastStore();
 const auth = useAuthStore();
 const search = ref("");
 
 const formDialog = ref(false);
-const deleteDialog = ref(false);
 const editing = ref(null);
-const deleting = ref(null);
 
 const canManage = computed(() =>
     auth.permissions.includes("department.manage"),
@@ -190,29 +124,17 @@ const statusOptions = [
     { title: "Ngừng hoạt động", value: "inactive" },
 ];
 
-const headers = computed(() => {
-    const columns = [
-        { title: "#", key: "index", sortable: false, width: 56 },
-        { title: "Mã", key: "code", width: 110 },
-        { title: "Tên phòng ban", key: "name" },
-        { title: "Phòng ban cha", key: "parent_name" },
-        { title: "Trưởng phòng", key: "manager_name" },
-        { title: "Mô tả", key: "description", sortable: false },
-        { title: "Trạng thái", key: "is_active", width: 150 },
-    ];
-
-    if (canManage.value) {
-        columns.push({
-            title: "Thao tác",
-            key: "actions",
-            sortable: false,
-            align: "end",
-            width: 120,
-        });
-    }
-
-    return columns;
-});
+// Cột "Thao tác" do DataTable tự chèn khi có thao tác hiển thị được — ở đây
+// chỉ khai báo các cột dữ liệu.
+const headers = [
+    { title: "#", key: "index", sortable: false, width: 56 },
+    { title: "Mã", key: "code", width: 110 },
+    { title: "Tên phòng ban", key: "name" },
+    { title: "Phòng ban cha", key: "parent_name" },
+    { title: "Trưởng phòng", key: "manager_name" },
+    { title: "Mô tả", key: "description", sortable: false },
+    { title: "Trạng thái", key: "is_active", width: 150 },
+];
 
 function flattenTree(nodes, parentName = "", depth = 0) {
     return nodes.flatMap((node) => {
@@ -280,9 +202,41 @@ const parentOptions = computed(() => {
         }));
 });
 
-const deletingHasChildren = computed(() =>
-    allDepartments.value.some((row) => row.parent_id === deleting.value?.id),
-);
+// Xóa phòng ban còn phòng ban con sẽ bị backend từ chối, nên chặn ngay ở giao
+// diện: vẫn mở hộp xác nhận để giải thích lý do, nhưng khóa nút Xóa.
+const hasChildren = (department) =>
+    allDepartments.value.some((row) => row.parent_id === department.id);
+
+const actions = computed(() => [
+    {
+        icon: "mdi-pencil-outline",
+        tooltip: "Sửa",
+        color: "primary",
+        hidden: !canManage.value,
+        onClick: openEdit,
+    },
+    {
+        icon: "mdi-delete-outline",
+        tooltip: "Xóa",
+        color: "error",
+        hidden: !canManage.value,
+        confirm: {
+            title: "Xóa phòng ban",
+            message: (item) =>
+                `Bạn có chắc muốn xóa phòng ban "${item.name}" không?`,
+            confirmText: "Xóa",
+            warning: (item) =>
+                hasChildren(item)
+                    ? "Phòng ban này đang có phòng ban trực thuộc. Hãy chuyển các phòng ban con sang phòng ban cha khác trước khi xóa."
+                    : null,
+            disabled: hasChildren,
+        },
+        onClick: async (item) => {
+            await store.remove(item.id);
+            toast.success(`Đã xóa phòng ban "${item.name}".`);
+        },
+    },
+]);
 
 function openCreate() {
     editing.value = null;
@@ -292,20 +246,6 @@ function openCreate() {
 function openEdit(department) {
     editing.value = department;
     formDialog.value = true;
-}
-
-function openDelete(department) {
-    deleting.value = department;
-    deleteDialog.value = true;
-}
-
-async function confirmDelete() {
-    try {
-        await store.remove(deleting.value.id);
-        deleteDialog.value = false;
-    } catch {
-        // store.loadError đã giữ thông báo lỗi, giữ hộp thoại mở
-    }
 }
 
 onMounted(() => {

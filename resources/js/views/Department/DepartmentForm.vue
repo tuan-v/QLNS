@@ -54,17 +54,13 @@
                 <div class="text-body-2 font-weight-medium mb-1">
                     Phòng ban cha
                 </div>
-                <v-select
+                <SearchSelect
                     v-model="form.parent_id"
                     :items="parentOptions"
                     item-title="title"
                     item-value="id"
                     placeholder="Không có — đây là phòng ban gốc"
-                    variant="outlined"
-                    density="comfortable"
-                    rounded="lg"
                     clearable
-                    persistent-placeholder
                     :error-messages="store.errors.parent_id"
                 />
             </div>
@@ -73,17 +69,13 @@
                 <div class="text-body-2 font-weight-medium mb-1">
                     Trưởng phòng
                 </div>
-                <v-select
+                <SearchSelect
                     v-model="form.manager_id"
                     :items="managerOptions"
                     item-title="title"
                     item-value="id"
                     placeholder="Chưa phân công"
-                    variant="outlined"
-                    density="comfortable"
-                    rounded="lg"
                     clearable
-                    persistent-placeholder
                     :error-messages="store.errors.manager_id"
                 />
             </div>
@@ -135,6 +127,8 @@ import { useDepartmentStore } from "../../stores/useDepartmentStore";
 import { useEmployeeStore } from "../../stores/useEmployeeStore";
 import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
+import { useToastStore } from "../../stores/useToastStore";
+import SearchSelect from "../../components/common/SearchSelect.vue";
 
 const props = defineProps({
     modelValue: {
@@ -155,6 +149,7 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue", "saved"]);
 
 const store = useDepartmentStore();
+const toast = useToastStore();
 const employeeStore = useEmployeeStore();
 
 const isEdit = computed(() => props.department !== null);
@@ -211,6 +206,9 @@ async function submit() {
         } else {
             await store.create({ ...form });
         }
+        toast.success(
+            isEdit.value ? "Đã cập nhật phòng ban." : "Đã thêm phòng ban mới.",
+        );
         emit("saved");
         close();
     } catch {

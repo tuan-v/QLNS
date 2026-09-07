@@ -3,7 +3,20 @@
         <PageHeader
             title="Danh sách nhân viên"
             subtitle="Quản lý hồ sơ và thông tin nhân viên."
-        />
+        >
+            <template #actions>
+                <v-btn
+                    v-if="canCreate"
+                    color="primary"
+                    variant="flat"
+                    size="large"
+                    prepend-icon="mdi-plus"
+                    @click="openCreate"
+                >
+                    Nhân viên
+                </v-btn>
+            </template>
+        </PageHeader>
 
         <v-alert
             v-if="store.loadError"
@@ -49,6 +62,7 @@
             :items="store.employees"
             :loading="store.loading"
             :server-items-length="store.pagination?.total ?? 0"
+            :actions="actions"
             v-model:page="page"
             v-model:items-per-page="perPage"
         >
@@ -62,20 +76,38 @@
                 />
             </template>
         </DataTable>
+
+        <EmployeeFormDialog
+            v-model="formDialog"
+            :employee="editing"
+            :department-options="departmentFormOptions"
+            @saved="fetchData"
+        />
     </div>
 </template>
 
 <script setup>
 import { ref, watch, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { useEmployeeStore } from "../../stores/useEmployeeStore";
 import { useDepartmentStore } from "../../stores/useDepartmentStore";
+import { useAuthStore } from "../../stores/authStore";
 import DataTable from "../../components/common/DataTable.vue";
 import SearchField from "../../components/common/SearchField.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
+import EmployeeFormDialog from "./EmployeeForm.vue";
 
 const store = useEmployeeStore();
 const departmentStore = useDepartmentStore();
+const auth = useAuthStore();
+const router = useRouter();
+
+const formDialog = ref(false);
+const editing = ref(null);
+
+const canCreate = computed(() => auth.permissions.includes("employee.create"));
+const canUpdate = computed(() => auth.permissions.includes("employee.update"));
 
 const search = ref("");
 const departmentId = ref(null);
@@ -109,6 +141,25 @@ const headers = [
     { title: "Trạng thái", key: "employment_status" },
 ];
 
+// Xóa để sau — chưa nằm trong phạm vi Ngày 28 (chỉ Thêm/Sửa).
+const actions = computed(() => [
+    {
+        icon: "mdi-eye-outline",
+        tooltip: "Xem chi tiết",
+        color: "primary",
+        onClick: (item) =>
+            router.push({ name: "employee-detail", params: { id: item.id } }),
+    },
+    {
+        icon: "mdi-pencil-outline",
+        tooltip: "Sửa",
+        color: "primary",
+        hidden: !canUpdate.value,
+        onClick: openEdit,
+    },
+]);
+
+// Dùng cho dropdown LỌC (có thêm lựa chọn "Tất cả phòng ban" = không lọc).
 const departmentOptions = computed(() => [
     { title: "Tất cả phòng ban", value: null },
     ...flattenDepartments(departmentStore.tree).map((dept) => ({
@@ -116,11 +167,29 @@ const departmentOptions = computed(() => [
         value: dept.id,
     })),
 ]);
+// Dùng cho form Thêm/Sửa — không có lựa chọn "Tất cả", vì ở đây null nghĩa
+// là "nhân viên chưa được gán phòng ban" chứ không phải "không lọc".
+const departmentFormOptions = computed(() =>
+    flattenDepartments(departmentStore.tree).map((dept) => ({
+        title: dept.name,
+        value: dept.id,
+    })),
+);
 function flattenDepartments(nodes) {
     return nodes.flatMap((node) => [
         node,
         ...(node.children?.length ? flattenDepartments(node.children) : []),
     ]);
+}
+
+function openCreate() {
+    editing.value = null;
+    formDialog.value = true;
+}
+
+function openEdit(employee) {
+    editing.value = employee;
+    formDialog.value = true;
 }
 
 function fetchData() {

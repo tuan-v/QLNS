@@ -1,8 +1,10 @@
 import axios from 'axios';
+import { useLoadingStore } from './stores/useLoadingStore';
 window.axios = axios;
 
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 axios.interceptors.request.use((config) => {
+    useLoadingStore().start();
     const token = localStorage.getItem('access_token');
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
@@ -23,8 +25,13 @@ function onTokenRefreshed(newToken) {
 }
 
 axios.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        useLoadingStore().stop();
+        return response;
+    },
     async (error) => {
+        useLoadingStore().stop();
+
         const originalRequest = error.config;
         const isLoginRequest = originalRequest.url?.includes('/auth/login');
         const isRefreshRequest = originalRequest.url?.includes('/auth/refresh');

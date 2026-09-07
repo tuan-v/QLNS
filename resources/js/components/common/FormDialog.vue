@@ -2,6 +2,7 @@
     <v-dialog
         :model-value="modelValue"
         :max-width="maxWidth"
+        scrollable
         persistent
         @update:model-value="close"
     >

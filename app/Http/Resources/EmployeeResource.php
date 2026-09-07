@@ -32,7 +32,7 @@ class EmployeeResource extends JsonResource
         // show()/store()/update() không đi qua EmployeeRepository::find() nên không có
         // sẵn with(...) — loadMissing() chỉ query nếu quan hệ CHƯA được nạp, nên với
         // index() (đã with() từ trước) dòng này không tốn thêm query nào.
-        $this->resource->loadMissing(['department', 'position', 'manager']);
+        $this->resource->loadMissing(['department', 'position', 'manager', 'province', 'commune']);
 
         $viewer = $request->user()?->employee;
         $hideSensitive = in_array($this->resource->id, self::ancestorIdsFor($viewer), true);
@@ -56,7 +56,9 @@ class EmployeeResource extends JsonResource
             'personal_email' => $hideSensitive ? null : $this->personal_email,
             'cccd' => $hideSensitive ? null : $this->cccd,
             'personal_tax_code' => $hideSensitive ? null : $this->personal_tax_code,
-            'addresses' => $hideSensitive ? null : $this->addresses,
+            'address_detail' => $hideSensitive ? null : $this->address_detail,
+            'province' => $hideSensitive ? null : $this->whenLoaded('province'),
+            'commune' => $hideSensitive ? null : $this->whenLoaded('commune'),
         ];
     }
 }
