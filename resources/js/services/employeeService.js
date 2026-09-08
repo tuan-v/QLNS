@@ -5,6 +5,9 @@ export default {
     list(params = {}) {
         return axios.get(API_BASE, { params });
     },
+    stats() {
+        return axios.get(`${API_BASE}/stats`);
+    },
     get(id) {
         return axios.get(`${API_BASE}/${id}`);
     },

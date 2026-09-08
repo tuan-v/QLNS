@@ -29,6 +29,8 @@
             {{ store.loadError }}
         </v-alert>
 
+        <StatCards :stats="statCards" />
+
         <v-sheet
             class="border rounded-lg pa-2 mb-4 glass-panel"
             color="transparent"
@@ -66,6 +68,20 @@
             v-model:page="page"
             v-model:items-per-page="perPage"
         >
+            <template #item.full_name="{ item }">
+                <div class="d-flex align-center ga-2">
+                    <v-avatar
+                        :color="avatarColor(item.full_name)"
+                        variant="tonal"
+                        size="32"
+                    >
+                        <span class="text-caption font-weight-bold">{{
+                            initials(item.full_name)
+                        }}</span>
+                    </v-avatar>
+                    <span>{{ item.full_name }}</span>
+                </div>
+            </template>
             <template #item.department="{ item }">{{
                 item.department?.name ?? "—"
             }}</template>
@@ -81,7 +97,7 @@
             v-model="formDialog"
             :employee="editing"
             :department-options="departmentFormOptions"
-            @saved="fetchData"
+            @saved="onEmployeeSaved"
         />
     </div>
 </template>
@@ -92,10 +108,12 @@ import { useRouter } from "vue-router";
 import { useEmployeeStore } from "../../stores/useEmployeeStore";
 import { useDepartmentStore } from "../../stores/useDepartmentStore";
 import { useAuthStore } from "../../stores/authStore";
+import employeeService from "../../services/employeeService";
 import DataTable from "../../components/common/DataTable.vue";
 import SearchField from "../../components/common/SearchField.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
+import StatCards from "../../components/dashboard/StatCards.vue";
 import EmployeeFormDialog from "./EmployeeForm.vue";
 
 const store = useEmployeeStore();
@@ -132,6 +150,82 @@ const statusOptions = [
         value,
     })),
 ];
+
+// 4 thẻ thống kê đầu trang — chỉ đếm theo employment_status thật có trong DB
+// (xem EmployeeService::stats()), KHÔNG có "Đang nghỉ phép" vì đó là trạng
+// thái tạm thời theo ngày, thuộc module Nghỉ phép (Ngày 36-40) chưa xây.
+const stats = ref({ total: 0, active: 0, probation: 0, resigned: 0 });
+const statCards = computed(() => [
+    {
+        label: "Tổng nhân viên",
+        value: stats.value.total,
+        color: "primary",
+        icon: "mdi-account-group-outline",
+    },
+    {
+        label: "Đang làm việc",
+        value: stats.value.active,
+        color: "success",
+        icon: "mdi-check-circle-outline",
+    },
+    {
+        label: "Thử việc",
+        value: stats.value.probation,
+        color: "warning",
+        icon: "mdi-clock-outline",
+    },
+    {
+        label: "Đã nghỉ việc",
+        value: stats.value.resigned,
+        color: "secondary",
+        icon: "mdi-account-off-outline",
+    },
+]);
+
+async function fetchStats() {
+    try {
+        const response = await employeeService.stats();
+        stats.value = response.data;
+    } catch {
+        // Số liệu phụ, không phải luồng chính của trang — lỗi tải bảng chính
+        // đã có store.loadError lo, ở đây chỉ cần giữ nguyên số liệu cũ.
+    }
+}
+
+// Ghép sẵn màu để tránh đổi màu ngẫu nhiên mỗi lần render (tô theo tên nên
+// cùng 1 người luôn ra cùng 1 màu).
+const AVATAR_COLORS = [
+    "primary",
+    "success",
+    "info",
+    "warning",
+    "purple",
+    "teal",
+    "indigo",
+    "deep-orange",
+];
+
+function initials(fullName) {
+    const parts = String(fullName ?? "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+    if (!parts.length) {
+        return "?";
+    }
+    const first = parts[0][0];
+    const last = parts[parts.length - 1][0];
+    return (parts.length > 1 ? first + last : first).toUpperCase();
+}
+
+function avatarColor(fullName) {
+    const text = String(fullName ?? "");
+    let hash = 0;
+    for (let i = 0; i < text.length; i += 1) {
+        hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+    }
+    return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
 
 const headers = [
     { title: "Mã", key: "code" },
@@ -192,6 +286,11 @@ function openEdit(employee) {
     formDialog.value = true;
 }
 
+function onEmployeeSaved() {
+    fetchData();
+    fetchStats();
+}
+
 function fetchData() {
     store.fetchList({
         search: search.value || undefined,
@@ -210,6 +309,7 @@ watch(page, fetchData);
 
 onMounted(() => {
     fetchData();
+    fetchStats();
     departmentStore.fetchTree();
 });
 </script>

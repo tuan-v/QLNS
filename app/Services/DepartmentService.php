@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Department;
+use App\Models\Employee;
 use App\Repositories\DepartmentRepository;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -10,8 +11,10 @@ use Illuminate\Validation\ValidationException;
 
 class DepartmentService
 {
-    public function __construct(private readonly DepartmentRepository $departmentRepository)
-    {
+    public function __construct(
+        private readonly DepartmentRepository $departmentRepository,
+        private readonly PositionService $positionService,
+    ) {
     }
 
     public function list(): LengthAwarePaginator
@@ -23,7 +26,12 @@ class DepartmentService
     {
         $data['code'] = $this->generateCode();
 
-        return DB::transaction(fn () => $this->departmentRepository->create($data));
+        return DB::transaction(function () use ($data) {
+            $department = $this->departmentRepository->create($data);
+            $this->syncHeadPosition($department, oldManagerId: null, newManagerId: $department->manager_id);
+
+            return $department;
+        });
     }
 
     // Mã phòng ban do hệ thống tự sinh, không nhận từ client: "PB" + số thứ tự
@@ -56,7 +64,42 @@ class DepartmentService
             ]);
         }
 
-        return DB::transaction(fn () => $this->departmentRepository->update($department, $data));
+        $oldManagerId = $department->manager_id;
+
+        return DB::transaction(function () use ($department, $data, $oldManagerId) {
+            $department = $this->departmentRepository->update($department, $data);
+
+            if (array_key_exists('manager_id', $data)) {
+                $this->syncHeadPosition($department, $oldManagerId, $department->manager_id);
+            }
+
+            return $department;
+        });
+    }
+
+    // Đồng bộ Chức vụ "Trưởng phòng" theo đúng Trưởng phòng hiện tại của phòng
+    // ban: người mới được gán nhận Chức vụ "Trưởng phòng" (tự tạo nếu phòng ban
+    // chưa có), người cũ (nếu có và khác người mới) bị hạ về Chức vụ "Nhân viên"
+    // mặc định — không tự đổi Chức vụ nếu người dùng gõ tay tên khác, vì đây là
+    // 2 bản ghi Position hệ thống quản lý riêng (cột `type`), không đụng tới
+    // các Chức vụ do người dùng tự tạo.
+    private function syncHeadPosition(Department $department, ?int $oldManagerId, ?int $newManagerId): void
+    {
+        if ($oldManagerId === $newManagerId) {
+            return;
+        }
+
+        if ($oldManagerId) {
+            Employee::whereKey($oldManagerId)->update([
+                'position_id' => $this->positionService->ensureDefaultPosition($department)->id,
+            ]);
+        }
+
+        if ($newManagerId) {
+            Employee::whereKey($newManagerId)->update([
+                'position_id' => $this->positionService->ensureHeadPosition($department)->id,
+            ]);
+        }
     }
 
     public function delete(Department $department): void

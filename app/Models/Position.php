@@ -17,6 +17,7 @@ class Position extends Model
         'level',
         'position_allowance',
         'is_active',
+        'type',
     ];
     public function department()
     {

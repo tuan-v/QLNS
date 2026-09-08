@@ -33,6 +33,12 @@ const routes = [
         component: () => import("../views/Department/Departments.vue"),
     },
     {
+        path: "/positions",
+        name: "positions",
+        meta: { title: "Chức vụ" },
+        component: () => import("../views/Position/Positions.vue"),
+    },
+    {
         path: "/employees",
         name: "employees",
         meta: { title: "Nhân viên" },

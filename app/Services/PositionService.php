@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Department;
 use App\Models\Position;
 use App\Repositories\PositionRepository;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -53,5 +54,27 @@ class PositionService
     public function delete(Position $position): void
     {
         $this->positionRepository->delete($position);
+    }
+
+    // "Trưởng phòng" của 1 phòng ban — do hệ thống tự quản lý (type='head'),
+    // không cho sửa tay qua CRUD Chức vụ thường. Mỗi phòng ban tối đa 1 bản ghi
+    // loại này, tự tạo lúc lần đầu có ai được gán làm Trưởng phòng.
+    public function ensureHeadPosition(Department $department): Position
+    {
+        return Position::firstOrCreate(
+            ['department_id' => $department->id, 'type' => 'head'],
+            ['code' => $this->generateCode(), 'name' => 'Trưởng phòng', 'is_active' => true],
+        );
+    }
+
+    // "Nhân viên" mặc định của 1 phòng ban — nơi hạ chức vụ Trưởng phòng cũ về
+    // khi bị thay thế/điều chuyển đi nơi khác, cùng cơ chế find-or-create như
+    // ensureHeadPosition() ở trên.
+    public function ensureDefaultPosition(Department $department): Position
+    {
+        return Position::firstOrCreate(
+            ['department_id' => $department->id, 'type' => 'default'],
+            ['code' => $this->generateCode(), 'name' => 'Nhân viên', 'is_active' => true],
+        );
     }
 }

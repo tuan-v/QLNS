@@ -26,6 +26,16 @@ class EmployeeRepository
     {
         return Employee::query()->with(['department', 'position', 'manager'])->find($id);
     }
+
+    // Đếm nhân viên theo employment_status bằng 1 query group-by duy nhất,
+    // thay vì gọi count() riêng cho từng trạng thái (4 query rời rạc).
+    public function countByStatus(): \Illuminate\Support\Collection
+    {
+        return Employee::query()
+            ->selectRaw('employment_status, count(*) as total')
+            ->groupBy('employment_status')
+            ->pluck('total', 'employment_status');
+    }
     public function create(array $data): Employee
     {
         return Employee::create($data);

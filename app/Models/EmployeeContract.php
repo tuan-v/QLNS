@@ -23,11 +23,13 @@ class EmployeeContract extends Model
         'terminated_at',
         'contract_file_path',
     ];
+    // 'date:Y-m-d' — tránh Carbon quy đổi sang UTC khi ra JSON, xem ghi chú ở
+    // Employee.php (cùng lỗi lệch ngày, chung nguyên nhân múi giờ Asia/Ho_Chi_Minh).
     protected $casts = [
-        'start_date' => 'date',
-        'end_date' => 'date',
-        'signed_at' => 'date',
-        'terminated_at' => 'date',
+        'start_date' => 'date:Y-m-d',
+        'end_date' => 'date:Y-m-d',
+        'signed_at' => 'date:Y-m-d',
+        'terminated_at' => 'date:Y-m-d',
         'agreed_salary' => 'decimal:2',
         'insurance_salary' => 'decimal:2',
     ];

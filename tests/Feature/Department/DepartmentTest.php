@@ -295,6 +295,46 @@ class DepartmentTest extends TestCase
         $response->assertStatus(422)->assertJsonValidationErrors('manager_id');
     }
 
+    public function test_setting_department_manager_assigns_head_position(): void
+    {
+        $department = Department::create(['name' => 'Phong Ke toan', 'code' => 'PB001']);
+        $boss = $this->makeEmployee(['code' => 'NV001']);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $this->putJson('/api/v1/departments/'.$department->id, [
+            'name' => 'Phong Ke toan',
+            'manager_id' => $boss->id,
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(200);
+
+        $boss->refresh();
+        $this->assertSame('head', $boss->position->type);
+        $this->assertSame('Trưởng phòng', $boss->position->name);
+    }
+
+    public function test_replacing_department_manager_demotes_old_one_to_default_position(): void
+    {
+        $department = Department::create(['name' => 'Phong Ke toan', 'code' => 'PB001']);
+        $oldBoss = $this->makeEmployee(['code' => 'NV001']);
+        $newBoss = $this->makeEmployee(['code' => 'NV002']);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $this->putJson('/api/v1/departments/'.$department->id, [
+            'name' => 'Phong Ke toan',
+            'manager_id' => $oldBoss->id,
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(200);
+
+        $this->putJson('/api/v1/departments/'.$department->id, [
+            'name' => 'Phong Ke toan',
+            'manager_id' => $newBoss->id,
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(200);
+
+        $oldBoss->refresh();
+        $newBoss->refresh();
+        $this->assertSame('default', $oldBoss->position->type);
+        $this->assertSame('Nhân viên', $oldBoss->position->name);
+        $this->assertSame('head', $newBoss->position->type);
+    }
+
     public function test_tree_endpoint_hides_manager_sensitive_fields_from_subordinate_viewer(): void
     {
         $subUser = User::create([

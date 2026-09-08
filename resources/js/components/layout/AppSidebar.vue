@@ -69,6 +69,12 @@
                 to="/departments"
                 rounded="lg"
             />
+            <v-list-item
+                prepend-icon="mdi-badge-account-outline"
+                title="Chức vụ"
+                to="/positions"
+                rounded="lg"
+            />
 
             <v-list-subheader v-if="!rail"
                 >CHẤM CÔNG &amp; NGHỈ PHÉP</v-list-subheader

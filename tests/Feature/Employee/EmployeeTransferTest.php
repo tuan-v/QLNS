@@ -129,6 +129,51 @@ class EmployeeTransferTest extends TestCase
         $this->assertSame($position->id, $employee->position_id);
     }
 
+    public function test_cannot_transfer_to_current_department(): void
+    {
+        $department = Department::create(['name' => 'Phong A', 'code' => 'PB-A']);
+        $employee = $this->makeEmployee(['department_id' => $department->id]);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $response = $this->postJson('/api/v1/employees/'.$employee->id.'/transfers', [
+            'to_department_id' => $department->id,
+            'effective_date' => '2026-01-01',
+        ], [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('to_department_id');
+    }
+
+    public function test_transferring_department_head_clears_old_department_manager_and_demotes_position(): void
+    {
+        $fromDept = Department::create(['name' => 'Phong A', 'code' => 'PB-A']);
+        $toDept = Department::create(['name' => 'Phong B', 'code' => 'PB-B']);
+        $headPosition = Position::create([
+            'department_id' => $fromDept->id,
+            'name' => 'Trưởng phòng',
+            'code' => 'CV-H',
+            'type' => 'head',
+        ]);
+        $boss = $this->makeEmployee(['department_id' => $fromDept->id, 'position_id' => $headPosition->id]);
+        $fromDept->update(['manager_id' => $boss->id]);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $this->postJson('/api/v1/employees/'.$boss->id.'/transfers', [
+            'to_department_id' => $toDept->id,
+            'effective_date' => '2026-01-01',
+        ], [
+            'Authorization' => 'Bearer '.$token,
+        ])->assertStatus(201);
+
+        $fromDept->refresh();
+        $boss->refresh();
+        $this->assertNull($fromDept->manager_id);
+        $this->assertSame($toDept->id, $boss->department_id);
+        $this->assertSame('default', $boss->position->type);
+        $this->assertSame($toDept->id, $boss->position->department_id);
+    }
+
     public function test_cannot_set_new_manager_that_creates_cycle(): void
     {
         $department = Department::create(['name' => 'Phong A', 'code' => 'PB-A']);

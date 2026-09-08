@@ -24,6 +24,10 @@ class EmployeeController extends Controller
 
         return EmployeeResource::collection($this->employeeService->list($filters, $perPage));
     }
+    public function stats(): JsonResponse
+    {
+        return response()->json($this->employeeService->stats());
+    }
     public function show(Employee $employee): JsonResponse
     {
         return (new EmployeeResource($employee))->response();

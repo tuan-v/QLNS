@@ -26,8 +26,12 @@ class EmployeeTransfer extends Model
         'approved_by',
     ];
 
+    // 'effective_date' dùng 'date:Y-m-d' — tránh Carbon quy đổi sang UTC khi ra
+    // JSON, xem ghi chú ở Employee.php. 'approved_at' giữ 'datetime' vì đây là
+    // mốc thời điểm thật (có giờ, có ý nghĩa múi giờ), khác effective_date chỉ
+    // là 1 ngày lịch không gắn giờ nào.
     protected $casts = [
-        'effective_date' => 'date',
+        'effective_date' => 'date:Y-m-d',
         'approved_at' => 'datetime',
     ];
 

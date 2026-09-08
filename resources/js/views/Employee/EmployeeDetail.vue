@@ -1150,11 +1150,17 @@ function flattenDepartments(nodes) {
     ]);
 }
 
+// Loại phòng ban hiện tại của nhân viên ra khỏi lựa chọn — backend chặn 422
+// nếu chọn trùng (xem EmployeeTransferService::create()), nhưng để lọt lên
+// dropdown vẫn chọn được thì người dùng phải đợi hết 1 vòng submit mới biết
+// sai, lọc thẳng ở đây đỡ tốn round-trip đó.
 const transferDepartmentOptions = computed(() =>
-    flattenDepartments(allDepartments.value).map((dept) => ({
-        title: dept.name,
-        value: dept.id,
-    })),
+    flattenDepartments(allDepartments.value)
+        .filter((dept) => dept.id !== employee.value?.department?.id)
+        .map((dept) => ({
+            title: dept.name,
+            value: dept.id,
+        })),
 );
 
 const transferPositionOptions = computed(() =>

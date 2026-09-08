@@ -19,6 +19,21 @@ class EmployeeService
     {
         return $this->employeeRepository->paginate(perPage: $perPage, filters: $filters);
     }
+
+    // Đếm nhanh cho 4 thẻ thống kê đầu trang Employees.vue — chỉ đếm theo
+    // employment_status đang có thật trong DB, không có "đang nghỉ phép" (đó
+    // là trạng thái tạm thời theo ngày, thuộc module Nghỉ phép chưa xây).
+    public function stats(): array
+    {
+        $counts = $this->employeeRepository->countByStatus();
+
+        return [
+            'total' => (int) $counts->sum(),
+            'active' => (int) $counts->get('active', 0),
+            'probation' => (int) $counts->get('probation', 0),
+            'resigned' => (int) $counts->get('resigned', 0),
+        ];
+    }
     public function create(array $data): Employee
     {
         $data['code'] = $this->generateCode();

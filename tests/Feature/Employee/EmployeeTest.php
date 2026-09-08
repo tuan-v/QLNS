@@ -157,6 +157,34 @@ class EmployeeTest extends TestCase
         $response->assertStatus(200);
     }
 
+    public function test_stats_endpoint_requires_view_permission(): void
+    {
+        $response = $this->getJson('/api/v1/employees/stats');
+
+        $response->assertStatus(401);
+    }
+
+    public function test_stats_endpoint_returns_counts_by_employment_status(): void
+    {
+        $this->makeEmployee(['employment_status' => 'active']);
+        $this->makeEmployee(['employment_status' => 'active']);
+        $this->makeEmployee(['employment_status' => 'probation']);
+        $this->makeEmployee(['employment_status' => 'resigned']);
+        $token = $this->loginAs('manager@qlns.local', 'Manager@123');
+
+        $response = $this->getJson('/api/v1/employees/stats', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'total' => 4,
+            'active' => 2,
+            'probation' => 1,
+            'resigned' => 1,
+        ]);
+    }
+
     public function test_can_search_employees_by_name(): void
     {
         $this->makeEmployee(['full_name' => 'Nguyen Van Anh']);
