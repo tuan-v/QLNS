@@ -11,6 +11,24 @@ export default {
     contracts(id) {
         return axios.get(`${API_BASE}/${id}/contracts`);
     },
+    documents(id) {
+        return axios.get(`${API_BASE}/${id}/documents`);
+    },
+    uploadDocument(id, formData) {
+        // Không tự set Content-Type: trình duyệt tự thêm "multipart/form-data;
+        // boundary=..." đúng chuẩn khi thấy body là FormData, tự set tay dễ
+        // thiếu boundary làm backend không parse được file.
+        return axios.post(`${API_BASE}/${id}/documents`, formData);
+    },
+    deleteDocument(id, documentId) {
+        return axios.delete(`${API_BASE}/${id}/documents/${documentId}`);
+    },
+    transfers(id) {
+        return axios.get(`${API_BASE}/${id}/transfers`);
+    },
+    createTransfer(id, formData) {
+        return axios.post(`${API_BASE}/${id}/transfers`, formData);
+    },
     create(employee) {
         return axios.post(API_BASE, employee);
     },

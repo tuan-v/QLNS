@@ -9,6 +9,18 @@ const routes = [
         meta: { layout: "blank" },
     },
     {
+        path: "/forgot-password",
+        name: "forgot-password",
+        component: () => import("../views/ForgotPassword.vue"),
+        meta: { layout: "blank" },
+    },
+    {
+        path: "/reset-password",
+        name: "reset-password",
+        component: () => import("../views/ResetPassword.vue"),
+        meta: { layout: "blank" },
+    },
+    {
         path: "/",
         name: "dashboard",
         meta: { title: "Tổng quan" },

@@ -27,20 +27,31 @@
         </v-alert>
 
         <template v-if="employee">
-            <v-sheet class="border rounded-lg mb-4 glass-panel" color="transparent">
+            <v-sheet
+                class="border rounded-lg mb-4 glass-panel"
+                color="transparent"
+            >
                 <v-tabs v-model="tab">
                     <v-tab value="profile">Sơ yếu lý lịch</v-tab>
                     <v-tab value="contracts">Hợp đồng</v-tab>
+                    <v-tab value="documents">Tài liệu</v-tab>
+                    <v-tab value="transfers">Luân chuyển</v-tab>
                     <v-tab value="payroll">Lương / Phép</v-tab>
                 </v-tabs>
             </v-sheet>
 
             <v-window v-model="tab">
                 <v-window-item value="profile">
-                    <v-sheet class="border rounded-lg pa-5 glass-panel" color="transparent">
+                    <v-sheet
+                        class="border rounded-lg pa-5 glass-panel"
+                        color="transparent"
+                    >
                         <div class="d-flex align-center ga-4 mb-5">
                             <v-avatar size="72" color="surface-variant">
-                                <v-img v-if="employee.avatar_url" :src="employee.avatar_url" />
+                                <v-img
+                                    v-if="employee.avatar_url"
+                                    :src="employee.avatar_url"
+                                />
                                 <v-icon v-else icon="mdi-account" size="36" />
                             </v-avatar>
                             <div>
@@ -85,7 +96,10 @@
                         {{ contractsError }}
                     </v-alert>
 
-                    <v-sheet class="border rounded-lg glass-panel" color="transparent">
+                    <v-sheet
+                        class="border rounded-lg glass-panel"
+                        color="transparent"
+                    >
                         <v-table density="comfortable">
                             <thead>
                                 <tr>
@@ -101,7 +115,10 @@
                             <tbody>
                                 <tr v-if="contractsLoading">
                                     <td colspan="7" class="text-center py-6">
-                                        <v-progress-circular indeterminate size="24" />
+                                        <v-progress-circular
+                                            indeterminate
+                                            size="24"
+                                        />
                                     </td>
                                 </tr>
                                 <tr v-else-if="!contracts.length">
@@ -113,29 +130,74 @@
                                         Chưa có hợp đồng nào.
                                     </td>
                                 </tr>
-                                <tr v-for="contract in contracts" v-else :key="contract.id">
+                                <tr
+                                    v-for="contract in contracts"
+                                    v-else
+                                    :key="contract.id"
+                                >
                                     <td>{{ contract.contract_number }}</td>
                                     <td>{{ contract.contract_type }}</td>
-                                    <td>{{ formatDate(contract.start_date) }}</td>
-                                    <td>{{ formatDate(contract.end_date) ?? "—" }}</td>
-                                    <td>{{ formatCurrency(contract.agreed_salary) }}</td>
+                                    <td>
+                                        {{ formatDate(contract.start_date) }}
+                                    </td>
+                                    <td>
+                                        {{
+                                            formatDate(contract.end_date) ?? "—"
+                                        }}
+                                    </td>
+                                    <td>
+                                        {{
+                                            formatCurrency(
+                                                contract.agreed_salary,
+                                            )
+                                        }}
+                                    </td>
                                     <td>
                                         <StatusChip
                                             :status="contract.status"
                                             :map="CONTRACT_STATUS_MAP"
                                         />
                                     </td>
+
                                     <td class="text-end">
+                                        <v-btn
+                                            icon="mdi-eye-outline"
+                                            variant="tonal"
+                                            size="small"
+                                            rounded="lg"
+                                            @click="
+                                                openPreview(
+                                                    contract.download_url,
+                                                    contract.contract_number +
+                                                        '.pdf',
+                                                )
+                                            "
+                                        >
+                                            <v-icon icon="mdi-eye-outline" />
+                                            <v-tooltip
+                                                activator="parent"
+                                                location="top"
+                                                >Xem trước</v-tooltip
+                                            >
+                                        </v-btn>
+
                                         <v-btn
                                             icon="mdi-download-outline"
                                             variant="tonal"
                                             size="small"
                                             rounded="lg"
-                                            :loading="downloadingId === contract.id"
+                                            :loading="
+                                                downloadingId === contract.id
+                                            "
                                             @click="downloadContract(contract)"
                                         >
-                                            <v-icon icon="mdi-download-outline" />
-                                            <v-tooltip activator="parent" location="top">
+                                            <v-icon
+                                                icon="mdi-download-outline"
+                                            />
+                                            <v-tooltip
+                                                activator="parent"
+                                                location="top"
+                                            >
                                                 Tải file
                                             </v-tooltip>
                                         </v-btn>
@@ -146,24 +208,539 @@
                     </v-sheet>
                 </v-window-item>
 
+                <v-window-item value="documents">
+                    <v-alert
+                        v-if="documentsError"
+                        type="error"
+                        variant="tonal"
+                        density="compact"
+                        class="mb-4"
+                        icon="mdi-alert-circle-outline"
+                    >
+                        {{ documentsError }}
+                    </v-alert>
+
+                    <div class="d-flex justify-end mb-3">
+                        <v-btn
+                            color="primary"
+                            variant="flat"
+                            prepend-icon="mdi-upload-outline"
+                            @click="openUploadDialog"
+                        >
+                            Tải lên tài liệu
+                        </v-btn>
+                    </div>
+
+                    <v-sheet
+                        class="border rounded-lg glass-panel"
+                        color="transparent"
+                    >
+                        <v-table density="comfortable">
+                            <thead>
+                                <tr>
+                                    <th>Loại tài liệu</th>
+                                    <th>Tên tài liệu</th>
+                                    <th>Kích thước</th>
+                                    <th>Người tải lên</th>
+                                    <th>Ngày tải lên</th>
+                                    <th class="text-end">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-if="documentsLoading">
+                                    <td colspan="6" class="text-center py-6">
+                                        <v-progress-circular
+                                            indeterminate
+                                            size="24"
+                                        />
+                                    </td>
+                                </tr>
+                                <tr v-else-if="!documents.length">
+                                    <td
+                                        colspan="6"
+                                        class="text-center py-6"
+                                        style="opacity: 0.6"
+                                    >
+                                        Chưa có tài liệu nào.
+                                    </td>
+                                </tr>
+                                <tr
+                                    v-for="doc in documents"
+                                    v-else
+                                    :key="doc.id"
+                                >
+                                    <td>
+                                        {{
+                                            DOCUMENT_TYPE_MAP[
+                                                doc.document_type
+                                            ] ?? doc.document_type
+                                        }}
+                                    </td>
+                                    <td>{{ doc.document_name }}</td>
+                                    <td>{{ formatFileSize(doc.file_size) }}</td>
+                                    <td>{{ doc.uploaded_by ?? "—" }}</td>
+                                    <td>{{ formatDate(doc.created_at) }}</td>
+                                    <td class="text-end">
+                                        <div class="d-flex justify-end ga-2">
+                                            <v-btn
+                                                icon="mdi-eye-outline"
+                                                variant="tonal"
+                                                size="small"
+                                                rounded="lg"
+                                                @click="
+                                                    openPreview(
+                                                        doc.download_url,
+                                                        doc.file_name,
+                                                    )
+                                                "
+                                            >
+                                                <v-icon
+                                                    icon="mdi-eye-outline"
+                                                />
+                                                <v-tooltip
+                                                    activator="parent"
+                                                    location="top"
+                                                    >Xem trước</v-tooltip
+                                                >
+                                            </v-btn>
+
+                                            <v-btn
+                                                icon="mdi-download-outline"
+                                                variant="tonal"
+                                                size="small"
+                                                rounded="lg"
+                                                :loading="
+                                                    downloadingDocumentId ===
+                                                    doc.id
+                                                "
+                                                @click="downloadDocument(doc)"
+                                            >
+                                                <v-icon
+                                                    icon="mdi-download-outline"
+                                                />
+                                                <v-tooltip
+                                                    activator="parent"
+                                                    location="top"
+                                                >
+                                                    Tải file
+                                                </v-tooltip>
+                                            </v-btn>
+                                            <v-btn
+                                                icon="mdi-delete-outline"
+                                                variant="tonal"
+                                                color="error"
+                                                size="small"
+                                                rounded="lg"
+                                                @click="
+                                                    confirmDeleteDocument(doc)
+                                                "
+                                            >
+                                                <v-icon
+                                                    icon="mdi-delete-outline"
+                                                />
+                                                <v-tooltip
+                                                    activator="parent"
+                                                    location="top"
+                                                >
+                                                    Xóa
+                                                </v-tooltip>
+                                            </v-btn>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </v-table>
+                    </v-sheet>
+                </v-window-item>
+
+                <v-window-item value="transfers">
+                    <v-alert
+                        v-if="transfersError"
+                        type="error"
+                        variant="tonal"
+                        density="compact"
+                        class="mb-4"
+                        icon="mdi-alert-circle-outline"
+                    >
+                        {{ transfersError }}
+                    </v-alert>
+
+                    <div class="d-flex justify-end mb-3">
+                        <v-btn
+                            color="primary"
+                            variant="flat"
+                            prepend-icon="mdi-transfer"
+                            @click="openTransferDialog"
+                        >
+                            Tạo luân chuyển
+                        </v-btn>
+                    </div>
+
+                    <v-sheet
+                        class="border rounded-lg glass-panel"
+                        color="transparent"
+                    >
+                        <v-table density="comfortable">
+                            <thead>
+                                <tr>
+                                    <th>Từ phòng ban</th>
+                                    <th>Đến phòng ban</th>
+                                    <th>Chức vụ mới</th>
+                                    <th>Ngày hiệu lực</th>
+                                    <th>Lý do</th>
+                                    <th>Người duyệt</th>
+                                    <th class="text-end">Quyết định</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-if="transfersLoading">
+                                    <td colspan="7" class="text-center py-6">
+                                        <v-progress-circular
+                                            indeterminate
+                                            size="24"
+                                        />
+                                    </td>
+                                </tr>
+                                <tr v-else-if="!transfers.length">
+                                    <td
+                                        colspan="7"
+                                        class="text-center py-6"
+                                        style="opacity: 0.6"
+                                    >
+                                        Chưa có lượt luân chuyển nào.
+                                    </td>
+                                </tr>
+                                <tr v-for="t in transfers" v-else :key="t.id">
+                                    <td>
+                                        {{ t.from_department?.name ?? "—" }}
+                                    </td>
+                                    <td>{{ t.to_department?.name ?? "—" }}</td>
+                                    <td>{{ t.new_position?.name ?? "—" }}</td>
+                                    <td>{{ formatDate(t.effective_date) }}</td>
+                                    <td>{{ t.reason ?? "—" }}</td>
+                                    <td>{{ t.approver ?? "—" }}</td>
+                                    <td class="text-end">
+                                        <v-btn
+                                            icon="mdi-eye-outline"
+                                            variant="tonal"
+                                            size="small"
+                                            rounded="lg"
+                                            @click="
+                                                openPreview(
+                                                    t.decision_file_url,
+                                                    'quyet-dinh' +
+                                                        t.id +
+                                                        '.pdf',
+                                                )
+                                            "
+                                        >
+                                            <v-icon icon="mdi-eye-outline" />
+                                            <v-tooltip
+                                                activator="parent"
+                                                location="top"
+                                                >Xem trước</v-tooltip
+                                            >
+                                        </v-btn>
+
+                                        <v-btn
+                                            v-if="t.decision_file_url"
+                                            icon="mdi-download-outline"
+                                            variant="tonal"
+                                            size="small"
+                                            rounded="lg"
+                                            :loading="
+                                                downloadingTransferId === t.id
+                                            "
+                                            @click="downloadTransferDecision(t)"
+                                        >
+                                            <v-icon
+                                                icon="mdi-download-outline"
+                                            />
+                                            <v-tooltip
+                                                activator="parent"
+                                                location="top"
+                                            >
+                                                Tải quyết định
+                                            </v-tooltip>
+                                        </v-btn>
+                                        <span v-else style="opacity: 0.4"
+                                            >—</span
+                                        >
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </v-table>
+                    </v-sheet>
+                </v-window-item>
+
                 <v-window-item value="payroll">
-                    <v-alert type="info" variant="tonal" icon="mdi-information-outline">
-                        Chưa triển khai — Lương thuộc Phase 4 (Ngày 46+), Nghỉ phép
-                        thuộc Phase 3 (Ngày 36+) theo kế hoạch dự án.
+                    <v-alert
+                        type="info"
+                        variant="tonal"
+                        icon="mdi-information-outline"
+                    >
+                        Chưa triển khai — Lương thuộc Phase 4 (Ngày 46+), Nghỉ
+                        phép thuộc Phase 3 (Ngày 36+) theo kế hoạch dự án.
                     </v-alert>
                 </v-window-item>
             </v-window>
         </template>
+
+        <v-dialog v-model="uploadDialog" max-width="480" persistent>
+            <v-card rounded="xl" elevation="12" class="glass-panel">
+                <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
+                    Tải lên tài liệu
+                </v-card-title>
+                <v-card-text
+                    class="px-5"
+                    style="display: flex; flex-direction: column; gap: 0.75rem"
+                >
+                    <div>
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Loại tài liệu <span class="text-error">*</span>
+                        </div>
+                        <v-select
+                            v-model="uploadForm.document_type"
+                            :items="documentTypeOptions"
+                            placeholder="Chưa chọn"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            persistent-placeholder
+                            :error-messages="uploadErrors.document_type"
+                        />
+                    </div>
+
+                    <div>
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Tên tài liệu <span class="text-error">*</span>
+                        </div>
+                        <v-text-field
+                            v-model="uploadForm.document_name"
+                            placeholder="Ví dụ: CCCD mặt trước"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            :error-messages="uploadErrors.document_name"
+                        />
+                    </div>
+
+                    <div>
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Tệp đính kèm <span class="text-error">*</span>
+                        </div>
+                        <v-file-input
+                            v-model="uploadForm.file"
+                            placeholder="Chọn PDF, Word (.docx), Excel (.xlsx), JPG hoặc PNG (tối đa 10MB)"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            prepend-icon=""
+                            prepend-inner-icon="mdi-paperclip"
+                            accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx"
+                            :error-messages="uploadErrors.document_file"
+                        />
+                    </div>
+
+                    <v-alert
+                        v-if="uploadGeneralError"
+                        type="error"
+                        variant="tonal"
+                        density="compact"
+                    >
+                        {{ uploadGeneralError }}
+                    </v-alert>
+                </v-card-text>
+                <v-card-actions class="px-5 pb-5">
+                    <v-spacer />
+                    <v-btn
+                        variant="text"
+                        :disabled="uploading"
+                        @click="closeUploadDialog"
+                    >
+                        Hủy
+                    </v-btn>
+                    <v-btn
+                        color="primary"
+                        variant="flat"
+                        :loading="uploading"
+                        @click="submitUpload"
+                    >
+                        Tải lên
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="transferDialog" max-width="520" persistent>
+            <v-card rounded="xl" elevation="12" class="glass-panel">
+                <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
+                    Tạo luân chuyển
+                </v-card-title>
+                <v-card-text
+                    class="px-5"
+                    style="display: flex; flex-direction: column; gap: 0.75rem"
+                >
+                    <div>
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Phòng ban mới <span class="text-error">*</span>
+                        </div>
+                        <SearchSelect
+                            :model-value="transferForm.to_department_id"
+                            :items="transferDepartmentOptions"
+                            :error-messages="transferErrors.to_department_id"
+                            clearable
+                            @update:model-value="onTransferDepartmentChange"
+                        />
+                    </div>
+
+                    <div>
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Chức vụ mới
+                        </div>
+                        <SearchSelect
+                            v-model="transferForm.new_position_id"
+                            :items="transferPositionOptions"
+                            :error-messages="transferErrors.new_position_id"
+                            clearable
+                        />
+                    </div>
+
+                    <div>
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Quản lý mới
+                        </div>
+                        <SearchSelect
+                            v-model="transferForm.new_manager_id"
+                            :items="transferManagerOptions"
+                            :error-messages="transferErrors.new_manager_id"
+                            clearable
+                        />
+                    </div>
+
+                    <div>
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Ngày hiệu lực <span class="text-error">*</span>
+                        </div>
+                        <InputDate
+                            v-model="transferForm.effective_date"
+                            :error-messages="transferErrors.effective_date"
+                        />
+                    </div>
+
+                    <div>
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Lý do
+                        </div>
+                        <v-textarea
+                            v-model="transferForm.reason"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            rows="2"
+                            no-resize
+                            :error-messages="transferErrors.reason"
+                        />
+                    </div>
+
+                    <div>
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Quyết định điều động (PDF, không bắt buộc)
+                        </div>
+                        <v-file-input
+                            v-model="transferForm.decision_file"
+                            placeholder="Chọn tệp PDF (tối đa 10MB)"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            prepend-icon=""
+                            prepend-inner-icon="mdi-paperclip"
+                            accept=".pdf"
+                            :error-messages="transferErrors.decision_file"
+                        />
+                    </div>
+
+                    <v-alert
+                        v-if="transferGeneralError"
+                        type="error"
+                        variant="tonal"
+                        density="compact"
+                    >
+                        {{ transferGeneralError }}
+                    </v-alert>
+                </v-card-text>
+                <v-card-actions class="px-5 pb-5">
+                    <v-spacer />
+                    <v-btn
+                        variant="text"
+                        :disabled="transferSubmitting"
+                        @click="closeTransferDialog"
+                    >
+                        Hủy
+                    </v-btn>
+                    <v-btn
+                        color="primary"
+                        variant="flat"
+                        :loading="transferSubmitting"
+                        @click="submitTransfer"
+                    >
+                        Xác nhận luân chuyển
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="deleteDialog" max-width="420">
+            <v-card rounded="xl" elevation="12" class="glass-panel">
+                <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
+                    Xóa tài liệu
+                </v-card-title>
+                <v-card-text class="px-5">
+                    Bạn có chắc muốn xóa tài liệu
+                    <strong>{{ deletingDocument?.document_name }}</strong>
+                    không?
+                </v-card-text>
+                <v-card-actions class="px-5 pb-5">
+                    <v-spacer />
+                    <v-btn
+                        variant="text"
+                        :disabled="deletingSubmitting"
+                        @click="deleteDialog = false"
+                    >
+                        Hủy
+                    </v-btn>
+                    <v-btn
+                        color="error"
+                        variant="flat"
+                        :loading="deletingSubmitting"
+                        @click="submitDeleteDocument"
+                    >
+                        Xóa
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <FilePreviewDialog
+            v-model="previewDialog"
+            :file-url="previewFile.url"
+            :file-name="previewFile.name"
+        />
     </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, reactive, computed, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import employeeService from "../../services/employeeService";
+import departmentService from "../../services/departmentService";
+import positionService from "../../services/positionService";
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
-
+import SearchSelect from "../../components/common/SearchSelect.vue";
+import InputDate from "../../components/common/InputDate.vue";
+import { useToastStore } from "../../stores/useToastStore";
+import FilePreviewDialog from "../../components/common/FilePreviewDialog.vue";
 const props = defineProps({
     id: {
         type: String,
@@ -172,6 +749,17 @@ const props = defineProps({
 });
 
 const router = useRouter();
+const toast = useToastStore();
+
+const DOCUMENT_TYPE_MAP = {
+    cccd: "CCCD/CMND",
+    resume: "Sơ yếu lý lịch",
+    certificate: "Bằng cấp/Chứng chỉ",
+    other: "Khác",
+};
+const documentTypeOptions = Object.entries(DOCUMENT_TYPE_MAP).map(
+    ([value, title]) => ({ title, value }),
+);
 
 const EMPLOYMENT_STATUS_MAP = {
     probation: { label: "Thử việc", color: "warning" },
@@ -217,6 +805,19 @@ function formatCurrency(value) {
         style: "currency",
         currency: "VND",
     }).format(value);
+}
+
+function formatFileSize(bytes) {
+    if (!bytes) {
+        return "—";
+    }
+    if (bytes < 1024) {
+        return `${bytes} B`;
+    }
+    if (bytes < 1024 * 1024) {
+        return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /* ------------------------------- Tab 1: Hồ sơ ------------------------------ */
@@ -265,6 +866,13 @@ const contractsLoaded = ref(false);
 const contractsLoading = ref(false);
 const contractsError = ref("");
 const downloadingId = ref(null);
+const previewDialog = ref(false);
+const previewFile = ref({ url: "", name: "" });
+
+function openPreview(url, name) {
+    previewFile.value = { url, name };
+    previewDialog.value = true;
+}
 
 async function loadContracts() {
     if (contractsLoaded.value) {
@@ -291,6 +899,12 @@ watch(tab, (value) => {
     if (value === "contracts") {
         loadContracts();
     }
+    if (value === "documents") {
+        loadDocuments();
+    }
+    if (value === "transfers") {
+        loadTransfers();
+    }
 });
 
 async function downloadContract(contract) {
@@ -314,6 +928,348 @@ async function downloadContract(contract) {
             e.response?.data?.message ?? "Không thể tải file hợp đồng.";
     } finally {
         downloadingId.value = null;
+    }
+}
+
+/* ----------------------------- Tab 3: Tài liệu ----------------------------- */
+
+const documents = ref([]);
+const documentsLoaded = ref(false);
+const documentsLoading = ref(false);
+const documentsError = ref("");
+const downloadingDocumentId = ref(null);
+
+async function loadDocuments() {
+    if (documentsLoaded.value) {
+        return;
+    }
+    documentsLoading.value = true;
+    documentsError.value = "";
+    try {
+        const response = await employeeService.documents(props.id);
+        documents.value = response.data.data;
+        documentsLoaded.value = true;
+    } catch (e) {
+        documentsError.value =
+            e.response?.data?.message ?? "Không thể tải danh sách tài liệu.";
+    } finally {
+        documentsLoading.value = false;
+    }
+}
+
+async function downloadDocument(doc) {
+    downloadingDocumentId.value = doc.id;
+    documentsError.value = "";
+    try {
+        const response = await window.axios.get(doc.download_url, {
+            responseType: "blob",
+        });
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = doc.file_name;
+        link.click();
+        window.URL.revokeObjectURL(url);
+    } catch (e) {
+        documentsError.value =
+            e.response?.data?.message ?? "Không thể tải tệp tài liệu.";
+    } finally {
+        downloadingDocumentId.value = null;
+    }
+}
+
+// --- Tải lên ---
+
+const uploadDialog = ref(false);
+const uploadForm = reactive({
+    document_type: null,
+    document_name: "",
+    file: null,
+});
+const uploadErrors = ref({});
+const uploadGeneralError = ref("");
+const uploading = ref(false);
+
+function openUploadDialog() {
+    uploadForm.document_type = null;
+    uploadForm.document_name = "";
+    uploadForm.file = null;
+    uploadErrors.value = {};
+    uploadGeneralError.value = "";
+    uploadDialog.value = true;
+}
+
+function closeUploadDialog() {
+    uploadDialog.value = false;
+}
+
+async function submitUpload() {
+    uploadErrors.value = {};
+    uploadGeneralError.value = "";
+    uploading.value = true;
+    try {
+        const formData = new FormData();
+        formData.append("document_type", uploadForm.document_type ?? "");
+        formData.append("document_name", uploadForm.document_name);
+        // v-file-input trả về mảng (kể cả khi multiple=false) — lấy phần tử đầu.
+        const file = Array.isArray(uploadForm.file)
+            ? uploadForm.file[0]
+            : uploadForm.file;
+        if (file) {
+            formData.append("document_file", file);
+        }
+
+        const response = await employeeService.uploadDocument(
+            props.id,
+            formData,
+        );
+        documents.value = [response.data.data, ...documents.value];
+        toast.success("Đã tải lên tài liệu.");
+        closeUploadDialog();
+    } catch (e) {
+        const status = e.response?.status;
+        const data = e.response?.data;
+        if (status === 422 && data?.errors) {
+            uploadErrors.value = {
+                document_type: data.errors.document_type?.[0],
+                document_name: data.errors.document_name?.[0],
+                document_file: data.errors.document_file?.[0],
+            };
+        } else {
+            uploadGeneralError.value =
+                data?.message ?? "Không thể tải lên tài liệu.";
+        }
+    } finally {
+        uploading.value = false;
+    }
+}
+
+// --- Xóa ---
+
+const deleteDialog = ref(false);
+const deletingDocument = ref(null);
+const deletingSubmitting = ref(false);
+
+function confirmDeleteDocument(doc) {
+    deletingDocument.value = doc;
+    deleteDialog.value = true;
+}
+
+async function submitDeleteDocument() {
+    deletingSubmitting.value = true;
+    try {
+        await employeeService.deleteDocument(
+            props.id,
+            deletingDocument.value.id,
+        );
+        documents.value = documents.value.filter(
+            (doc) => doc.id !== deletingDocument.value.id,
+        );
+        toast.success("Đã xóa tài liệu.");
+        deleteDialog.value = false;
+    } catch (e) {
+        documentsError.value =
+            e.response?.data?.message ?? "Không thể xóa tài liệu.";
+        deleteDialog.value = false;
+    } finally {
+        deletingSubmitting.value = false;
+    }
+}
+
+/* ---------------------------- Tab 4: Luân chuyển --------------------------- */
+
+const transfers = ref([]);
+const transfersLoaded = ref(false);
+const transfersLoading = ref(false);
+const transfersError = ref("");
+const downloadingTransferId = ref(null);
+
+async function loadTransfers() {
+    if (transfersLoaded.value) {
+        return;
+    }
+    transfersLoading.value = true;
+    transfersError.value = "";
+    try {
+        const response = await employeeService.transfers(props.id);
+        transfers.value = response.data.data;
+        transfersLoaded.value = true;
+    } catch (e) {
+        transfersError.value =
+            e.response?.data?.message ?? "Không thể tải lịch sử luân chuyển.";
+    } finally {
+        transfersLoading.value = false;
+    }
+}
+
+async function downloadTransferDecision(t) {
+    downloadingTransferId.value = t.id;
+    transfersError.value = "";
+    try {
+        const response = await window.axios.get(t.decision_file_url, {
+            responseType: "blob",
+        });
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `quyet-dinh-${t.id}.pdf`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+    } catch (e) {
+        transfersError.value =
+            e.response?.data?.message ?? "Không thể tải quyết định điều động.";
+    } finally {
+        downloadingTransferId.value = null;
+    }
+}
+
+// --- Dialog tạo luân chuyển ---
+
+const transferDialog = ref(false);
+const transferForm = reactive({
+    to_department_id: null,
+    new_position_id: null,
+    new_manager_id: null,
+    effective_date: "",
+    reason: "",
+    decision_file: null,
+});
+const transferErrors = ref({});
+const transferGeneralError = ref("");
+const transferSubmitting = ref(false);
+
+const allDepartments = ref([]);
+const allPositionsForTransfer = ref([]);
+const allManagersForTransfer = ref([]);
+const transferOptionsLoaded = ref(false);
+
+function flattenDepartments(nodes) {
+    return nodes.flatMap((node) => [
+        node,
+        ...(node.children?.length ? flattenDepartments(node.children) : []),
+    ]);
+}
+
+const transferDepartmentOptions = computed(() =>
+    flattenDepartments(allDepartments.value).map((dept) => ({
+        title: dept.name,
+        value: dept.id,
+    })),
+);
+
+const transferPositionOptions = computed(() =>
+    allPositionsForTransfer.value
+        .filter(
+            (position) =>
+                !transferForm.to_department_id ||
+                position.department_id === transferForm.to_department_id,
+        )
+        .map((position) => ({ title: position.name, value: position.id })),
+);
+
+const transferManagerOptions = computed(() =>
+    allManagersForTransfer.value
+        .filter((e) => String(e.id) !== String(props.id))
+        .map((e) => ({ title: `${e.full_name} (${e.code})`, value: e.id })),
+);
+
+// Đổi Phòng ban mới thì Chức vụ mới (thuộc phòng ban cũ) không còn hợp lệ —
+// cùng lý do onDepartmentChange() của EmployeeForm.vue không dùng watch() chung.
+function onTransferDepartmentChange(value) {
+    transferForm.to_department_id = value;
+    transferForm.new_position_id = null;
+}
+
+// Tải danh sách Phòng ban/Chức vụ/Quản lý chỉ khi thật sự mở dialog — hành
+// động "tạo luân chuyển" hiếm khi dùng hơn nhiều so với xem tab, không đáng
+// tải sẵn lúc mount trang.
+async function loadTransferOptions() {
+    if (transferOptionsLoaded.value) {
+        return;
+    }
+    const [deptRes, posRes, empRes] = await Promise.all([
+        departmentService.tree(),
+        positionService.list({ per_page: 1000 }),
+        employeeService.list({ per_page: 1000 }),
+    ]);
+    allDepartments.value = deptRes.data;
+    allPositionsForTransfer.value = posRes.data.data;
+    allManagersForTransfer.value = empRes.data.data;
+    transferOptionsLoaded.value = true;
+}
+
+function openTransferDialog() {
+    transferForm.to_department_id = null;
+    transferForm.new_position_id = null;
+    transferForm.new_manager_id = null;
+    transferForm.effective_date = "";
+    transferForm.reason = "";
+    transferForm.decision_file = null;
+    transferErrors.value = {};
+    transferGeneralError.value = "";
+    transferDialog.value = true;
+    loadTransferOptions();
+}
+
+function closeTransferDialog() {
+    transferDialog.value = false;
+}
+
+async function submitTransfer() {
+    transferErrors.value = {};
+    transferGeneralError.value = "";
+    transferSubmitting.value = true;
+    try {
+        const formData = new FormData();
+        formData.append(
+            "to_department_id",
+            transferForm.to_department_id ?? "",
+        );
+        if (transferForm.new_position_id) {
+            formData.append("new_position_id", transferForm.new_position_id);
+        }
+        if (transferForm.new_manager_id) {
+            formData.append("new_manager_id", transferForm.new_manager_id);
+        }
+        formData.append("effective_date", transferForm.effective_date ?? "");
+        if (transferForm.reason) {
+            formData.append("reason", transferForm.reason);
+        }
+        const file = Array.isArray(transferForm.decision_file)
+            ? transferForm.decision_file[0]
+            : transferForm.decision_file;
+        if (file) {
+            formData.append("decision_file", file);
+        }
+
+        const response = await employeeService.createTransfer(
+            props.id,
+            formData,
+        );
+        transfers.value = [response.data.data, ...transfers.value];
+        toast.success("Đã tạo luân chuyển — hồ sơ nhân viên đã cập nhật.");
+        closeTransferDialog();
+        // Phòng ban/chức vụ/quản lý vừa đổi — nạp lại tab Sơ yếu lý lịch cho
+        // khớp, tránh hiện thông tin cũ nếu người dùng quay lại tab đó.
+        loadEmployee();
+    } catch (e) {
+        const status = e.response?.status;
+        const data = e.response?.data;
+        if (status === 422 && data?.errors) {
+            transferErrors.value = {
+                to_department_id: data.errors.to_department_id?.[0],
+                new_position_id: data.errors.new_position_id?.[0],
+                new_manager_id: data.errors.new_manager_id?.[0],
+                effective_date: data.errors.effective_date?.[0],
+                reason: data.errors.reason?.[0],
+                decision_file: data.errors.decision_file?.[0],
+            };
+        } else {
+            transferGeneralError.value =
+                data?.message ?? "Không thể tạo luân chuyển.";
+        }
+    } finally {
+        transferSubmitting.value = false;
     }
 }
 

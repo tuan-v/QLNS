@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Api\V1\EmployeeController;
 use App\Http\Controllers\Api\V1\EmployeeContractController;
+use App\Http\Controllers\Api\V1\EmployeeDocumentController;
+use App\Http\Controllers\Api\V1\EmployeeTransferController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:api')->prefix('employees')->group(function (): void {
@@ -16,4 +18,15 @@ Route::middleware('auth:api')->prefix('employees')->group(function (): void {
     Route::get('/{employee}/contracts/{contract}/download', [EmployeeContractController::class, 'download'])
         ->middleware('permission:employee.view')
         ->name('employees.contracts.download');
+    Route::get('/{employee}/documents', [EmployeeDocumentController::class, 'index'])->middleware('permission:employee.view');
+    Route::post('/{employee}/documents', [EmployeeDocumentController::class, 'store'])->middleware('permission:employee.update');
+    Route::delete('/{employee}/documents/{document}', [EmployeeDocumentController::class, 'destroy'])->middleware('permission:employee.update');
+    Route::get('/{employee}/documents/{document}/download', [EmployeeDocumentController::class, 'download'])
+        ->middleware('permission:employee.view')
+        ->name('employees.documents.download');
+    Route::get('/{employee}/transfers', [EmployeeTransferController::class, 'index'])->middleware('permission:employee.view');
+    Route::post('/{employee}/transfers', [EmployeeTransferController::class, 'store'])->middleware('permission:employee.update');
+    Route::get('/{employee}/transfers/{transfer}/download', [EmployeeTransferController::class, 'download'])
+        ->middleware('permission:employee.view')
+        ->name('employees.transfers.download');
 });

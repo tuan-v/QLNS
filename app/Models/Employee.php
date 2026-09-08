@@ -63,6 +63,14 @@ class Employee extends Model
     {
         return $this->hasMany(EmployeeContract::class);
     }
+    public function documents()
+    {
+        return $this->hasMany(EmployeeDocument::class);
+    }
+    public function transfers()
+    {
+        return $this->hasMany(EmployeeTransfer::class);
+    }
     public function bankAccounts()
     {
         return $this->hasMany(EmployeeBankAccount::class);

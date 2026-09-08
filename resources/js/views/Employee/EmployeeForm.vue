@@ -470,6 +470,14 @@ watch(
             // KHÔNG gọi qua onProvinceChange() vì hàm đó xóa luôn commune_code,
             // ở đây form.commune_code vừa được fillForm() gán đúng giá trị cũ.
             loadCommunes(form.province_code);
+            // Nạp lại Chức vụ + Quản lý trực tiếp mỗi lần mở modal (không chỉ
+            // onMounted) — nếu không, nhân viên vừa thêm xong trong modal này sẽ
+            // KHÔNG xuất hiện trong danh sách "Quản lý trực tiếp" khi mở modal
+            // Thêm/Sửa tiếp theo trong cùng phiên, vì allManagers chỉ nạp 1 lần
+            // lúc EmployeeForm.vue mount (là component thường trực, không phải
+            // mount/unmount theo mỗi lần mở).
+            loadPositions();
+            loadManagerOptions();
         }
     },
 );
@@ -612,9 +620,10 @@ function onProvinceChange(value) {
     loadCommunes(value);
 }
 
+// Chức vụ + Quản lý trực tiếp giờ nạp lại mỗi lần mở modal (xem watch() ở
+// trên) — ở đây chỉ còn Tỉnh/Thành phố, vì đó là danh mục gần như không đổi
+// trong 1 phiên làm việc, không cần nạp lại mỗi lần mở.
 onMounted(() => {
-    loadPositions();
-    loadManagerOptions();
     loadProvinces();
 });
 </script>

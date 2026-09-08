@@ -21,4 +21,14 @@ export default {
             { headers: { Authorization: `Bearer ${accessToken}` } },
         );
     },
+    forgotPassword(email) {
+        return axios.post(`${API_BASE}/forgot-password`, { email });
+    },
+    resetPassword(token, password, passwordConfirmation) {
+        return axios.post(`${API_BASE}/reset-password`, {
+            token,
+            password,
+            password_confirmation: passwordConfirmation,
+        });
+    },
 };

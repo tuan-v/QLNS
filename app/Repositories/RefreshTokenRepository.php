@@ -36,4 +36,16 @@ class RefreshTokenRepository
     {
         $refreshToken->forceFill(['revoked_at' => now()])->save();
     }
+
+    // Dùng khi đổi mật khẩu (qua quên mật khẩu) — chặn MỌI phiên đăng nhập cũ
+    // tự làm mới access token nữa. Access token JWT đang có (tối đa còn hạn
+    // 1h) vẫn còn hiệu lực tới khi tự hết hạn (không thể thu hồi ngay vì JWT
+    // không lưu trạng thái ở server), nhưng sau đó không refresh được tiếp.
+    public function revokeAllForUser(User $user): void
+    {
+        RefreshToken::query()
+            ->where('user_id', $user->id)
+            ->whereNull('revoked_at')
+            ->update(['revoked_at' => now()]);
+    }
 }

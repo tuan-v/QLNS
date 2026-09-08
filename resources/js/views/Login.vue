@@ -98,7 +98,7 @@
 
           <div class="d-flex align-center justify-space-between mt-2">
             <v-checkbox v-model="remember" label="Ghi nhớ đăng nhập" density="compact" hide-details />
-            <a href="#" class="text-caption" style="color: rgb(var(--v-theme-primary));">Quên mật khẩu?</a>
+            <router-link to="/forgot-password" class="text-caption" style="color: rgb(var(--v-theme-primary));">Quên mật khẩu?</router-link>
           </div>
 
           <v-btn color="primary" block size="large" class="mt-3" @click="handleLogin">
