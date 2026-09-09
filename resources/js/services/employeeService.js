@@ -8,6 +8,9 @@ export default {
     stats() {
         return axios.get(`${API_BASE}/stats`);
     },
+    me() {
+        return axios.get(`${API_BASE}/me`);
+    },
     get(id) {
         return axios.get(`${API_BASE}/${id}`);
     },
@@ -40,5 +43,17 @@ export default {
     },
     createAccount(id, payload) {
         return axios.post(`${API_BASE}/${id}/account`, payload);
+    },
+    shiftAssignments(id) {
+        return axios.get(`${API_BASE}/${id}/shift-assignments`);
+    },
+    createShiftAssignment(id, payload) {
+        return axios.post(`${API_BASE}/${id}/shift-assignments`, payload);
+    },
+    updateShiftAssignment(id, assignmentId, payload) {
+        return axios.put(`${API_BASE}/${id}/shift-assignments/${assignmentId}`, payload);
+    },
+    deleteShiftAssignment(id, assignmentId) {
+        return axios.delete(`${API_BASE}/${id}/shift-assignments/${assignmentId}`);
     },
 };

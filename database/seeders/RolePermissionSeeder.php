@@ -17,6 +17,8 @@ class RolePermissionSeeder extends Seeder
             'HR' => [
                 'employee.view', 'employee.create', 'employee.update', 'employee.delete',
                 'department.view', 'department.manage',
+                'shift.view', 'shift.manage',
+                'location.view', 'location.manage',
                 'attendance.view_all', 'attendance.adjust',
                 'leave.view_all', 'leave.approve',
                 'payroll.view_all', 'payroll.manage',
@@ -26,6 +28,7 @@ class RolePermissionSeeder extends Seeder
             'Manager' => [
                 'employee.view',
                 'department.view',
+                'shift.view',
                 'attendance.check', 'attendance.view_own', 'attendance.view_all',
                 'leave.request', 'leave.view_own', 'leave.view_all', 'leave.approve',
                 'payroll.view_own',

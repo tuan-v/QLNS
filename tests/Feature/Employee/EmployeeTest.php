@@ -545,4 +545,40 @@ class EmployeeTest extends TestCase
 
         $response->assertStatus(422);
     }
+
+    // --- Hồ sơ của chính mình (/employees/me) ---
+
+    public function test_me_endpoint_requires_authentication(): void
+    {
+        $response = $this->getJson('/api/v1/employees/me');
+
+        $response->assertStatus(401);
+    }
+
+    public function test_authenticated_user_can_view_own_profile_via_me(): void
+    {
+        $user = User::where('email', 'employee@qlns.local')->firstOrFail();
+        $employee = $this->makeEmployee(['user_id' => $user->id, 'company_email' => 'nv-me@qlns.local']);
+        $token = $this->loginAs('employee@qlns.local', 'Employee@123');
+
+        $response = $this->getJson('/api/v1/employees/me', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.id', $employee->id);
+        $response->assertJsonPath('data.company_email', 'nv-me@qlns.local');
+    }
+
+    public function test_me_endpoint_returns_404_when_user_has_no_linked_employee(): void
+    {
+        // Tai khoan HR mac dinh (UserSeeder) chua duoc lien ket voi Employee nao.
+        $token = $this->loginAs('hr@qlns.local', 'Hr@123456');
+
+        $response = $this->getJson('/api/v1/employees/me', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(404);
+    }
 }

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useLoadingStore } from "../stores/useLoadingStore";
+import { useAuthStore } from "../stores/authStore";
 
 const routes = [
     {
@@ -27,29 +28,51 @@ const routes = [
         component: () => import("../views/Dashboard.vue"),
     },
     {
+        path: "/my-profile",
+        name: "my-profile",
+        meta: { title: "Hồ sơ của tôi" },
+        component: () => import("../views/MyProfile.vue"),
+    },
+    {
         path: "/departments",
         name: "departments",
-        meta: { title: "Phòng ban" },
+        // permission: mã quyền bắt buộc để vào route này — thiếu thì router
+        // guard bên dưới tự đá về Dashboard, không cần khai riêng chỗ khác.
+        meta: { title: "Phòng ban", permission: "department.view" },
         component: () => import("../views/Department/Departments.vue"),
     },
     {
         path: "/positions",
         name: "positions",
-        meta: { title: "Chức vụ" },
+        // Chức vụ dùng chung mã quyền với Phòng ban (xem CODE_MAP mục 7) —
+        // không tách quyền riêng, guard route cũng theo đúng quy ước đó.
+        meta: { title: "Chức vụ", permission: "department.view" },
         component: () => import("../views/Position/Positions.vue"),
     },
     {
         path: "/employees",
         name: "employees",
-        meta: { title: "Nhân viên" },
+        meta: { title: "Nhân viên", permission: "employee.view" },
         component: () => import("../views/Employee/Employees.vue"),
     },
     {
         path: "/employees/:id",
         name: "employee-detail",
-        meta: { title: "Chi tiết nhân viên", parent: "employees" },
+        meta: { title: "Chi tiết nhân viên", parent: "employees", permission: "employee.view" },
         component: () => import("../views/Employee/EmployeeDetail.vue"),
         props: true,
+    },
+    {
+        path: "/work-shifts",
+        name: "work-shifts",
+        meta: { title: "Ca làm việc", permission: "shift.view" },
+        component: () => import("../views/WorkShift/WorkShifts.vue"),
+    },
+    {
+        path: "/attendance-locations",
+        name: "attendance-locations",
+        meta: { title: "Điểm chấm công", permission: "location.view" },
+        component: () => import("../views/AttendanceLocation/AttendanceLocations.vue"),
     },
 ];
 
@@ -62,6 +85,30 @@ const router = createRouter({
 // thanh loading cho người dùng biết app đang chạy chứ không phải bị treo.
 router.beforeEach(() => {
     useLoadingStore().start();
+});
+
+// Chặn vào thẳng URL của trang không có quyền (menu ở AppSidebar.vue đã tự ẩn
+// mục đó, nhưng gõ tay URL vẫn phải chặn) — chỉ là lớp UX phụ, quyền thật vẫn
+// do backend enforce qua middleware permission:xxx, route guard này không
+// thay được lớp đó. Phải đợi auth.user nạp xong (F5 trang chỉ có access_token
+// trong localStorage, chưa có permissions) rồi mới kiểm tra, nếu không sẽ đá
+// nhầm người dùng hợp lệ vì permissions đang rỗng lúc mới tải trang.
+router.beforeEach(async (to) => {
+    const auth = useAuthStore();
+
+    if (auth.accessToken && !auth.user) {
+        try {
+            await auth.fetchMe();
+        } catch {
+            // Token hết hạn/không hợp lệ — để nguyên, interceptor của
+            // bootstrap.js sẽ tự xử lý 401 ở lần gọi API thật tiếp theo.
+        }
+    }
+
+    const requiredPermission = to.meta.permission;
+    if (requiredPermission && !auth.permissions.includes(requiredPermission)) {
+        return { name: "dashboard" };
+    }
 });
 
 router.afterEach(() => {

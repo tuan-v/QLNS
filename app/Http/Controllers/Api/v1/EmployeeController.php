@@ -28,6 +28,19 @@ class EmployeeController extends Controller
     {
         return response()->json($this->employeeService->stats());
     }
+    // Hồ sơ của CHÍNH người đang đăng nhập — cố tình không gắn middleware
+    // permission:employee.view (route riêng, xem routes/api/v1/employees.php):
+    // xem hồ sơ của bản thân là quyền mặc định của mọi tài khoản, không nên
+    // phụ thuộc vào mã quyền "xem toàn bộ nhân viên" (khác nhau về bản chất —
+    // 1 role tương lai không có employee.view vẫn phải xem được hồ sơ chính họ).
+    public function me(Request $request): JsonResponse
+    {
+        $employee = $request->user()->employee;
+
+        abort_if(! $employee, 404, 'Tài khoản này chưa liên kết với hồ sơ nhân viên nào.');
+
+        return (new EmployeeResource($employee))->response();
+    }
     public function show(Employee $employee): JsonResponse
     {
         return (new EmployeeResource($employee))->response();

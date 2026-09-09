@@ -55,21 +55,34 @@
                 to="/"
                 rounded="lg"
             />
-
-            <v-list-subheader v-if="!rail">NHÂN SỰ</v-list-subheader>
+            <!-- Luôn hiện với mọi tài khoản đã đăng nhập — xem hồ sơ CHÍNH
+                 MÌNH không phụ thuộc mã quyền nào, xem MyProfile.vue. -->
             <v-list-item
+                prepend-icon="mdi-account-circle-outline"
+                title="Hồ sơ của tôi"
+                to="/my-profile"
+                rounded="lg"
+            />
+
+            <v-list-subheader v-if="!rail && (can('employee.view') || can('department.view'))"
+                >NHÂN SỰ</v-list-subheader
+            >
+            <v-list-item
+                v-if="can('employee.view')"
                 prepend-icon="mdi-account-group-outline"
                 title="Nhân viên"
                 rounded="lg"
                 to="/employees"
             />
             <v-list-item
+                v-if="can('department.view')"
                 prepend-icon="mdi-office-building-outline"
                 title="Phòng ban"
                 to="/departments"
                 rounded="lg"
             />
             <v-list-item
+                v-if="can('department.view')"
                 prepend-icon="mdi-badge-account-outline"
                 title="Chức vụ"
                 to="/positions"
@@ -79,6 +92,20 @@
             <v-list-subheader v-if="!rail"
                 >CHẤM CÔNG &amp; NGHỈ PHÉP</v-list-subheader
             >
+            <v-list-item
+                v-if="can('shift.view')"
+                prepend-icon="mdi-timetable"
+                title="Ca làm việc"
+                to="/work-shifts"
+                rounded="lg"
+            />
+            <v-list-item
+                v-if="can('location.view')"
+                prepend-icon="mdi-map-marker-outline"
+                title="Điểm chấm công"
+                to="/attendance-locations"
+                rounded="lg"
+            />
             <v-list-item
                 prepend-icon="mdi-calendar-check-outline"
                 title="Chấm công"
@@ -138,6 +165,8 @@
 </template>
 
 <script setup>
+import { useAuthStore } from "../../stores/authStore";
+
 // "rail" giờ đến từ AppLayout.vue (component cha chung với AppHeader) — không
 // còn tự giữ state riêng, để nút hamburger ở AppHeader điều khiển được sidebar.
 const { rail } = defineProps({
@@ -147,4 +176,12 @@ const { rail } = defineProps({
     },
 });
 defineEmits(["update:rail"]);
+
+const auth = useAuthStore();
+// Chỉ ẩn/hiện mục menu — lớp UX phụ. Quyền thật vẫn do backend enforce qua
+// middleware permission:xxx (mỗi route xem CODE_MAP), route guard ở
+// router/index.js mới là lớp chặn thật khi gõ tay URL.
+function can(code) {
+    return auth.permissions.includes(code);
+}
 </script>

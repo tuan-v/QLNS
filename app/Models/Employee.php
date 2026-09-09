@@ -79,6 +79,10 @@ class Employee extends Model
     {
         return $this->hasMany(EmployeeTransfer::class);
     }
+    public function shiftAssignments()
+    {
+        return $this->hasMany(EmployeeShiftAssignment::class);
+    }
     public function bankAccounts()
     {
         return $this->hasMany(EmployeeBankAccount::class);

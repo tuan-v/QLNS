@@ -20,6 +20,14 @@ class PermissionSeeder extends Seeder
             ['code' => 'department.view', 'name' => 'Xem phòng ban'],
             ['code' => 'department.manage', 'name' => 'Quản lý phòng ban / chức vụ'],
 
+            // Work Shift
+            ['code' => 'shift.view', 'name' => 'Xem ca làm việc'],
+            ['code' => 'shift.manage', 'name' => 'Quản lý ca làm việc'],
+
+            // Attendance Location
+            ['code' => 'location.view', 'name' => 'Xem điểm chấm công'],
+            ['code' => 'location.manage', 'name' => 'Quản lý điểm chấm công'],
+
             // Attendance
             ['code' => 'attendance.check', 'name' => 'Chấm công (check-in/out)'],
             ['code' => 'attendance.view_own', 'name' => 'Xem chấm công của bản thân'],
