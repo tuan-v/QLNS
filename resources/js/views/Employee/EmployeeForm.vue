@@ -216,8 +216,23 @@
         <FormSection title="Tổ chức">
             <v-row dense>
                 <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Phòng ban <span class="text-error">*</span>
+                    <div
+                        class="d-flex align-center justify-space-between mb-1"
+                    >
+                        <span class="text-body-2 font-weight-medium">
+                            Phòng ban <span class="text-error">*</span>
+                        </span>
+                        <v-btn
+                            v-if="canManageOrg"
+                            variant="text"
+                            size="x-small"
+                            density="comfortable"
+                            prepend-icon="mdi-plus"
+                            class="px-1"
+                            @click="quickDepartmentOpen = true"
+                        >
+                            Tạo nhanh
+                        </v-btn>
                     </div>
                     <SearchSelect
                         :model-value="form.department_id"
@@ -230,14 +245,30 @@
                 </v-col>
 
                 <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Chức vụ
+                    <div
+                        class="d-flex align-center justify-space-between mb-1"
+                    >
+                        <span class="text-body-2 font-weight-medium">
+                            Chức vụ
+                        </span>
+                        <v-btn
+                            v-if="canManageOrg"
+                            variant="text"
+                            size="x-small"
+                            density="comfortable"
+                            prepend-icon="mdi-plus"
+                            class="px-1"
+                            @click="quickPositionOpen = true"
+                        >
+                            Tạo nhanh
+                        </v-btn>
                     </div>
                     <SearchSelect
-                        v-model="form.position_id"
+                        :model-value="form.position_id"
                         :items="positionOptions"
                         clearable
                         :error-messages="store.errors.position_id"
+                        @update:model-value="onPositionChange"
                     />
                 </v-col>
 
@@ -293,7 +324,55 @@
                 </v-col>
             </v-row>
         </FormSection>
+
+        <!-- Chỉ hiện lúc Thêm mới — sửa nhân viên đã có/chưa có tài khoản thì
+             dùng nút "Tạo tài khoản đăng nhập" riêng ở EmployeeDetail.vue. -->
+        <FormSection v-if="!isEdit" title="Tài khoản đăng nhập">
+            <v-checkbox
+                v-model="createAccount"
+                label="Tạo tài khoản đăng nhập ngay sau khi lưu"
+                density="comfortable"
+                hide-details
+            />
+            <template v-if="createAccount">
+                <div class="text-body-2 font-weight-medium mb-1 mt-3">
+                    Role <span class="text-error">*</span>
+                </div>
+                <SearchSelect
+                    v-model="accountRoleIds"
+                    :items="roleOptions"
+                    multiple
+                    chips
+                    closable-chips
+                    :error-messages="accountError"
+                />
+                <div class="text-caption mt-1" style="opacity: 0.65">
+                    Tự điền theo Chức vụ đang chọn, sửa được. Mật khẩu gửi qua
+                    email cho nhân viên tự đặt, không hiển thị ở đây.
+                </div>
+            </template>
+        </FormSection>
         </v-form>
+
+        <!-- Tạo nhanh Phòng ban / Chức vụ ngay trong form nhân viên. Dùng lại
+             đúng 2 form của trang Phòng ban và Chức vụ, KHÔNG viết form rút gọn
+             riêng: viết lại sẽ có 2 bộ validation và 2 bộ field phải nhớ đồng bộ
+             mỗi lần nghiệp vụ đổi. Dialog lồng trong dialog là hợp lệ với Vuetify
+             vì nội dung được teleport ra ngoài, không nằm trong DOM của nhau. -->
+        <DepartmentFormDialog
+            v-model="quickDepartmentOpen"
+            :department="null"
+            :parent-options="departmentOptions"
+            @saved="onQuickDepartmentSaved"
+        />
+
+        <PositionFormDialog
+            v-model="quickPositionOpen"
+            :position="null"
+            :department-options="positionDepartmentOptions"
+            :default-department-id="form.department_id"
+            @saved="onQuickPositionSaved"
+        />
 
         <template #footer-note>
             <span class="text-error">*</span> Thông tin bắt buộc
@@ -307,10 +386,14 @@ import { useEmployeeStore } from "../../stores/useEmployeeStore";
 import employeeService from "../../services/employeeService";
 import positionService from "../../services/positionService";
 import addressService from "../../services/addressService";
+import roleService from "../../services/roleService";
 import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useAuthStore } from "../../stores/authStore";
+import DepartmentFormDialog from "../Department/DepartmentForm.vue";
+import PositionFormDialog from "../Position/PositionForm.vue";
 import InputDate, {
     shiftIsoDate,
     todayIso,
@@ -376,6 +459,45 @@ const form = reactive({
 });
 
 const formRef = ref(null);
+
+/* --------------------- Tạo tài khoản đăng nhập ngay --------------------- */
+
+const createAccount = ref(false);
+const accountRoleIds = ref([]);
+const accountError = ref("");
+const roleOptions = ref([]);
+
+// Giữ lại promise của lần loadRoles() gần nhất để applySuggestedRoles() luôn
+// đợi roleOptions tải xong rồi mới gán accountRoleIds — gán trước khi
+// v-autocomplete có đủ items để đối chiếu khiến chip hiện nhầm ra ID thô
+// ("3") thay vì tên Role ("Manager"), lỗi đã vấp thật ở EmployeeDetail.vue.
+let rolesLoadPromise = Promise.resolve();
+
+function loadRoles() {
+    rolesLoadPromise = roleService.list().then((response) => {
+        roleOptions.value = response.data.map((role) => ({
+            title: role.name,
+            value: role.id,
+        }));
+    });
+    return rolesLoadPromise;
+}
+
+async function applySuggestedRoles(positionId) {
+    await rolesLoadPromise;
+    const position = allPositions.value.find((p) => p.id === positionId);
+    accountRoleIds.value = position?.suggested_roles?.map((r) => r.id) ?? [];
+}
+
+// Bật checkbox lúc đã chọn sẵn Chức vụ (thứ tự: chọn Chức vụ trước, tick sau)
+// thì cũng tự điền gợi ý luôn — onPositionChange() ở dưới chỉ lo chiều ngược
+// lại (đổi Chức vụ trong lúc checkbox đã bật).
+watch(createAccount, (enabled) => {
+    if (!enabled) {
+        return;
+    }
+    applySuggestedRoles(form.position_id);
+});
 
 // Rule phía client phản chiếu đúng Form Request của backend. Mục đích là báo lỗi
 // ngay khi người dùng rời ô, thay vì phải bấm Lưu rồi chờ 422 — backend vẫn là
@@ -466,6 +588,12 @@ watch(
             fillForm();
             // Xóa lỗi đỏ còn sót của lần mở trước, tránh form vừa mở đã báo lỗi.
             formRef.value?.resetValidation();
+            // Tài khoản đăng nhập chỉ áp dụng lúc Thêm mới — reset lại mỗi lần
+            // mở modal, không giữ trạng thái tick của lần thêm trước.
+            createAccount.value = false;
+            accountRoleIds.value = [];
+            accountError.value = "";
+            loadRoles();
             // Nạp lại danh sách Xã/Phường đúng theo Tỉnh đã có sẵn (modal Sửa) —
             // KHÔNG gọi qua onProvinceChange() vì hàm đó xóa luôn commune_code,
             // ở đây form.commune_code vừa được fillForm() gán đúng giá trị cũ.
@@ -494,6 +622,12 @@ async function submit() {
         return;
     }
 
+    accountError.value = "";
+    if (createAccount.value && accountRoleIds.value.length === 0) {
+        accountError.value = "Chọn ít nhất 1 Role cho tài khoản.";
+        return;
+    }
+
     // Chuỗi rỗng gửi lên backend cho field "nullable" sẽ bị coi là có giá trị
     // (không phải null) — ví dụ date "" không qua nổi rule "nullable|date".
     // Đổi rỗng thành null trước khi gửi để đúng ý "chưa nhập".
@@ -507,17 +641,43 @@ async function submit() {
     try {
         if (isEdit.value) {
             await store.update(props.employee.id, payload);
+            toast.success("Đã cập nhật nhân viên.");
         } else {
-            await store.create(payload);
+            const created = await store.create(payload);
+            toast.success("Đã thêm nhân viên mới.");
+
+            if (createAccount.value) {
+                await createAccountForNewEmployee(created.data.id);
+            }
         }
-        toast.success(
-            isEdit.value ? "Đã cập nhật nhân viên." : "Đã thêm nhân viên mới.",
-        );
         emit("saved");
         close();
     } catch {
         // Lỗi đã được store xử lý (422 -> store.errors, còn lại -> store.loadError),
         // giữ modal mở để người dùng sửa lại dữ liệu.
+    }
+}
+
+// Tách riêng khỏi luồng chính: hồ sơ nhân viên ĐÃ tạo thành công tại thời
+// điểm này (không thể/không nên "hoàn tác" chỉ vì bước tạo tài khoản lỗi) —
+// lỗi ở đây chỉ báo toast riêng, không throw ra ngoài để submit() vẫn đóng
+// modal + coi như đã lưu xong, người dùng tạo lại tài khoản sau ở trang chi
+// tiết nhân viên (nút riêng, xem EmployeeDetail.vue) nếu bước này thất bại.
+async function createAccountForNewEmployee(employeeId) {
+    try {
+        await employeeService.createAccount(employeeId, {
+            role_ids: accountRoleIds.value,
+        });
+        toast.success("Đã tạo tài khoản đăng nhập, email đặt mật khẩu đã được gửi.");
+    } catch (e) {
+        const message =
+            e.response?.data?.errors?.role_ids?.[0] ??
+            e.response?.data?.errors?.employee?.[0] ??
+            e.response?.data?.message ??
+            "Không thể kết nối máy chủ.";
+        toast.error(
+            `Đã thêm nhân viên nhưng tạo tài khoản đăng nhập thất bại: ${message} Bạn có thể tạo lại ở trang chi tiết nhân viên.`,
+        );
     }
 }
 
@@ -546,6 +706,82 @@ const positionOptions = computed(() =>
 function onDepartmentChange(value) {
     form.department_id = value;
     form.position_id = null;
+}
+
+// Đổi Chức vụ thì tự điền lại gợi ý Role tương ứng (position.suggested_roles,
+// xem PositionRepository::paginate()) vào ô chọn Role của mục "Tạo tài khoản
+// đăng nhập" — chỉ khi checkbox đang bật, và chỉ khi người dùng THẬT SỰ đổi
+// (qua @update:model-value), cùng lý do onDepartmentChange() ở trên không
+// dùng watch() chung.
+function onPositionChange(value) {
+    form.position_id = value;
+
+    if (!createAccount.value) {
+        return;
+    }
+
+    applySuggestedRoles(value);
+}
+
+/* ------------------ Tạo nhanh Phòng ban / Chức vụ tại chỗ ----------------- */
+
+// Thiếu một phòng ban hoặc chức vụ giữa chừng thì trước đây phải thoát form ra
+// trang khác để thêm — mà form này là modal, thoát ra là mất trắng dữ liệu đang
+// gõ dở. Tạo nhanh tại chỗ rồi gán luôn vào ô đang chọn.
+const auth = useAuthStore();
+
+// Cả tạo phòng ban lẫn tạo chức vụ đều dùng chung quyền `department.manage`
+// (xem routes/api/v1/departments.php và positions.php) — không có quyền thì ẩn
+// nút đi, để bấm vào rồi mới nhận 403 là trải nghiệm tồi.
+const canManageOrg = computed(() =>
+    auth.permissions.includes("department.manage"),
+);
+
+const quickDepartmentOpen = ref(false);
+const quickPositionOpen = ref(false);
+
+// PositionForm khai báo `item-value="id"` — trang Chức vụ dùng quy ước danh sách
+// { title, id }, khác với phần còn lại của dự án (kể cả prop departmentOptions
+// của chính form này) đang dùng quy ước mặc định của Vuetify là { title, value }.
+// Truyền thẳng sang thì Vuetify dò khóa `id` không thấy, không khớp được phòng
+// ban đang chọn với mục nào và in ra id thô (vd "10") thay vì tên phòng ban.
+// Đổi khóa ngay tại chỗ gọi thay vì sửa PositionForm: trang Chức vụ đang chạy
+// đúng với quy ước cũ, đổi bên đó là phải sửa lan sang cả bộ lọc của Positions.vue.
+const positionDepartmentOptions = computed(() =>
+    props.departmentOptions.map((option) => ({
+        title: option.title,
+        id: option.value,
+    })),
+);
+
+function onQuickDepartmentSaved(created) {
+    if (!created?.id) {
+        return;
+    }
+
+    // Danh sách phòng ban tự làm mới: useDepartmentStore.create() đã gọi
+    // fetchTree(), mà departmentOptions của Employees.vue tính từ chính store đó.
+    // Gọi lại onDepartmentChange() thay vì gán thẳng để giữ đúng quy tắc "đổi
+    // phòng ban thì bỏ chức vụ đang chọn" — phòng ban vừa tạo chưa có chức vụ nào.
+    onDepartmentChange(created.id);
+}
+
+async function onQuickPositionSaved(created) {
+    if (!created?.id) {
+        return;
+    }
+
+    // Ô Chức vụ lọc từ allPositions nên phải nạp lại, không thì chức vụ vừa tạo
+    // không có trong danh sách và giá trị gán vào sẽ hiển thị trống.
+    await loadPositions();
+
+    // Người dùng có thể đổi phòng ban ngay trong form tạo nhanh; đồng bộ lại
+    // trước, nếu không positionOptions lọc theo phòng ban cũ sẽ loại mất nó.
+    if (created.department_id && created.department_id !== form.department_id) {
+        form.department_id = created.department_id;
+    }
+
+    onPositionChange(created.id);
 }
 
 /* --------------------------- Quản lý trực tiếp --------------------------- */

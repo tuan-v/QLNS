@@ -9,7 +9,11 @@ class PositionRepository
 {
     public function paginate(int $perPage = 15, array $filters = []): LengthAwarePaginator
     {
-        return Position::with('department')
+        // suggestedRoles: Role gợi ý mặc định để đổ sẵn vào ô chọn Role lúc tạo
+        // tài khoản đăng nhập (EmployeeForm.vue/EmployeeDetail.vue) — nạp kèm
+        // luôn ở đây, tránh phải gọi API riêng cho từng Chức vụ khi người dùng
+        // đổi lựa chọn trên dropdown.
+        return Position::with(['department', 'suggestedRoles'])
             ->when($filters['department_id'] ?? null, fn ($query, $departmentId) => $query->where('department_id', $departmentId))
             ->latest()
             ->paginate($perPage);

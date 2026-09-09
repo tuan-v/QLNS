@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\EmployeeAccountController;
 use App\Http\Controllers\Api\V1\EmployeeController;
 use App\Http\Controllers\Api\V1\EmployeeContractController;
 use App\Http\Controllers\Api\V1\EmployeeDocumentController;
@@ -16,6 +17,7 @@ Route::middleware('auth:api')->prefix('employees')->group(function (): void {
     Route::put('/{employee}', [EmployeeController::class, 'update'])->middleware('permission:employee.update');
     Route::delete('/{employee}', [EmployeeController::class, 'destroy'])->middleware('permission:employee.delete');
     Route::post('/{employee}/avatar', [EmployeeController::class, 'uploadAvatar'])->middleware('permission:employee.update');
+    Route::post('/{employee}/account', [EmployeeAccountController::class, 'store'])->middleware('permission:employee.update');
     Route::get('/{employee}/contracts', [EmployeeContractController::class, 'index'])->middleware('permission:employee.view');
     Route::post('/{employee}/contracts', [EmployeeContractController::class, 'store'])->middleware('permission:employee.update');
     Route::get('/{employee}/contracts/{contract}/download', [EmployeeContractController::class, 'download'])

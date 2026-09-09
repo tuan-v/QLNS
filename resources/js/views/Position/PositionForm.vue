@@ -137,6 +137,13 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    // Phòng ban chọn sẵn khi THÊM MỚI. Dùng cho luồng tạo nhanh từ form nhân
+    // viên: người dùng đang chọn dở một phòng ban thì chức vụ mới cũng nên
+    // thuộc phòng ban đó, đỡ phải chọn lại.
+    defaultDepartmentId: {
+        type: [Number, String],
+        default: null,
+    },
 });
 
 const emit = defineEmits(["update:modelValue", "saved"]);
@@ -162,7 +169,8 @@ const form = reactive({
 
 function fillForm() {
     form.name = props.position?.name ?? "";
-    form.department_id = props.position?.department_id ?? null;
+    form.department_id =
+        props.position?.department_id ?? props.defaultDepartmentId ?? null;
     form.level = props.position?.level ?? null;
     form.position_allowance = props.position?.position_allowance ?? null;
     // DB trả về 1/0, ép về boolean cho v-switch
@@ -190,15 +198,15 @@ async function submit() {
     loadError.value = "";
     loading.value = true;
     try {
-        if (isEdit.value) {
-            await positionService.update(props.position.id, { ...form });
-        } else {
-            await positionService.create({ ...form });
-        }
+        const response = isEdit.value
+            ? await positionService.update(props.position.id, { ...form })
+            : await positionService.create({ ...form });
         toast.success(
             isEdit.value ? "Đã cập nhật chức vụ." : "Đã thêm chức vụ mới.",
         );
-        emit("saved");
+        // Kèm bản ghi vừa lưu, cùng lý do như DepartmentForm.vue. Controller trả
+        // thẳng model (`response()->json($position)`) nên không bọc trong `data`.
+        emit("saved", response.data);
         close();
     } catch (e) {
         if (e.response?.status === 422) {

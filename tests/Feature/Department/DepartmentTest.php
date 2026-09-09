@@ -311,6 +311,22 @@ class DepartmentTest extends TestCase
         $this->assertSame('Trưởng phòng', $boss->position->name);
     }
 
+    public function test_newly_created_head_position_suggests_manager_role(): void
+    {
+        $department = Department::create(['name' => 'Phong Ke toan', 'code' => 'PB001']);
+        $boss = $this->makeEmployee(['code' => 'NV001']);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $this->putJson('/api/v1/departments/'.$department->id, [
+            'name' => 'Phong Ke toan',
+            'manager_id' => $boss->id,
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(200);
+
+        $boss->refresh();
+        $suggestedRoleNames = $boss->position->suggestedRoles()->pluck('name');
+        $this->assertTrue($suggestedRoleNames->contains('Manager'));
+    }
+
     public function test_replacing_department_manager_demotes_old_one_to_default_position(): void
     {
         $department = Department::create(['name' => 'Phong Ke toan', 'code' => 'PB001']);

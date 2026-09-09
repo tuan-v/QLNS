@@ -38,4 +38,7 @@ export default {
     update(id, employee) {
         return axios.put(`${API_BASE}/${id}`, employee);
     },
+    createAccount(id, payload) {
+        return axios.post(`${API_BASE}/${id}/account`, payload);
+    },
 };

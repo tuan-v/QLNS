@@ -201,15 +201,18 @@ function close() {
 
 async function submit() {
     try {
-        if (isEdit.value) {
-            await store.update(props.department.id, { ...form });
-        } else {
-            await store.create({ ...form });
-        }
+        const saved = isEdit.value
+            ? await store.update(props.department.id, { ...form })
+            : await store.create({ ...form });
         toast.success(
             isEdit.value ? "Đã cập nhật phòng ban." : "Đã thêm phòng ban mới.",
         );
-        emit("saved");
+        // Kèm luôn bản ghi vừa lưu: nơi gọi có thể cần `id` để dùng ngay, ví dụ
+        // form nhân viên tạo nhanh phòng ban rồi tự gán vào ô đang chọn. Chỗ nào
+        // không cần thì cứ bỏ qua tham số, thêm tham số không phá listener cũ.
+        // API trả bản ghi PHẲNG (`response()->json(new DepartmentResource(...))`
+        // không bọc trong `data`), nên `saved` chính là object phòng ban.
+        emit("saved", saved);
         close();
     } catch {
         // Lỗi đã được store xử lý (422 -> store.errors, còn lại -> store.loadError),

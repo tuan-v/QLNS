@@ -85,6 +85,9 @@
             <template #item.department="{ item }">{{
                 item.department?.name ?? "—"
             }}</template>
+            <template #item.position="{ item }">{{
+                item.position?.name ?? "—"
+            }}</template>
             <template #item.employment_status="{ item }">
                 <StatusChip
                     :status="item.employment_status"
@@ -129,6 +132,7 @@ const canUpdate = computed(() => auth.permissions.includes("employee.update"));
 
 const search = ref("");
 const departmentId = ref(null);
+const positionId = ref(null);
 const employmentStatus = ref(null);
 const page = ref(1);
 const perPage = ref(10);
@@ -231,6 +235,7 @@ const headers = [
     { title: "Mã", key: "code" },
     { title: "Họ tên", key: "full_name" },
     { title: "Phòng ban", key: "department" },
+    { title: "Chức vụ", key: "position" },
     { title: "Email", key: "company_email" },
     { title: "Trạng thái", key: "employment_status" },
 ];
@@ -295,13 +300,14 @@ function fetchData() {
     store.fetchList({
         search: search.value || undefined,
         department_id: departmentId.value || undefined,
+        position_id: positionId.value || undefined,
         employment_status: employmentStatus.value || undefined,
         page: page.value,
         per_page: perPage.value,
     });
 }
 
-watch([search, departmentId, employmentStatus, perPage], () => {
+watch([search, departmentId, positionId, employmentStatus, perPage], () => {
     page.value = 1;
     fetchData();
 });

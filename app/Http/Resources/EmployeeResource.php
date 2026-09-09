@@ -32,7 +32,7 @@ class EmployeeResource extends JsonResource
         // show()/store()/update() không đi qua EmployeeRepository::find() nên không có
         // sẵn with(...) — loadMissing() chỉ query nếu quan hệ CHƯA được nạp, nên với
         // index() (đã with() từ trước) dòng này không tốn thêm query nào.
-        $this->resource->loadMissing(['department', 'position', 'manager', 'province', 'commune']);
+        $this->resource->loadMissing(['department', 'position.suggestedRoles', 'manager', 'province', 'commune', 'user.roles']);
 
         $viewer = $request->user()?->employee;
         $hideSensitive = in_array($this->resource->id, self::ancestorIdsFor($viewer), true);
@@ -48,6 +48,13 @@ class EmployeeResource extends JsonResource
             'department' => $this->whenLoaded('department'),
             'position' => $this->whenLoaded('position'),
             'manager' => $this->whenLoaded('manager', fn () => new EmployeeResource($this->manager)),
+            // null = chưa có tài khoản đăng nhập (EmployeeDetail.vue dùng để
+            // hiện/ẩn nút "Tạo tài khoản đăng nhập" — xem EmployeeAccountController).
+            'user' => $this->whenLoaded('user', fn () => $this->user ? [
+                'id' => $this->user->id,
+                'email' => $this->user->email,
+                'roles' => $this->user->roles->pluck('name'),
+            ] : null),
 
             // Field nhạy cảm — ẩn nếu người xem là cấp dưới của nhân viên này
             'date_of_birth' => $hideSensitive ? null : $this->date_of_birth,

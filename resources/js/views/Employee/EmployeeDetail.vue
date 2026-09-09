@@ -46,23 +46,60 @@
                         class="border rounded-lg pa-5 glass-panel"
                         color="transparent"
                     >
-                        <div class="d-flex align-center ga-4 mb-5">
-                            <v-avatar size="72" color="surface-variant">
-                                <v-img
-                                    v-if="employee.avatar_url"
-                                    :src="employee.avatar_url"
-                                />
-                                <v-icon v-else icon="mdi-account" size="36" />
-                            </v-avatar>
-                            <div>
-                                <div class="text-h6 font-weight-bold">
-                                    {{ employee.full_name }}
+                        <div
+                            class="d-flex align-center justify-space-between flex-wrap ga-4 mb-5"
+                        >
+                            <div class="d-flex align-center ga-4">
+                                <v-avatar size="72" color="surface-variant">
+                                    <v-img
+                                        v-if="employee.avatar_url"
+                                        :src="employee.avatar_url"
+                                    />
+                                    <v-icon v-else icon="mdi-account" size="36" />
+                                </v-avatar>
+                                <div>
+                                    <div class="text-h6 font-weight-bold">
+                                        {{ employee.full_name }}
+                                    </div>
+                                    <StatusChip
+                                        :status="employee.employment_status"
+                                        :map="EMPLOYMENT_STATUS_MAP"
+                                    />
                                 </div>
-                                <StatusChip
-                                    :status="employee.employment_status"
-                                    :map="EMPLOYMENT_STATUS_MAP"
-                                />
                             </div>
+
+                            <!-- Tài khoản đăng nhập: hiện thông tin nếu đã có
+                                 (email + Role), hoặc nút tạo nếu chưa có — xem
+                                 EmployeeAccountController. -->
+                            <div v-if="employee.user" class="text-end">
+                                <div class="text-caption" style="opacity: 0.6">
+                                    Tài khoản đăng nhập
+                                </div>
+                                <div class="text-body-2 font-weight-medium">
+                                    {{ employee.user.email }}
+                                </div>
+                                <div class="d-flex ga-1 flex-wrap justify-end mt-1">
+                                    <v-chip
+                                        v-for="roleName in employee.user.roles"
+                                        :key="roleName"
+                                        size="x-small"
+                                        variant="tonal"
+                                        color="primary"
+                                    >
+                                        {{ roleName }}
+                                    </v-chip>
+                                </div>
+                            </div>
+                            <v-btn
+                                v-else-if="canUpdate"
+                                size="small"
+                                variant="tonal"
+                                color="primary"
+                                prepend-icon="mdi-account-key-outline"
+                                @click="openAccountDialog"
+                            >
+                                Tạo tài khoản đăng nhập
+                            </v-btn>
                         </div>
 
                         <v-row dense>
@@ -721,6 +758,65 @@
             </v-card>
         </v-dialog>
 
+        <v-dialog v-model="accountDialog" max-width="480" persistent>
+            <v-card rounded="xl" elevation="12" class="glass-panel">
+                <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
+                    Tạo tài khoản đăng nhập
+                </v-card-title>
+                <v-card-text
+                    class="px-5"
+                    style="display: flex; flex-direction: column; gap: 0.75rem"
+                >
+                    <div class="text-body-2" style="opacity: 0.75">
+                        Email đăng nhập: <strong>{{ employee?.company_email }}</strong>.
+                        Mật khẩu đặt qua email gửi cho nhân viên, không hiển
+                        thị ở đây.
+                    </div>
+
+                    <div>
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Role <span class="text-error">*</span>
+                        </div>
+                        <SearchSelect
+                            v-model="accountRoleIds"
+                            :items="accountRoleOptions"
+                            :error-messages="accountErrors.role_ids"
+                            multiple
+                            chips
+                            closable-chips
+                        />
+                    </div>
+
+                    <v-alert
+                        v-if="accountGeneralError"
+                        type="error"
+                        variant="tonal"
+                        density="compact"
+                    >
+                        {{ accountGeneralError }}
+                    </v-alert>
+                </v-card-text>
+                <v-card-actions class="px-5 pb-5">
+                    <v-spacer />
+                    <v-btn
+                        variant="text"
+                        :disabled="accountSubmitting"
+                        @click="closeAccountDialog"
+                    >
+                        Hủy
+                    </v-btn>
+                    <v-btn
+                        color="primary"
+                        variant="flat"
+                        :loading="accountSubmitting"
+                        @click="submitAccount"
+                    >
+                        Tạo tài khoản
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
         <FilePreviewDialog
             v-model="previewDialog"
             :file-url="previewFile.url"
@@ -735,6 +831,8 @@ import { useRouter } from "vue-router";
 import employeeService from "../../services/employeeService";
 import departmentService from "../../services/departmentService";
 import positionService from "../../services/positionService";
+import roleService from "../../services/roleService";
+import { useAuthStore } from "../../stores/authStore";
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
@@ -750,6 +848,9 @@ const props = defineProps({
 
 const router = useRouter();
 const toast = useToastStore();
+const auth = useAuthStore();
+
+const canUpdate = computed(() => auth.permissions.includes("employee.update"));
 
 const DOCUMENT_TYPE_MAP = {
     cccd: "CCCD/CMND",
@@ -1276,6 +1377,81 @@ async function submitTransfer() {
         }
     } finally {
         transferSubmitting.value = false;
+    }
+}
+
+/* ------------------------- Tạo tài khoản đăng nhập ------------------------ */
+
+const accountDialog = ref(false);
+const accountRoleIds = ref([]);
+const accountRoleOptions = ref([]);
+const accountErrors = ref({});
+const accountGeneralError = ref("");
+const accountSubmitting = ref(false);
+
+async function loadAccountRoleOptions() {
+    const response = await roleService.list();
+    accountRoleOptions.value = response.data.map((role) => ({
+        title: role.name,
+        value: role.id,
+    }));
+}
+
+// Tự điền gợi ý Role theo Chức vụ hiện tại của nhân viên (employee.position.
+// suggested_roles — xem PositionRepository::paginate()), sửa được trước khi
+// xác nhận. PHẢI đợi accountRoleOptions tải xong rồi mới gán accountRoleIds —
+// gán trước khi v-autocomplete có đủ items để đối chiếu khiến chip hiện
+// nhầm ra ID thô ("3") thay vì tên Role ("Manager"), vì Vuetify chỉ dựng
+// nhãn hiển thị của lựa chọn có sẵn tại đúng thời điểm model-value đổi.
+async function openAccountDialog() {
+    accountErrors.value = {};
+    accountGeneralError.value = "";
+    accountRoleIds.value = [];
+    accountDialog.value = true;
+    await loadAccountRoleOptions();
+    accountRoleIds.value =
+        employee.value?.position?.suggested_roles?.map((r) => r.id) ?? [];
+}
+
+function closeAccountDialog() {
+    accountDialog.value = false;
+}
+
+async function submitAccount() {
+    accountErrors.value = {};
+    accountGeneralError.value = "";
+
+    if (!accountRoleIds.value.length) {
+        accountErrors.value = {
+            role_ids: "Chọn ít nhất 1 Role cho tài khoản.",
+        };
+        return;
+    }
+
+    accountSubmitting.value = true;
+    try {
+        await employeeService.createAccount(props.id, {
+            role_ids: accountRoleIds.value,
+        });
+        toast.success(
+            "Đã tạo tài khoản đăng nhập, email đặt mật khẩu đã được gửi.",
+        );
+        closeAccountDialog();
+        // Nạp lại hồ sơ để employee.user hiện đúng tài khoản vừa tạo, ẩn nút
+        // "Tạo tài khoản đăng nhập" đi (chỉ hiện khi chưa có tài khoản).
+        loadEmployee();
+    } catch (e) {
+        const status = e.response?.status;
+        const data = e.response?.data;
+        if (status === 422 && data?.errors) {
+            accountErrors.value = { role_ids: data.errors.role_ids?.[0] };
+            accountGeneralError.value = data.errors.employee?.[0] ?? "";
+        } else {
+            accountGeneralError.value =
+                data?.message ?? "Không thể tạo tài khoản.";
+        }
+    } finally {
+        accountSubmitting.value = false;
     }
 }
 
