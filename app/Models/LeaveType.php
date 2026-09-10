@@ -1,0 +1,24 @@
+<?php
+
+namespace App\Models;
+
+use App\Models\Concerns\Auditable;
+use Illuminate\Database\Eloquent\Model;
+
+class LeaveType extends Model
+{
+    use Auditable;
+    protected $fillable = [
+        'code',
+        'name',
+        'annual_entitlement_days',
+        'is_paid',
+        'allow_carry_forward',
+        'max_carry_forward_days',
+        'is_active',
+    ];
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', 1);
+    }
+}

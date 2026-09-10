@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             UserRoleSeeder::class,
             ProvinceCommuneSeeder::class,
+            LeaveTypeSeeder::class,
         ]);
     }
 }
