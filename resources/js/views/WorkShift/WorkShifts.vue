@@ -29,7 +29,10 @@
             {{ loadError }}
         </v-alert>
 
-        <v-sheet class="border rounded-lg pa-4 mb-4 glass-panel" color="transparent">
+        <v-sheet
+            class="border rounded-lg pa-4 mb-4 glass-panel"
+            color="transparent"
+        >
             <SearchField v-model="search" placeholder="Tìm mã hoặc tên ca..." />
         </v-sheet>
 
@@ -43,8 +46,12 @@
             <template #item.index="{ index }">
                 <span style="opacity: 0.6">{{ index + 1 }}</span>
             </template>
+            <template #item.name="{ item }">
+                <span>{{ item.name }}</span>
+            </template>
             <template #item.time_range="{ item }">
-                {{ item.start_time?.slice(0, 5) }} — {{ item.end_time?.slice(0, 5) }}
+                {{ item.start_time?.slice(0, 5) }} —
+                {{ item.end_time?.slice(0, 5) }}
             </template>
             <template #item.standard_work_minutes="{ item }">
                 {{ formatHours(item.standard_work_minutes) }}
@@ -77,7 +84,7 @@ import { useToastStore } from "../../stores/useToastStore";
 
 const ACTIVE_STATUS_MAP = {
     1: { label: "Hoạt động", color: "success" },
-    0: { label: "Ngừng hoạt động", color: "default" },
+    0: { label: "Ngừng hoạt động", color: "error" },
 };
 
 const auth = useAuthStore();

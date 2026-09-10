@@ -268,4 +268,55 @@ class EmployeeTransferTest extends TestCase
 
         $response->assertStatus(404);
     }
+
+    public function test_employee_can_view_own_transfer_history_without_employee_view(): void
+    {
+        $department = Department::create(['name' => 'Phong B', 'code' => 'PB-B']);
+        $selfUser = \App\Models\User::create([
+            'email' => 'self-transfer@qlns.local', 'user_name' => 'Self',
+            'password' => bcrypt('Secret@123'), 'status' => 'active',
+        ]);
+        \App\Models\Role::where('name', 'Employee')->first()->users()->attach($selfUser->id);
+        $employee = $this->makeEmployee(['user_id' => $selfUser->id]);
+
+        $adminToken = $this->loginAs('admin@qlns.local', 'Admin@123');
+        $this->postJson('/api/v1/employees/'.$employee->id.'/transfers', [
+            'to_department_id' => $department->id,
+            'effective_date' => '2026-01-01',
+        ], ['Authorization' => 'Bearer '.$adminToken])->assertStatus(201);
+
+        $selfToken = $this->loginAs('self-transfer@qlns.local', 'Secret@123');
+        $response = $this->getJson('/api/v1/employees/me/transfers', [
+            'Authorization' => 'Bearer '.$selfToken,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertCount(1, $response->json('data'));
+    }
+
+    public function test_employee_can_download_own_transfer_decision_without_employee_view(): void
+    {
+        $department = Department::create(['name' => 'Phong B', 'code' => 'PB-B']);
+        $selfUser = \App\Models\User::create([
+            'email' => 'self-transfer-dl@qlns.local', 'user_name' => 'Self',
+            'password' => bcrypt('Secret@123'), 'status' => 'active',
+        ]);
+        \App\Models\Role::where('name', 'Employee')->first()->users()->attach($selfUser->id);
+        $employee = $this->makeEmployee(['user_id' => $selfUser->id]);
+
+        $adminToken = $this->loginAs('admin@qlns.local', 'Admin@123');
+        $created = $this->postJson('/api/v1/employees/'.$employee->id.'/transfers', [
+            'to_department_id' => $department->id,
+            'effective_date' => '2026-01-01',
+            'decision_file' => UploadedFile::fake()->create('quyet-dinh.pdf', 100, 'application/pdf'),
+        ], ['Authorization' => 'Bearer '.$adminToken]);
+        $transferId = $created->json('data.id');
+
+        $selfToken = $this->loginAs('self-transfer-dl@qlns.local', 'Secret@123');
+        $response = $this->get('/api/v1/employees/'.$employee->id.'/transfers/'.$transferId.'/download', [
+            'Authorization' => 'Bearer '.$selfToken,
+        ]);
+
+        $response->assertStatus(200);
+    }
 }

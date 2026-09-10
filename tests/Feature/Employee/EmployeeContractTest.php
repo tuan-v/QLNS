@@ -182,4 +182,74 @@ class EmployeeContractTest extends TestCase
 
         $response->assertStatus(404);
     }
+
+    public function test_employee_can_download_own_contract_even_without_employee_view(): void
+    {
+        $selfUser = \App\Models\User::create([
+            'email' => 'self-contract@qlns.local', 'user_name' => 'Self',
+            'password' => bcrypt('Secret@123'), 'status' => 'active',
+        ]);
+        \App\Models\Role::where('name', 'Employee')->first()->users()->attach($selfUser->id);
+        $employee = $this->makeEmployee(['user_id' => $selfUser->id]);
+
+        $adminToken = $this->loginAs('admin@qlns.local', 'Admin@123');
+        $created = $this->postJson('/api/v1/employees/'.$employee->id.'/contracts', $this->contractPayload(), [
+            'Authorization' => 'Bearer '.$adminToken,
+        ]);
+        $contractId = $created->json('data.id');
+
+        $selfToken = $this->loginAs('self-contract@qlns.local', 'Secret@123');
+        $response = $this->get('/api/v1/employees/'.$employee->id.'/contracts/'.$contractId.'/download', [
+            'Authorization' => 'Bearer '.$selfToken,
+        ]);
+
+        $response->assertStatus(200);
+    }
+
+    public function test_user_without_permission_or_ownership_cannot_download_contract(): void
+    {
+        $otherUser = \App\Models\User::create([
+            'email' => 'other-contract@qlns.local', 'user_name' => 'Other',
+            'password' => bcrypt('Secret@123'), 'status' => 'active',
+        ]);
+        \App\Models\Role::where('name', 'Employee')->first()->users()->attach($otherUser->id);
+        $this->makeEmployee(['user_id' => $otherUser->id]);
+        $employee = $this->makeEmployee();
+
+        $adminToken = $this->loginAs('admin@qlns.local', 'Admin@123');
+        $created = $this->postJson('/api/v1/employees/'.$employee->id.'/contracts', $this->contractPayload(), [
+            'Authorization' => 'Bearer '.$adminToken,
+        ]);
+        $contractId = $created->json('data.id');
+
+        $otherToken = $this->loginAs('other-contract@qlns.local', 'Secret@123');
+        $response = $this->get('/api/v1/employees/'.$employee->id.'/contracts/'.$contractId.'/download', [
+            'Authorization' => 'Bearer '.$otherToken,
+        ]);
+
+        $response->assertStatus(403);
+    }
+
+    public function test_me_contracts_returns_own_contracts_without_employee_view(): void
+    {
+        $selfUser = \App\Models\User::create([
+            'email' => 'self-me-contract@qlns.local', 'user_name' => 'Self',
+            'password' => bcrypt('Secret@123'), 'status' => 'active',
+        ]);
+        \App\Models\Role::where('name', 'Employee')->first()->users()->attach($selfUser->id);
+        $employee = $this->makeEmployee(['user_id' => $selfUser->id]);
+
+        $adminToken = $this->loginAs('admin@qlns.local', 'Admin@123');
+        $this->postJson('/api/v1/employees/'.$employee->id.'/contracts', $this->contractPayload(), [
+            'Authorization' => 'Bearer '.$adminToken,
+        ])->assertStatus(201);
+
+        $selfToken = $this->loginAs('self-me-contract@qlns.local', 'Secret@123');
+        $response = $this->getJson('/api/v1/employees/me/contracts', [
+            'Authorization' => 'Bearer '.$selfToken,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertCount(1, $response->json('data'));
+    }
 }

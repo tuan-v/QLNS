@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\EmployeeShiftAssignment;
 use App\Services\EmployeeShiftAssignmentService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class EmployeeShiftAssignmentController extends Controller
 {
@@ -18,6 +19,17 @@ class EmployeeShiftAssignmentController extends Controller
 
     public function index(Employee $employee): JsonResponse
     {
+        return response()->json($this->employeeShiftAssignmentService->listForEmployee($employee));
+    }
+
+    // Ca làm việc của CHÍNH người đang đăng nhập — cùng lý do không gắn
+    // permission:shift.view như EmployeeController::me(), xem route riêng.
+    public function mine(Request $request): JsonResponse
+    {
+        $employee = $request->user()->employee;
+
+        abort_if(! $employee, 404, 'Tài khoản này chưa liên kết với hồ sơ nhân viên nào.');
+
         return response()->json($this->employeeShiftAssignmentService->listForEmployee($employee));
     }
 

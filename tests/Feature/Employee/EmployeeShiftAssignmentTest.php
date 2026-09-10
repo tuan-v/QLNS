@@ -305,4 +305,36 @@ class EmployeeShiftAssignmentTest extends TestCase
 
         $response->assertStatus(404);
     }
+
+    public function test_me_shift_assignments_returns_own_assignments_without_shift_view(): void
+    {
+        $selfUser = \App\Models\User::create([
+            'email' => 'self-me-shift@qlns.local', 'user_name' => 'Self',
+            'password' => bcrypt('Secret@123'), 'status' => 'active',
+        ]);
+        \App\Models\Role::where('name', 'Employee')->first()->users()->attach($selfUser->id);
+        $department = Department::create(['name' => 'Phong '.uniqid(), 'code' => 'PB-'.uniqid()]);
+        $employee = Employee::create([
+            'full_name' => 'Nhan vien '.uniqid(), 'company_email' => uniqid().'@qlns.local',
+            'hire_date' => now(), 'code' => 'NV-'.uniqid(), 'department_id' => $department->id,
+            'user_id' => $selfUser->id,
+        ]);
+        $workShift = $this->makeWorkShift('CA001', '06:00', '12:00');
+
+        $adminToken = $this->loginAs('admin@qlns.local', 'Admin@123');
+        $this->postJson('/api/v1/employees/'.$employee->id.'/shift-assignments', [
+            'work_shift_id' => $workShift->id,
+            'effective_from' => '2026-01-01',
+            'work_days' => [1, 2, 3, 4, 5],
+        ], ['Authorization' => 'Bearer '.$adminToken])->assertStatus(201);
+
+        // Role Employee khong con shift.view (xem RolePermissionSeeder.php).
+        $selfToken = $this->loginAs('self-me-shift@qlns.local', 'Secret@123');
+        $response = $this->getJson('/api/v1/employees/me/shift-assignments', [
+            'Authorization' => 'Bearer '.$selfToken,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertCount(1, $response->json());
+    }
 }

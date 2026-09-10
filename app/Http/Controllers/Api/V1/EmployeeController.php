@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Employee\StoreEmployeeRequest;
 use App\Http\Requests\Employee\UpdateEmployeeRequest;
+use App\Http\Requests\Employee\UpdateMyProfileRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
 use App\Services\EmployeeService;
@@ -38,6 +39,20 @@ class EmployeeController extends Controller
         $employee = $request->user()->employee;
 
         abort_if(! $employee, 404, 'Tài khoản này chưa liên kết với hồ sơ nhân viên nào.');
+
+        return (new EmployeeResource($employee))->response();
+    }
+    // Tự sửa MỘT PHẦN hồ sơ chính mình (chỉ thông tin liên hệ — xem
+    // UpdateMyProfileRequest) — cùng không gắn permission:employee.update
+    // như me(), tái dùng nguyên EmployeeService::update() (chỉ cập nhật field
+    // có trong $data, không đụng field khác của hồ sơ).
+    public function updateMine(UpdateMyProfileRequest $request): JsonResponse
+    {
+        $employee = $request->user()->employee;
+
+        abort_if(! $employee, 404, 'Tài khoản này chưa liên kết với hồ sơ nhân viên nào.');
+
+        $employee = $this->employeeService->update($employee, $request->validated());
 
         return (new EmployeeResource($employee))->response();
     }

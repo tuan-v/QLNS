@@ -31,7 +31,7 @@ const routes = [
         path: "/my-profile",
         name: "my-profile",
         meta: { title: "Hồ sơ của tôi" },
-        component: () => import("../views/MyProfile.vue"),
+        component: () => import("../views/Me/MyProfile.vue"),
     },
     {
         path: "/departments",
@@ -73,6 +73,24 @@ const routes = [
         name: "attendance-locations",
         meta: { title: "Điểm chấm công", permission: "location.view" },
         component: () => import("../views/AttendanceLocation/AttendanceLocations.vue"),
+    },
+    {
+        path: "/check-in",
+        name: "check-in",
+        meta: { title: "Chấm công", permission: "attendance.check" },
+        component: () => import("../views/Attendance/CheckIn.vue"),
+    },
+    {
+        path: "/attendance-adjustments",
+        name: "attendance-adjustments",
+        meta: { title: "Duyệt điều chỉnh công", permission: "attendance.adjust" },
+        component: () => import("../views/Attendance/AttendanceAdjustments.vue"),
+    },
+    {
+        path: "/attendance-history",
+        name: "attendance-history",
+        meta: { title: "Lịch sử chấm công", permission: "attendance.view_own" },
+        component: () => import("../views/Attendance/AttendanceHistory.vue"),
     },
 ];
 

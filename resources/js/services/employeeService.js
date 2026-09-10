@@ -11,6 +11,24 @@ export default {
     me() {
         return axios.get(`${API_BASE}/me`);
     },
+    myContracts() {
+        return axios.get(`${API_BASE}/me/contracts`);
+    },
+    myDocuments() {
+        return axios.get(`${API_BASE}/me/documents`);
+    },
+    myShiftAssignments() {
+        return axios.get(`${API_BASE}/me/shift-assignments`);
+    },
+    myTransfers() {
+        return axios.get(`${API_BASE}/me/transfers`);
+    },
+    updateMe(payload) {
+        return axios.put(`${API_BASE}/me`, payload);
+    },
+    uploadMyDocument(formData) {
+        return axios.post(`${API_BASE}/me/documents`, formData);
+    },
     get(id) {
         return axios.get(`${API_BASE}/${id}`);
     },

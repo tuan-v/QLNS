@@ -83,6 +83,10 @@ class Employee extends Model
     {
         return $this->hasMany(EmployeeShiftAssignment::class);
     }
+    public function attendances()
+    {
+        return $this->hasMany(Attendance::class);
+    }
     public function bankAccounts()
     {
         return $this->hasMany(EmployeeBankAccount::class);

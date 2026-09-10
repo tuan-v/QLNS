@@ -107,10 +107,18 @@
                 rounded="lg"
             />
             <v-list-item
+                v-if="can('attendance.check')"
                 prepend-icon="mdi-calendar-check-outline"
                 title="Chấm công"
+                to="/check-in"
                 rounded="lg"
-                disabled
+            />
+            <v-list-item
+                v-if="can('attendance.adjust')"
+                prepend-icon="mdi-file-clock-outline"
+                title="Duyệt điều chỉnh công"
+                to="/attendance-adjustments"
+                rounded="lg"
             />
             <v-list-item
                 prepend-icon="mdi-calendar-blank-outline"

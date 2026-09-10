@@ -423,8 +423,13 @@ class EmployeeTest extends TestCase
         $boss = $this->makeEmployee(['cccd' => '111122223333']);
         $subordinate = $this->makeEmployee(['manager_id' => $boss->id, 'user_id' => $subUser->id]);
 
-        // Gan quyen employee.view cho tai khoan nay thong qua role Employee co san
-        \App\Models\Role::where('name', 'Employee')->first()
+        // Gan quyen employee.view thong qua role Manager co san (role Employee
+        // khong con employee.view - chi xem duoc chinh minh qua /employees/me,
+        // xem RolePermissionSeeder.php). Test nay kiem logic an field theo
+        // quan he cap tren/cap duoi trong EmployeeResource, khong phai kiem
+        // pham vi quyen cua role Employee, nen dung role nao co employee.view
+        // deu hop le.
+        \App\Models\Role::where('name', 'Manager')->first()
             ->users()->attach($subUser->id);
 
         $token = $this->loginAs('sub-view@qlns.local', 'Secret@123');
@@ -447,7 +452,9 @@ class EmployeeTest extends TestCase
         ]);
         $employee = $this->makeEmployee(['cccd' => '444455556666', 'user_id' => $selfUser->id]);
 
-        \App\Models\Role::where('name', 'Employee')->first()
+        // Role Manager (co employee.view) - role Employee gio khong con quyen
+        // nay, chi xem duoc chinh minh qua /employees/me.
+        \App\Models\Role::where('name', 'Manager')->first()
             ->users()->attach($selfUser->id);
 
         $token = $this->loginAs('self-view@qlns.local', 'Secret@123');
@@ -471,7 +478,7 @@ class EmployeeTest extends TestCase
         $boss = $this->makeEmployee(['cccd' => '777788889999']);
         $subordinate = $this->makeEmployee(['manager_id' => $boss->id, 'user_id' => $subUser->id]);
 
-        \App\Models\Role::where('name', 'Employee')->first()
+        \App\Models\Role::where('name', 'Manager')->first()
             ->users()->attach($subUser->id);
 
         $token = $this->loginAs('sub-nested@qlns.local', 'Secret@123');
@@ -578,6 +585,92 @@ class EmployeeTest extends TestCase
         $response = $this->getJson('/api/v1/employees/me', [
             'Authorization' => 'Bearer '.$token,
         ]);
+
+        $response->assertStatus(404);
+    }
+
+    // --- Tự sửa thông tin liên hệ (PUT /employees/me) ---
+
+    public function test_employee_can_update_own_contact_info_without_employee_update(): void
+    {
+        [$provinceCode, $communeCode] = $this->addressIds();
+        $user = User::where('email', 'employee@qlns.local')->firstOrFail();
+        $employee = $this->makeEmployee(['user_id' => $user->id, 'full_name' => 'Ten cu khong doi']);
+        $token = $this->loginAs('employee@qlns.local', 'Employee@123');
+
+        $response = $this->putJson('/api/v1/employees/me', [
+            'phone' => '0987001122',
+            'personal_email' => 'contact-updated@gmail.com',
+            'address_detail' => '123 Duong ABC',
+            'province_code' => $provinceCode,
+            'commune_code' => $communeCode,
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.phone', '0987001122');
+        $response->assertJsonPath('data.full_name', 'Ten cu khong doi');
+        $this->assertDatabaseHas('employees', [
+            'id' => $employee->id,
+            'phone' => '0987001122',
+            'personal_email' => 'contact-updated@gmail.com',
+        ]);
+    }
+
+    public function test_cannot_update_own_profile_with_duplicate_phone(): void
+    {
+        [$provinceCode, $communeCode] = $this->addressIds();
+        $this->makeEmployee(['phone' => '0900111222']);
+        $user = User::where('email', 'employee@qlns.local')->firstOrFail();
+        $this->makeEmployee(['user_id' => $user->id]);
+        $token = $this->loginAs('employee@qlns.local', 'Employee@123');
+
+        $response = $this->putJson('/api/v1/employees/me', [
+            'phone' => '0900111222',
+            'personal_email' => 'x@gmail.com',
+            'address_detail' => 'abc',
+            'province_code' => $provinceCode,
+            'commune_code' => $communeCode,
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('phone');
+    }
+
+    public function test_updating_own_profile_requires_authentication(): void
+    {
+        $response = $this->putJson('/api/v1/employees/me', []);
+
+        $response->assertStatus(401);
+    }
+
+    // --- Tự tải tài liệu lên hồ sơ chính mình (POST /employees/me/documents) ---
+
+    public function test_employee_can_upload_own_document_without_employee_update(): void
+    {
+        Storage::fake('local');
+        $user = User::where('email', 'employee@qlns.local')->firstOrFail();
+        $this->makeEmployee(['user_id' => $user->id]);
+        $token = $this->loginAs('employee@qlns.local', 'Employee@123');
+
+        $response = $this->postJson('/api/v1/employees/me/documents', [
+            'document_type' => 'cccd',
+            'document_name' => 'CCCD cua toi',
+            'document_file' => UploadedFile::fake()->create('cccd.pdf', 100, 'application/pdf'),
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(201);
+        $response->assertJsonPath('data.document_name', 'CCCD cua toi');
+    }
+
+    public function test_uploading_own_document_requires_linked_employee(): void
+    {
+        Storage::fake('local');
+        $token = $this->loginAs('hr@qlns.local', 'Hr@123456');
+
+        $response = $this->postJson('/api/v1/employees/me/documents', [
+            'document_type' => 'cccd',
+            'document_name' => 'Tai lieu',
+            'document_file' => UploadedFile::fake()->create('a.pdf', 100, 'application/pdf'),
+        ], ['Authorization' => 'Bearer '.$token]);
 
         $response->assertStatus(404);
     }

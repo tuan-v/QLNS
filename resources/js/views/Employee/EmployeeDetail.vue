@@ -37,6 +37,7 @@
                     <v-tab value="documents">Tài liệu</v-tab>
                     <v-tab value="transfers">Luân chuyển</v-tab>
                     <v-tab value="shift_assignments">Ca làm việc</v-tab>
+                    <v-tab value="attendance">Chấm công</v-tab>
                     <v-tab value="payroll">Lương / Phép</v-tab>
                 </v-tabs>
             </v-sheet>
@@ -647,6 +648,14 @@
                     </v-sheet>
                 </v-window-item>
 
+                <v-window-item value="attendance">
+                    <AttendanceHistoryPanel
+                        v-if="attendanceTabOpened"
+                        :employee-id="props.id"
+                        :read-only="false"
+                    />
+                </v-window-item>
+
                 <v-window-item value="payroll">
                     <v-alert
                         type="info"
@@ -1065,6 +1074,7 @@ import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate from "../../components/common/InputDate.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import FilePreviewDialog from "../../components/common/FilePreviewDialog.vue";
+import AttendanceHistoryPanel from "../Attendance/AttendanceHistoryPanel.vue";
 const props = defineProps({
     id: {
         type: String,
@@ -1234,6 +1244,9 @@ watch(tab, (value) => {
     }
     if (value === "shift_assignments") {
         loadShiftAssignments();
+    }
+    if (value === "attendance") {
+        attendanceTabOpened.value = true;
     }
 });
 
@@ -1836,6 +1849,15 @@ async function submitAssignShift() {
         assignShiftSubmitting.value = false;
     }
 }
+
+/* ---------------------------- Tab 6: Chấm công ---------------------------- */
+
+// AttendanceHistoryPanel.vue tự tải dữ liệu ngay khi được mount (đúng cho
+// AttendanceHistory.vue — trang riêng, mount = mở trang) — ở đây phải tự
+// kiểm soát KHI NÀO mount nó, không thì v-window-item (không lazy mặc định,
+// giống các tab khác trong file này) sẽ gọi API chấm công ngay cả khi người
+// dùng chưa từng mở tab "Chấm công".
+const attendanceTabOpened = ref(false);
 
 onMounted(() => {
     loadEmployee();

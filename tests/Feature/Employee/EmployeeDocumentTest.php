@@ -261,6 +261,76 @@ class EmployeeDocumentTest extends TestCase
         $response->assertStatus(404);
     }
 
+    public function test_employee_can_download_own_document_even_without_employee_view(): void
+    {
+        $selfUser = \App\Models\User::create([
+            'email' => 'self-document@qlns.local', 'user_name' => 'Self',
+            'password' => bcrypt('Secret@123'), 'status' => 'active',
+        ]);
+        \App\Models\Role::where('name', 'Employee')->first()->users()->attach($selfUser->id);
+        $employee = $this->makeEmployee(['user_id' => $selfUser->id]);
+
+        $adminToken = $this->loginAs('admin@qlns.local', 'Admin@123');
+        $created = $this->postJson('/api/v1/employees/'.$employee->id.'/documents', $this->documentPayload(), [
+            'Authorization' => 'Bearer '.$adminToken,
+        ]);
+        $documentId = $created->json('data.id');
+
+        $selfToken = $this->loginAs('self-document@qlns.local', 'Secret@123');
+        $response = $this->get('/api/v1/employees/'.$employee->id.'/documents/'.$documentId.'/download', [
+            'Authorization' => 'Bearer '.$selfToken,
+        ]);
+
+        $response->assertStatus(200);
+    }
+
+    public function test_user_without_permission_or_ownership_cannot_download_document(): void
+    {
+        $otherUser = \App\Models\User::create([
+            'email' => 'other-document@qlns.local', 'user_name' => 'Other',
+            'password' => bcrypt('Secret@123'), 'status' => 'active',
+        ]);
+        \App\Models\Role::where('name', 'Employee')->first()->users()->attach($otherUser->id);
+        $this->makeEmployee(['user_id' => $otherUser->id]);
+        $employee = $this->makeEmployee();
+
+        $adminToken = $this->loginAs('admin@qlns.local', 'Admin@123');
+        $created = $this->postJson('/api/v1/employees/'.$employee->id.'/documents', $this->documentPayload(), [
+            'Authorization' => 'Bearer '.$adminToken,
+        ]);
+        $documentId = $created->json('data.id');
+
+        $otherToken = $this->loginAs('other-document@qlns.local', 'Secret@123');
+        $response = $this->get('/api/v1/employees/'.$employee->id.'/documents/'.$documentId.'/download', [
+            'Authorization' => 'Bearer '.$otherToken,
+        ]);
+
+        $response->assertStatus(403);
+    }
+
+    public function test_me_documents_returns_own_documents_without_employee_view(): void
+    {
+        $selfUser = \App\Models\User::create([
+            'email' => 'self-me-document@qlns.local', 'user_name' => 'Self',
+            'password' => bcrypt('Secret@123'), 'status' => 'active',
+        ]);
+        \App\Models\Role::where('name', 'Employee')->first()->users()->attach($selfUser->id);
+        $employee = $this->makeEmployee(['user_id' => $selfUser->id]);
+
+        $adminToken = $this->loginAs('admin@qlns.local', 'Admin@123');
+        $this->postJson('/api/v1/employees/'.$employee->id.'/documents', $this->documentPayload(), [
+            'Authorization' => 'Bearer '.$adminToken,
+        ])->assertStatus(201);
+
+        $selfToken = $this->loginAs('self-me-document@qlns.local', 'Secret@123');
+        $response = $this->getJson('/api/v1/employees/me/documents', [
+            'Authorization' => 'Bearer '.$selfToken,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertCount(1, $response->json('data'));
+    }
+
     public function test_admin_can_delete_document(): void
     {
         $employee = $this->makeEmployee();
