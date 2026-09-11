@@ -15,13 +15,22 @@ class RolePermissionSeeder extends Seeder
             'Admin' => $allPermissionCodes->keys()->all(), // Admin: toàn quyền
 
             'HR' => [
-                'employee.view', 'employee.create', 'employee.update', 'employee.delete',
-                'department.view', 'department.manage',
-                'shift.view', 'shift.manage',
-                'location.view', 'location.manage',
-                'attendance.view_all', 'attendance.adjust',
-                'leave.view_all', 'leave.approve',
-                'payroll.view_all', 'payroll.manage',
+                'employee.view',
+                'employee.create',
+                'employee.update',
+                'employee.delete',
+                'department.view',
+                'department.manage',
+                'shift.view',
+                'shift.manage',
+                'location.view',
+                'location.manage',
+                'attendance.view_all',
+                'attendance.adjust',
+                'leave.view_all',
+                'leave.approve_hr',
+                'payroll.view_all',
+                'payroll.manage',
                 'report.view',
             ],
 
@@ -29,8 +38,13 @@ class RolePermissionSeeder extends Seeder
                 'employee.view',
                 'department.view',
                 'shift.view',
-                'attendance.check', 'attendance.view_own', 'attendance.view_all',
-                'leave.request', 'leave.view_own', 'leave.view_all', 'leave.approve',
+                'attendance.check',
+                'attendance.view_own',
+                'attendance.view_all',
+                'leave.request',
+                'leave.view_own',
+                'leave.view_all',
+                'leave.approve_manager',
                 'payroll.view_own',
                 'report.view',
             ],
@@ -40,8 +54,10 @@ class RolePermissionSeeder extends Seeder
             // EmployeeController::me() ở CODE_MAP mục 8), không xem được danh
             // sách/hồ sơ đồng nghiệp khác.
             'Employee' => [
-                'attendance.check', 'attendance.view_own',
-                'leave.request', 'leave.view_own',
+                'attendance.check',
+                'attendance.view_own',
+                'leave.request',
+                'leave.view_own',
                 'payroll.view_own',
             ],
         ];

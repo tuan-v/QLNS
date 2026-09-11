@@ -18,6 +18,24 @@ services:
     networks:
       - qlns
 
+  queue:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    image: qlns-app:local
+    restart: unless-stopped
+    working_dir: /var/www/html
+    command: php artisan queue:work --tries=3 --sleep=3
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - qlns
+
   nginx:
     image: nginx:1.28-alpine
     restart: unless-stopped

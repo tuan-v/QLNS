@@ -38,7 +38,9 @@ class PermissionSeeder extends Seeder
             ['code' => 'leave.request', 'name' => 'Tạo đơn xin nghỉ phép'],
             ['code' => 'leave.view_own', 'name' => 'Xem đơn nghỉ phép của bản thân'],
             ['code' => 'leave.view_all', 'name' => 'Xem đơn nghỉ phép toàn bộ nhân viên'],
-            ['code' => 'leave.approve', 'name' => 'Duyệt đơn nghỉ phép'],
+            ['code' => 'leave.approve_manager', 'name' => 'Duyệt đơn nghỉ phép - cấp quản lý'],
+            ['code' => 'leave.approve_hr', 'name' => 'Duyệt đơn nghỉ phép - cấp HR'],
+            ['code' => 'leave.manage', 'name' => 'Quản lý loại nghỉ phép'],
 
             // Payroll
             ['code' => 'payroll.view_own', 'name' => 'Xem phiếu lương của bản thân'],

@@ -3,15 +3,20 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Leave\DecideLeaveRequest;
 use App\Http\Requests\Leave\StoreLeaveRequest;
+use App\Models\LeaveRequest;
 use App\Services\LeaveRequestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Services\LeaveApprovalService;
 
 class LeaveRequestController extends Controller
 {
-    public function __construct(private readonly LeaveRequestService $leaveRequestService)
-    {
+    public function __construct(
+        private readonly LeaveRequestService $leaveRequestService,
+        private readonly LeaveApprovalService $leaveApprovalService
+    ) {
     }
 
     // Luôn tạo đơn cho CHÍNH người gọi API — không nhận employee_id từ
@@ -43,5 +48,22 @@ class LeaveRequestController extends Controller
         $perPage = (int) $request->input('per_page', 15);
 
         return response()->json($this->leaveRequestService->list($filters, $perPage));
+    }
+    public function decide(DecideLeaveRequest $request, LeaveRequest $leaveRequest): JsonResponse
+    {
+        $decidingEmployee = $request->user()->employee;
+        abort_if(! $decidingEmployee, 404, 'Tài khoản này chưa liên kết với hồ sơ nhân viên nào.');
+
+        $isHr = $request->user()->hasPermission('leave.approve_hr');
+        $leaveRequest = $this->leaveApprovalService->decide(
+            $leaveRequest,
+            $decidingEmployee,
+            $isHr,
+            $request->validated('status'),
+            $request->validated('comment'),
+        );
+        $leaveRequest->load('leaveType', 'employee', 'approvals.approverEmployee');
+
+        return response()->json($leaveRequest);
     }
 }
