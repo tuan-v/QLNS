@@ -214,7 +214,12 @@
                         <td>{{ a.work_shift?.name ?? "—" }}</td>
                         <td>{{ formatTime(a.first_check_in_at) }}</td>
                         <td>{{ formatTime(a.last_check_out_at) }}</td>
-                        <td>{{ a.late_minutes ? `${a.late_minutes} phút` : "—" }}</td>
+                        <td>
+                            {{ a.late_minutes ? `${a.late_minutes} phút` : "—" }}
+                            <span v-if="a.late_minutes && a.late_excused" class="text-success" style="opacity: 0.8">
+                                (đã miễn trừ)
+                            </span>
+                        </td>
                         <td>{{ a.early_leave_minutes ? `${a.early_leave_minutes} phút` : "—" }}</td>
                         <td>{{ a.overtime_minutes ? `${a.overtime_minutes} phút` : "—" }}</td>
                         <td>
@@ -226,11 +231,26 @@
                                 variant="tonal"
                                 size="small"
                                 rounded="lg"
+                                class="mr-1"
                                 @click="openAdjustDialog(a)"
                             >
                                 <v-icon icon="mdi-file-edit-outline" />
                                 <v-tooltip activator="parent" location="top"
                                     >Xin điều chỉnh</v-tooltip
+                                >
+                            </v-btn>
+                            <v-btn
+                                v-if="a.late_minutes > 0 && !a.late_excused"
+                                icon="mdi-shield-check-outline"
+                                variant="tonal"
+                                color="secondary"
+                                size="small"
+                                rounded="lg"
+                                @click="openExcuseDialog(a)"
+                            >
+                                <v-icon icon="mdi-shield-check-outline" />
+                                <v-tooltip activator="parent" location="top"
+                                    >Xin miễn trừ đi muộn</v-tooltip
                                 >
                             </v-btn>
                         </td>
@@ -430,6 +450,69 @@
                         variant="flat"
                         :loading="supplementSubmitting"
                         @click="submitSupplementRequest"
+                    >
+                        Gửi yêu cầu
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <!-- Xin miễn trừ đi muộn (excuse — Ngày 42, KHÔNG sửa giờ, chỉ xin
+        không tính vào thống kê đi muộn) -->
+        <v-dialog v-model="excuseDialog" max-width="480" persistent>
+            <v-card rounded="xl" elevation="12" class="glass-panel">
+                <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
+                    Xin miễn trừ đi muộn
+                </v-card-title>
+                <v-card-text
+                    class="px-5"
+                    style="display: flex; flex-direction: column; gap: 0.75rem"
+                >
+                    <div class="text-body-2" style="opacity: 0.75">
+                        Ngày công: <strong>{{ formatDate(excuseTarget?.attendance_date) }}</strong>,
+                        trễ <strong>{{ excuseTarget?.late_minutes }} phút</strong>.
+                        Dùng khi đi muộn có lý do chính đáng (kẹt xe, tai
+                        nạn,...) — giờ vào vẫn giữ nguyên, chỉ không tính vào
+                        thống kê đi muộn nếu được duyệt.
+                    </div>
+
+                    <div>
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Lý do <span class="text-error">*</span>
+                        </div>
+                        <v-textarea
+                            v-model="excuseForm.reason"
+                            rows="3"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            :error-messages="excuseErrors.reason"
+                        />
+                    </div>
+
+                    <v-alert
+                        v-if="excuseGeneralError"
+                        type="error"
+                        variant="tonal"
+                        density="compact"
+                    >
+                        {{ excuseGeneralError }}
+                    </v-alert>
+                </v-card-text>
+                <v-card-actions class="px-5 pb-5">
+                    <v-spacer />
+                    <v-btn
+                        variant="text"
+                        :disabled="excuseSubmitting"
+                        @click="closeExcuseDialog"
+                    >
+                        Hủy
+                    </v-btn>
+                    <v-btn
+                        color="primary"
+                        variant="flat"
+                        :loading="excuseSubmitting"
+                        @click="submitExcuseRequest"
                     >
                         Gửi yêu cầu
                     </v-btn>
@@ -731,6 +814,54 @@ async function submitSupplementRequest() {
         }
     } finally {
         supplementSubmitting.value = false;
+    }
+}
+
+/* --------------------- Xin miễn trừ đi muộn (excuse) --------------------- */
+
+const excuseDialog = ref(false);
+const excuseTarget = ref(null);
+const excuseForm = ref({ reason: "" });
+const excuseErrors = ref({});
+const excuseGeneralError = ref("");
+const excuseSubmitting = ref(false);
+
+function openExcuseDialog(attendance) {
+    excuseTarget.value = attendance;
+    excuseForm.value = { reason: "" };
+    excuseErrors.value = {};
+    excuseGeneralError.value = "";
+    excuseDialog.value = true;
+}
+
+function closeExcuseDialog() {
+    excuseDialog.value = false;
+}
+
+async function submitExcuseRequest() {
+    excuseErrors.value = {};
+    excuseGeneralError.value = "";
+
+    excuseSubmitting.value = true;
+    try {
+        await attendanceService.requestAdjustment({
+            type: "excuse",
+            attendance_id: excuseTarget.value.id,
+            reason: excuseForm.value.reason,
+        });
+        toast.success("Đã gửi yêu cầu miễn trừ đi muộn, chờ duyệt.");
+        closeExcuseDialog();
+    } catch (e) {
+        const status = e.response?.status;
+        const data = e.response?.data;
+        if (status === 422 && data?.errors) {
+            excuseErrors.value = { reason: data.errors.reason?.[0] };
+            excuseGeneralError.value = data.errors.attendance_id?.[0] ?? "";
+        } else {
+            excuseGeneralError.value = data?.message ?? "Không thể gửi yêu cầu, vui lòng thử lại.";
+        }
+    } finally {
+        excuseSubmitting.value = false;
     }
 }
 

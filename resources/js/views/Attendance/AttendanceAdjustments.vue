@@ -49,6 +49,9 @@
                 {{ formatDate(item.attendance_date) }}
             </template>
             <template #item.proposed="{ item }">
+                <div v-if="item.type === 'excuse'" style="opacity: 0.75">
+                    Xin miễn trừ đi muộn ({{ item.attendance?.late_minutes ?? "?" }} phút)
+                </div>
                 <div v-if="item.proposed_check_in_at">
                     Vào: {{ formatDateTime(item.proposed_check_in_at) }}
                 </div>
@@ -88,6 +91,7 @@ const ADJUSTMENT_STATUS_MAP = {
 const ADJUSTMENT_TYPE_MAP = {
     correction: { label: "Điều chỉnh", color: "info" },
     supplement: { label: "Bổ sung", color: "purple" },
+    excuse: { label: "Miễn trừ đi muộn", color: "secondary" },
 };
 
 const statusOptions = [

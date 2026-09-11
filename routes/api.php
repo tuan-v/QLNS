@@ -20,6 +20,7 @@ Route::prefix('v1')->group(function (): void {
     require __DIR__.'/api/v1/attendance-locations.php';
     require __DIR__.'/api/v1/attendances.php';
     require __DIR__.'/api/v1/leave-requests.php';
+    require __DIR__.'/api/v1/leave-types.php';
     require __DIR__.'/api/v1/payrolls.php';
     require __DIR__.'/api/v1/reports.php';
     require __DIR__.'/api/v1/notifications.php';

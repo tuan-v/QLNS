@@ -6,6 +6,8 @@ use App\Models\Attendance;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeShiftAssignment;
+use App\Models\LeaveRequest;
+use App\Models\LeaveType;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\WorkShift;
@@ -90,6 +92,26 @@ class AttendanceHistoryTest extends TestCase
         ], $overrides));
     }
 
+    private function makeLeaveRequest(Employee $employee, string $fromDate, string $toDate, array $overrides = []): LeaveRequest
+    {
+        $leaveType = LeaveType::first() ?? LeaveType::create([
+            'code' => 'lt-'.uniqid(), 'name' => 'Loai phep test',
+            'annual_entitlement_days' => 12, 'is_paid' => true, 'is_active' => true,
+        ]);
+
+        return LeaveRequest::create(array_merge([
+            'employee_id' => $employee->id,
+            'leave_type_id' => $leaveType->id,
+            'from_date' => $fromDate,
+            'to_date' => $toDate,
+            'start_session' => 'full',
+            'end_session' => 'full',
+            'total_days' => 1,
+            'reason' => 'Test nghi phep',
+            'status' => 'approved',
+        ], $overrides));
+    }
+
     // 5 ngày liên tiếp (2026-01-05 -> 2026-01-09), 1 ca duy nhất, mỗi ngày 1
     // trạng thái khác nhau — kiểm cả quy tắc suy nhãn LẪN các con số thống kê.
     public function test_history_derives_status_and_summary_correctly(): void
@@ -145,6 +167,122 @@ class AttendanceHistoryTest extends TestCase
         $this->assertSame(540 + 525 + 520 + 0, $data['summary']['total_work_minutes']);
         $this->assertSame(1, $data['summary']['late_count']);
         $this->assertSame(1, $data['summary']['early_leave_count']);
+    }
+
+    // Ngày 42: HR đã duyệt "Xin miễn trừ đi muộn" (late_excused=true) — ngày
+    // đó phải hiện "full" (không còn "late") và KHÔNG tính vào late_count,
+    // dù late_minutes trong DB vẫn giữ nguyên giá trị cũ.
+    public function test_history_treats_excused_late_as_full_and_excludes_from_late_count(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA-H8');
+        $this->assignShift($employee, $workShift);
+        // Đi muộn nhưng đã được miễn trừ.
+        $this->makeAttendance($employee, $workShift, '2026-01-05', [
+            'first_check_in_at' => '2026-01-05 08:15:00', 'last_check_out_at' => '2026-01-05 17:00:00',
+            'late_minutes' => 15, 'late_excused' => true, 'actual_work_minutes' => 525,
+        ]);
+        // Đi muộn và CHƯA được miễn trừ — vẫn phải tính là "late".
+        $this->makeAttendance($employee, $workShift, '2026-01-06', [
+            'first_check_in_at' => '2026-01-06 08:20:00', 'last_check_out_at' => '2026-01-06 17:00:00',
+            'late_minutes' => 20, 'late_excused' => false, 'actual_work_minutes' => 520,
+        ]);
+
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $response = $this->getJson('/api/v1/attendances/history/me?date_from=2026-01-05&date_to=2026-01-06', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $data = $response->json('data');
+        $byDate = collect($data['rows'])->keyBy('date');
+
+        $this->assertSame('full', $byDate['2026-01-05']['status']);
+        $this->assertSame('late', $byDate['2026-01-06']['status']);
+        $this->assertSame(1, $data['summary']['late_count']);
+    }
+
+    // Ngày 41: đơn nghỉ phép ĐÃ DUYỆT phủ đúng ngày (không có attendance) thì
+    // phải hiện "on_leave" thay vì "absent", và KHÔNG tính vào Vắng lẫn Tổng
+    // ngày công/giờ làm — nhưng có đếm riêng ở on_leave_count.
+    public function test_history_marks_approved_leave_day_as_on_leave(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA-H5', ['work_coefficient' => 1]);
+        $this->assignShift($employee, $workShift);
+        // 2026-02-02: co don nghi phep DA DUYET, khong cham cong.
+        $this->makeLeaveRequest($employee, '2026-02-02', '2026-02-02');
+        // 2026-02-03: di lam binh thuong, du cong.
+        $this->makeAttendance($employee, $workShift, '2026-02-03', [
+            'first_check_in_at' => '2026-02-03 08:00:00', 'last_check_out_at' => '2026-02-03 17:00:00',
+            'actual_work_minutes' => 540,
+        ]);
+        // 2026-02-04: khong co gi ca -> van la "absent" binh thuong (doi chung).
+
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $response = $this->getJson('/api/v1/attendances/history/me?date_from=2026-02-02&date_to=2026-02-04', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $data = $response->json('data');
+        $byDate = collect($data['rows'])->keyBy('date');
+
+        $this->assertSame('on_leave', $byDate['2026-02-02']['status']);
+        $this->assertSame('full', $byDate['2026-02-03']['status']);
+        $this->assertSame('absent', $byDate['2026-02-04']['status']);
+
+        // Chi 1 ngay (2026-02-03) tinh vao tong ngay cong — ngay on_leave
+        // KHONG tinh, cung KHONG tinh vao vang.
+        $this->assertEquals(1.0, $data['summary']['total_work_days']);
+        $this->assertSame(540, $data['summary']['total_work_minutes']);
+        $this->assertSame(1, $data['summary']['on_leave_count']);
+    }
+
+    // Đơn còn pending (chưa duyệt) hoặc đã bị từ chối thì KHÔNG được che
+    // ngày đó thành "on_leave" — chỉ đơn approved mới có hiệu lực.
+    public function test_history_ignores_pending_or_rejected_leave(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA-H6');
+        $this->assignShift($employee, $workShift);
+        $this->makeLeaveRequest($employee, '2026-02-02', '2026-02-02', ['status' => 'pending']);
+        $this->makeLeaveRequest($employee, '2026-02-03', '2026-02-03', ['status' => 'rejected']);
+
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $response = $this->getJson('/api/v1/attendances/history/me?date_from=2026-02-02&date_to=2026-02-03', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $byDate = collect($response->json('data.rows'))->keyBy('date');
+        $this->assertSame('absent', $byDate['2026-02-02']['status']);
+        $this->assertSame('absent', $byDate['2026-02-03']['status']);
+    }
+
+    // Nghỉ theo giờ (hourly, mục 22) chỉ vài tiếng — không nên che mất cả
+    // ngày công, dù đã được duyệt.
+    public function test_history_ignores_hourly_leave_for_on_leave_status(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA-H7');
+        $this->assignShift($employee, $workShift);
+        $this->makeLeaveRequest($employee, '2026-02-02', '2026-02-02', [
+            'start_session' => 'hourly', 'end_session' => 'hourly',
+            'start_time' => '09:00', 'end_time' => '11:00', 'total_days' => 0.25,
+        ]);
+        $this->makeAttendance($employee, $workShift, '2026-02-02', [
+            'first_check_in_at' => '2026-02-02 08:00:00', 'last_check_out_at' => '2026-02-02 17:00:00',
+            'actual_work_minutes' => 540,
+        ]);
+
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $response = $this->getJson('/api/v1/attendances/history/me?date_from=2026-02-02&date_to=2026-02-02', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertSame('full', $response->json('data.rows.0.status'));
     }
 
     public function test_history_filters_by_work_shift_id(): void

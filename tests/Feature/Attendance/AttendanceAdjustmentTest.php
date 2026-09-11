@@ -384,6 +384,155 @@ class AttendanceAdjustmentTest extends TestCase
         $this->assertSame('pending', $attendance->status);
     }
 
+    // Ngày 42 (edge case "Chấm công quên Check-out"): nhân viên chấm công
+    // VÀO đúng giờ nhưng quên chấm RA — cơ chế "Xin điều chỉnh" (correction)
+    // đã có sẵn từ mục 17 phải xử lý được, KHÔNG cần thêm code mới: chỉ đề
+    // xuất proposed_check_out_at, để trống proposed_check_in_at (giữ nguyên
+    // giờ vào thật), HR duyệt thì tính đúng actual_work_minutes và chuyển
+    // 'completed'.
+    public function test_correction_handles_forgotten_checkout(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, [
+            'first_check_in_at' => now()->setTime(8, 0),
+            'last_check_out_at' => null,
+            'late_minutes' => 0,
+            'status' => 'pending',
+        ]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $store = $this->postJson('/api/v1/attendances/adjustments', [
+            'attendance_id' => $attendance->id,
+            'proposed_check_out_at' => now()->setTime(17, 0)->toDateTimeString(),
+            'reason' => 'Quen bam cham cong ra luc tan ca',
+        ], ['Authorization' => 'Bearer '.$token]);
+        $store->assertStatus(201);
+
+        $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
+        $response = $this->putJson('/api/v1/attendances/adjustments/'.$store->json('id'), [
+            'status' => 'approved',
+            'decision_note' => 'Da xac nhan qua camera',
+        ], ['Authorization' => 'Bearer '.$hrToken]);
+
+        $response->assertStatus(200);
+        $attendance->refresh();
+        // Gio vao GIU NGUYEN dung nhu luc cham cong that.
+        $this->assertSame('08:00:00', $attendance->first_check_in_at->format('H:i:s'));
+        $this->assertSame('17:00:00', $attendance->last_check_out_at->format('H:i:s'));
+        $this->assertSame(540, $attendance->actual_work_minutes);
+        $this->assertSame('completed', $attendance->status);
+    }
+
+    /* --------------------- type=excuse (xin miễn trừ đi muộn — Ngày 42) --------------------- */
+
+    public function test_employee_can_request_excuse_for_late_attendance(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, [
+            'first_check_in_at' => now()->setTime(8, 30),
+            'late_minutes' => 30,
+            'status' => 'needs_review',
+        ]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'excuse',
+            'attendance_id' => $attendance->id,
+            'reason' => 'Tac duong do tai nan, co xac nhan cua bao ve toa nha',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(201);
+        $response->assertJsonPath('status', 'pending');
+        $response->assertJsonPath('type', 'excuse');
+        $this->assertDatabaseHas('attendance_adjustments', [
+            'type' => 'excuse',
+            'attendance_id' => $attendance->id,
+            'employee_id' => $employee->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_cannot_request_excuse_when_attendance_is_not_late(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, ['late_minutes' => 0]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'excuse',
+            'attendance_id' => $attendance->id,
+            'reason' => 'Khong bi tinh di muon nen khong the xin mien tru',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('attendance_id');
+    }
+
+    public function test_cannot_request_excuse_twice_for_already_excused_attendance(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, ['late_minutes' => 30, 'late_excused' => true]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'excuse',
+            'attendance_id' => $attendance->id,
+            'reason' => 'Da duoc mien tru roi',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('attendance_id');
+    }
+
+    public function test_hr_can_approve_excuse_sets_late_excused_without_changing_time(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, [
+            'first_check_in_at' => now()->setTime(8, 30),
+            'late_minutes' => 30,
+            'status' => 'needs_review',
+        ]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $store = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'excuse',
+            'attendance_id' => $attendance->id,
+            'reason' => 'Tac duong do tai nan, co xac nhan cua bao ve toa nha',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
+        $response = $this->putJson('/api/v1/attendances/adjustments/'.$store->json('id'), [
+            'status' => 'approved',
+            'decision_note' => 'Da xac nhan ly do hop le',
+        ], ['Authorization' => 'Bearer '.$hrToken]);
+
+        $response->assertStatus(200);
+        $attendance->refresh();
+        // late_minutes/gio vao GIU NGUYEN — chi bat co mien tru, khong sua gio.
+        $this->assertSame(30, $attendance->late_minutes);
+        $this->assertSame('08:30:00', $attendance->first_check_in_at->format('H:i:s'));
+        $this->assertTrue($attendance->late_excused);
+    }
+
+    public function test_hr_reject_excuse_does_not_set_late_excused(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, ['late_minutes' => 30, 'status' => 'needs_review']);
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $store = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'excuse',
+            'attendance_id' => $attendance->id,
+            'reason' => 'Tac duong do tai nan',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
+        $response = $this->putJson('/api/v1/attendances/adjustments/'.$store->json('id'), [
+            'status' => 'rejected',
+            'decision_note' => 'Khong co bang chung xac nhan',
+        ], ['Authorization' => 'Bearer '.$hrToken]);
+
+        $response->assertStatus(200);
+        $attendance->refresh();
+        $this->assertFalse($attendance->late_excused);
+    }
+
     public function test_approving_adjustment_marks_completed_only_when_check_out_also_present(): void
     {
         [$employee, $user] = $this->makeEmployeeWithLogin();

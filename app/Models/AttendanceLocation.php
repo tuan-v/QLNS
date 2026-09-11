@@ -24,6 +24,14 @@ class AttendanceLocation extends Model
         'is_active',
     ];
 
+    // Cùng lý do ép float ở WorkShift::$casts. KHÔNG ép is_active thành
+    // boolean — cùng lý do đã ghi ở WorkShift::$casts (AttendanceLocations.vue
+    // map trạng thái theo khóa 1/0).
+    protected $casts = [
+        'latitude' => 'float',
+        'longitude' => 'float',
+    ];
+
     public function scopeActive($query)
     {
         return $query->where('is_active', 1);

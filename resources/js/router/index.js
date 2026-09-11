@@ -58,7 +58,11 @@ const routes = [
     {
         path: "/employees/:id",
         name: "employee-detail",
-        meta: { title: "Chi tiết nhân viên", parent: "employees", permission: "employee.view" },
+        meta: {
+            title: "Chi tiết nhân viên",
+            parent: "employees",
+            permission: "employee.view",
+        },
         component: () => import("../views/Employee/EmployeeDetail.vue"),
         props: true,
     },
@@ -72,7 +76,8 @@ const routes = [
         path: "/attendance-locations",
         name: "attendance-locations",
         meta: { title: "Điểm chấm công", permission: "location.view" },
-        component: () => import("../views/AttendanceLocation/AttendanceLocations.vue"),
+        component: () =>
+            import("../views/AttendanceLocation/AttendanceLocations.vue"),
     },
     {
         path: "/check-in",
@@ -83,14 +88,30 @@ const routes = [
     {
         path: "/attendance-adjustments",
         name: "attendance-adjustments",
-        meta: { title: "Duyệt điều chỉnh công", permission: "attendance.adjust" },
-        component: () => import("../views/Attendance/AttendanceAdjustments.vue"),
+        meta: {
+            title: "Duyệt điều chỉnh công",
+            permission: "attendance.adjust",
+        },
+        component: () =>
+            import("../views/Attendance/AttendanceAdjustments.vue"),
     },
     {
         path: "/attendance-history",
         name: "attendance-history",
         meta: { title: "Lịch sử chấm công", permission: "attendance.view_own" },
         component: () => import("../views/Attendance/AttendanceHistory.vue"),
+    },
+    {
+        path: "/leave-requests",
+        name: "leave-requests",
+        meta: { title: "Nghỉ phép", permission: "leave.request" },
+        component: () => import("../views/Leave/LeaveRequests.vue"),
+    },
+    {
+        path: "/leave-management",
+        name: "leave-management",
+        meta: { title: "Duyệt nghỉ phép", permission: "leave.view_all" },
+        component: () => import("../views/Leave/LeaveManagement.vue"),
     },
 ];
 

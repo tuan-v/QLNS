@@ -33,6 +33,10 @@ class AttendanceLog extends Model
     protected $casts = [
         'occurred_at' => 'datetime',
         'raw_data' => 'array',
+        // Cùng lý do ép float ở WorkShift::$casts.
+        'latitude' => 'float',
+        'longitude' => 'float',
+        'accuracy_meters' => 'float',
     ];
 
     public function employee()

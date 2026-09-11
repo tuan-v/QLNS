@@ -15,7 +15,6 @@ class LeaveTypeSeeder extends Seeder
             ['code' => 'maternity', 'name' => 'Nghỉ thai sản', 'annual_entitlement_days' => 0, 'is_paid' => true, 'allow_carry_forward' => false, 'max_carry_forward_days' => null],
             ['code' => 'paternity', 'name' => 'Nghỉ chế độ cha/mẹ', 'annual_entitlement_days' => 0, 'is_paid' => true, 'allow_carry_forward' => false, 'max_carry_forward_days' => null],
             ['code' => 'unpaid', 'name' => 'Nghỉ không lương', 'annual_entitlement_days' => 0, 'is_paid' => false, 'allow_carry_forward' => false, 'max_carry_forward_days' => null],
-            ['code' => 'other', 'name' => 'Nghỉ khác', 'annual_entitlement_days' => 0, 'is_paid' => false, 'allow_carry_forward' => false, 'max_carry_forward_days' => null],
         ];
 
         foreach ($leaveTypes as $leaveType) {

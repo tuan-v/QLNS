@@ -21,12 +21,13 @@ class AttendanceAdjustmentService
     ) {
     }
 
-    // 2 loại: 'correction' (sửa 1 bản ghi attendances ĐÃ TỒN TẠI — hành vi
-    // cũ) và 'supplement' (bổ sung chấm công cho 1 ca+ngày CHƯA từng có bản
-    // ghi nào, vd nhân viên quên chấm công cả ngày). employee_id/
-    // work_shift_id/attendance_date luôn được set trên adjustment cho CẢ 2
-    // loại (copy từ attendance nếu correction) để nơi đọc (HR review,
-    // listForEmployee) không cần phân nhánh theo type.
+    // 3 loại: 'correction' (sửa 1 bản ghi attendances ĐÃ TỒN TẠI — hành vi
+    // cũ), 'supplement' (bổ sung chấm công cho 1 ca+ngày CHƯA từng có bản
+    // ghi nào, vd nhân viên quên chấm công cả ngày), và 'excuse' (Ngày 42 —
+    // xin miễn trừ đi muộn, chỉ hợp lệ khi bản ghi ĐANG bị tính trễ).
+    // employee_id/work_shift_id/attendance_date luôn được set trên
+    // adjustment cho CẢ 3 loại (copy từ attendance nếu correction/excuse) để
+    // nơi đọc (HR review, listForEmployee) không cần phân nhánh theo type.
     public function requestForEmployee(Employee $employee, array $data, int $requestedBy): AttendanceAdjustment
     {
         $type = $data['type'] ?? 'correction';
@@ -62,6 +63,20 @@ class AttendanceAdjustmentService
                 ]);
             }
 
+            if ($type === 'excuse') {
+                if ($attendance->late_minutes <= 0) {
+                    throw ValidationException::withMessages([
+                        'attendance_id' => 'Bản ghi này không bị tính đi muộn, không thể xin miễn trừ.',
+                    ]);
+                }
+
+                if ($attendance->late_excused) {
+                    throw ValidationException::withMessages([
+                        'attendance_id' => 'Bản ghi này đã được miễn trừ đi muộn trước đó.',
+                    ]);
+                }
+            }
+
             $data['work_shift_id'] = $attendance->work_shift_id;
             $data['attendance_date'] = $attendance->attendance_date;
         }
@@ -82,10 +97,12 @@ class AttendanceAdjustmentService
         return $this->attendanceAdjustmentRepository->paginate(perPage: $perPage, filters: $filters);
     }
 
-    // status: 'approved' | 'rejected'. Duyệt thì áp dụng luôn giờ đề xuất vào
-    // Attendance gốc (AttendanceService::applyAdjustment(), tái dùng công
-    // thức tính trễ/sớm/giờ công) — từ chối thì chỉ ghi nhận quyết định,
-    // không đụng gì tới Attendance.
+    // status: 'approved' | 'rejected'. Duyệt 'correction'/'supplement' thì áp
+    // dụng giờ đề xuất vào Attendance gốc (AttendanceService::
+    // applyAdjustment(), tái dùng công thức tính trễ/sớm/giờ công); duyệt
+    // 'excuse' thì CHỈ set cờ late_excused=true, KHÔNG đụng tới giờ hay gọi
+    // applyAdjustment() vì không có mốc giờ nào được đề xuất — từ chối thì
+    // ở mọi loại chỉ ghi nhận quyết định, không đụng gì tới Attendance.
     public function decide(AttendanceAdjustment $adjustment, string $status, ?string $decisionNote, int $approvedBy): AttendanceAdjustment
     {
         if ($adjustment->status !== 'pending') {
@@ -103,6 +120,12 @@ class AttendanceAdjustmentService
             ])->save();
 
             if ($status === 'approved') {
+                if ($adjustment->type === 'excuse') {
+                    $adjustment->attendance->forceFill(['late_excused' => true])->save();
+
+                    return $adjustment;
+                }
+
                 if ($adjustment->type === 'supplement') {
                     $attendance = $this->attendanceService->findOrCreateAttendanceForShift(
                         $adjustment->employee,

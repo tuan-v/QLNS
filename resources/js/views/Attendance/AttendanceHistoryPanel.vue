@@ -174,6 +174,9 @@ const HISTORY_STATUS_MAP = {
     late: { label: "Đi muộn", color: "warning" },
     insufficient: { label: "Thiếu công", color: "error" },
     absent: { label: "Vắng", color: "default" },
+    // Ngày 41: đơn nghỉ phép đã duyệt tự động phủ lên ngày công, xem
+    // AttendanceService::history()/CODE_MAP mục 16.
+    on_leave: { label: "Nghỉ phép", color: "info" },
 };
 
 const METHOD_LABEL = { wifi: "Wifi", gps: "GPS", qr: "Mã QR" };
@@ -184,6 +187,7 @@ const statusOptions = [
     { title: "Đi muộn", value: "late" },
     { title: "Thiếu công", value: "insufficient" },
     { title: "Vắng", value: "absent" },
+    { title: "Nghỉ phép", value: "on_leave" },
 ];
 
 function formatDate(value) {
@@ -266,7 +270,13 @@ async function loadShiftOptions() {
     }
 }
 
-const summary = ref({ total_work_days: 0, total_work_minutes: 0, late_count: 0, early_leave_count: 0 });
+const summary = ref({
+    total_work_days: 0,
+    total_work_minutes: 0,
+    late_count: 0,
+    early_leave_count: 0,
+    on_leave_count: 0,
+});
 const rows = ref([]);
 const loading = ref(false);
 const loadError = ref("");
@@ -295,6 +305,12 @@ const summaryStats = computed(() => [
         value: `${summary.value.early_leave_count} lần`,
         color: "error",
         icon: "mdi-exit-run",
+    },
+    {
+        label: "Nghỉ phép",
+        value: `${summary.value.on_leave_count} ngày`,
+        color: "info",
+        icon: "mdi-calendar-remove-outline",
     },
 ]);
 

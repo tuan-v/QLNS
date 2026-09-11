@@ -121,10 +121,18 @@
                 rounded="lg"
             />
             <v-list-item
+                v-if="can('leave.request')"
                 prepend-icon="mdi-calendar-blank-outline"
                 title="Nghỉ phép"
+                to="/leave-requests"
                 rounded="lg"
-                disabled
+            />
+            <v-list-item
+                v-if="can('leave.view_all')"
+                prepend-icon="mdi-calendar-check-outline"
+                title="Duyệt nghỉ phép"
+                to="/leave-management"
+                rounded="lg"
             />
 
             <v-list-subheader v-if="!rail"

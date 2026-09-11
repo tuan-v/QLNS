@@ -7,6 +7,7 @@ use App\Models\AttendanceLocation;
 use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\EmployeeShiftAssignment;
+use App\Models\LeaveRequest;
 use App\Models\WorkShift;
 use App\Repositories\AttendanceLogRepository;
 use App\Repositories\AttendanceRepository;
@@ -50,6 +51,7 @@ class AttendanceService
         $attendancesByKey = $this->attendanceRepository
             ->listForEmployeeInRange($employee, $dateFrom, $dateTo)
             ->keyBy(fn (Attendance $a) => $a->attendance_date->toDateString().'|'.$a->work_shift_id);
+        $approvedLeaveDates = $this->approvedLeaveDatesForEmployee($employee, $dateFrom, $dateTo);
 
         $rows = collect();
 
@@ -62,7 +64,15 @@ class AttendanceService
                 }
 
                 $attendance = $attendancesByKey->get($dateStr.'|'.$assignment->work_shift_id);
-                $rowStatus = $this->deriveHistoryStatus($attendance);
+                // Đơn nghỉ phép đã DUYỆT (mục 19-20) phủ đúng ngày này thì
+                // ưu tiên nhãn "on_leave" thay vì suy ra từ Attendance — ngày
+                // 41 chỉ xử lý trường hợp đơn phủ CẢ NGÀY (full/am/pm), CHƯA
+                // phân biệt nửa ngày che đúng ca sáng/chiều nào (để dành Ngày
+                // 42 cùng các edge case khác), cũng bỏ qua đơn 'hourly' (nghỉ
+                // vài tiếng không nên che mất cả ngày công).
+                $rowStatus = $approvedLeaveDates->has($dateStr)
+                    ? 'on_leave'
+                    : $this->deriveHistoryStatus($attendance);
 
                 if ($status && $rowStatus !== $status) {
                     continue;
@@ -99,7 +109,10 @@ class AttendanceService
         if (! $attendance || ! $attendance->first_check_in_at) {
             return 'absent';
         }
-        if ($attendance->late_minutes > 0) {
+        // late_excused=true (HR đã duyệt "Xin miễn trừ đi muộn", mục 17/18,
+        // Ngày 42) — late_minutes vẫn giữ nguyên nhưng không còn coi là
+        // "Đi muộn" nữa, chỉ xét tiếp điều kiện về giờ ra.
+        if ($attendance->late_minutes > 0 && ! $attendance->late_excused) {
             return 'late';
         }
         if (! $attendance->last_check_out_at || $attendance->early_leave_minutes > 0) {
@@ -109,18 +122,45 @@ class AttendanceService
         return 'full';
     }
 
+    // Tập hợp các ngày (chuỗi "Y-m-d") nằm trong ít nhất 1 đơn nghỉ phép đã
+    // DUYỆT (status=approved) của nhân viên, giao với [dateFrom, dateTo] —
+    // dùng để gán nhãn "on_leave" ở history() (mục 19-20-41). Chỉ tính đơn
+    // full/am/pm (che cả ngày), bỏ qua 'hourly' (chỉ vài tiếng, không nên
+    // che mất cả ngày công — xem Ghi chú ở history()).
+    private function approvedLeaveDatesForEmployee(Employee $employee, string $dateFrom, string $dateTo): Collection
+    {
+        $leaveRequests = LeaveRequest::where('employee_id', $employee->id)
+            ->where('status', 'approved')
+            ->where('start_session', '!=', 'hourly')
+            ->where('from_date', '<=', $dateTo)
+            ->where('to_date', '>=', $dateFrom)
+            ->get(['from_date', 'to_date']);
+
+        $dates = collect();
+        foreach ($leaveRequests as $leaveRequest) {
+            foreach (CarbonPeriod::create($leaveRequest->from_date, $leaveRequest->to_date) as $date) {
+                $dates->put($date->toDateString(), true);
+            }
+        }
+
+        return $dates;
+    }
+
     // Tổng ngày công tính bằng work_coefficient của Ca (mục 12, cột có sẵn
     // từ đầu dự án nhưng chưa từng dùng tới) — ca nửa ngày đặt
     // work_coefficient=0.5 thì 2 ca sáng+chiều cùng ngày cộng đúng 1.0.
+    // Ngày "on_leave" không tính vào Vắng lẫn Tổng ngày công/giờ làm — nghỉ
+    // phép đã duyệt không phải đi làm cũng không phải vắng không lý do.
     private function summarizeHistory(Collection $rows): array
     {
-        $withAttendance = $rows->filter(fn (array $row) => $row['status'] !== 'absent');
+        $withAttendance = $rows->filter(fn (array $row) => ! in_array($row['status'], ['absent', 'on_leave'], true));
 
         return [
             'total_work_days' => round((float) $withAttendance->sum(fn (array $row) => (float) $row['work_shift']->work_coefficient), 2),
             'total_work_minutes' => (int) $withAttendance->sum(fn (array $row) => $row['attendance']->actual_work_minutes ?? 0),
-            'late_count' => $rows->filter(fn (array $row) => ($row['attendance']->late_minutes ?? 0) > 0)->count(),
-            'early_leave_count' => $rows->filter(fn (array $row) => ($row['attendance']->early_leave_minutes ?? 0) > 0)->count(),
+            'late_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->late_minutes ?? 0) > 0 && ! ($row['attendance']->late_excused ?? false))->count(),
+            'early_leave_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->early_leave_minutes ?? 0) > 0)->count(),
+            'on_leave_count' => $rows->filter(fn (array $row) => $row['status'] === 'on_leave')->count(),
         ];
     }
 

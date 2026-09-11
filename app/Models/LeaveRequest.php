@@ -15,6 +15,8 @@ class LeaveRequest extends Model
         'to_date',
         'start_session',
         'end_session',
+        'start_time',
+        'end_time',
         'total_days',
         'reason',
         'evidence_file_path',
@@ -28,6 +30,11 @@ class LeaveRequest extends Model
         'to_date' => 'date:Y-m-d',
         'submitted_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        // Cột decimal MySQL mặc định trả về CHUỖI thô ("1.00") nếu không ép
+        // kiểu — hiện ra Frontend xấu (Số ngày: "1.00" thay vì "1"). Ép float
+        // ở đây thay vì sửa từng chỗ hiển thị bên Frontend, để MỌI nơi trả
+        // về LeaveRequest (list, tạo đơn, duyệt...) đều tự động sạch.
+        'total_days' => 'float',
     ];
 
     public function employee()

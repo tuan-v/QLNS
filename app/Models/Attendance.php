@@ -22,6 +22,7 @@ class Attendance extends Model
         'overtime_minutes',
         'late_minutes',
         'early_leave_minutes',
+        'late_excused',
         'status',
         'note',
     ];
@@ -30,6 +31,10 @@ class Attendance extends Model
         'attendance_date' => 'date:Y-m-d',
         'first_check_in_at' => 'datetime',
         'last_check_out_at' => 'datetime',
+        // An toàn ép boolean ở đây — khác bẫy đã vấp ở WorkShift/Position
+        // (mục 19 CODE_MAP): late_excused KHÔNG có Frontend nào tra theo
+        // khóa số nguyên 1/0, chỉ dùng như cờ true/false thuần túy.
+        'late_excused' => 'boolean',
     ];
 
     public function employee()

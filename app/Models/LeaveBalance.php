@@ -17,6 +17,13 @@ class LeaveBalance extends Model
         'adjusted_days',
         'used_days',
     ];
+    // Cùng lý do ép float ở LeaveRequest::$casts.
+    protected $casts = [
+        'allocated_days' => 'float',
+        'carried_forward_days' => 'float',
+        'adjusted_days' => 'float',
+        'used_days' => 'float',
+    ];
     public function employee()
     {
         return $this->belongsTo(Employee::class);
