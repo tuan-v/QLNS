@@ -3,11 +3,13 @@
 namespace App\Services\Jwt;
 
 use App\Models\User;
+use DomainException;
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Firebase\JWT\SignatureInvalidException;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use stdClass;
 use UnexpectedValueException;
 
@@ -46,11 +48,17 @@ class JwtService
         return $this->accessTtlMinutes * 60;
     }
 
+    // Bắt thêm DomainException/InvalidArgumentException (Ngày 44 — phát hiện
+    // qua kiểm thử thật): firebase/php-jwt không chỉ ném 3 loại lỗi ban đầu —
+    // token bị hỏng dạng khác (vd payload giải mã base64 ra không phải JSON
+    // hợp lệ) ném DomainException ("Unexpected control character found"),
+    // không nằm trong danh sách bắt cũ nên vỡ thành 500 Internal Server Error
+    // thay vì trả về 401 sạch để Frontend tự đăng xuất/làm mới token.
     public function decodeAccessToken(string $token): ?stdClass
     {
         try {
             return JWT::decode($token, new Key($this->secret, $this->algo));
-        } catch (ExpiredException|SignatureInvalidException|UnexpectedValueException) {
+        } catch (ExpiredException|SignatureInvalidException|UnexpectedValueException|DomainException|InvalidArgumentException) {
             return null;
         }
     }

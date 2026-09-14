@@ -20,6 +20,12 @@ use Illuminate\Validation\ValidationException;
 
 class AttendanceService
 {
+    // Khung giờ hợp lệ để chấm công VÀO 1 ca: sớm nhất bao nhiêu phút trước
+    // start_time (xác nhận qua AskUserQuestion — Ngày 44, sau khi phát hiện
+    // bug cho chấm công "Ca chiều" lúc 8h sáng vì trước đó chỉ kiểm tra ca có
+    // được gán đúng NGÀY hay không, không so giờ hiện tại với giờ ca).
+    private const CHECK_IN_EARLY_MINUTES = 30;
+
     public function __construct(
         private readonly AttendanceRepository $attendanceRepository,
         private readonly AttendanceLogRepository $attendanceLogRepository,
@@ -239,6 +245,8 @@ class AttendanceService
             ]);
         }
 
+        $this->assertWithinCheckInWindow($workShift, $now);
+
         $existing = $this->attendanceRepository->findForShift($employee, $workShift->id, $today);
         if ($existing && $existing->first_check_in_at) {
             throw ValidationException::withMessages([
@@ -432,6 +440,30 @@ class AttendanceService
     private function shiftTimeToday(string $time, Carbon $referenceDate): Carbon
     {
         return Carbon::parse($referenceDate->toDateString().' '.$time);
+    }
+
+    // Chặn chấm công VÀO quá xa giờ ca thật (Ngày 44 — xem CHECK_IN_EARLY_MINUTES
+    // ở đầu class): sớm hơn start_time - 30 phút thì chưa tới giờ, muộn hơn
+    // end_time thì coi như đã lỡ hẳn ca — phải dùng "Xin bổ sung chấm công"
+    // (mục 17, type=supplement) để HR duyệt lại giờ thật, không cho tự chấm
+    // công "khống" vào 1 ca đã trôi qua từ lâu.
+    private function assertWithinCheckInWindow(WorkShift $workShift, Carbon $now): void
+    {
+        $earliestCheckIn = $this->shiftTimeToday($workShift->start_time, $now)
+            ->subMinutes(self::CHECK_IN_EARLY_MINUTES);
+        $latestCheckIn = $this->shiftTimeToday($workShift->end_time, $now);
+
+        if ($now->lt($earliestCheckIn)) {
+            throw ValidationException::withMessages([
+                'work_shift_id' => 'Chưa tới giờ ca — chỉ có thể chấm công vào sớm nhất lúc '.$earliestCheckIn->format('H:i').'.',
+            ]);
+        }
+
+        if ($now->gt($latestCheckIn)) {
+            throw ValidationException::withMessages([
+                'work_shift_id' => 'Ca này đã kết thúc, không thể chấm công vào nữa. Vui lòng dùng chức năng "Xin bổ sung chấm công".',
+            ]);
+        }
     }
 
     private function calculateLateMinutes(WorkShift $workShift, Carbon $checkInAt): int

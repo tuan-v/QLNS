@@ -144,4 +144,22 @@ class AuthTest extends TestCase
 
         $response->assertStatus(401);
     }
+
+    // Ngày 44 — bug thật đã vấp: token trên KHÔNG có đủ 3 phần cách nhau bởi
+    // dấu chấm nên vỡ ngay ở bước đếm segment (UnexpectedValueException, đã
+    // được bắt từ trước). Token dưới đây CÓ đủ 3 phần đúng hình dạng JWT
+    // nhưng phần payload giải mã base64 ra không phải JSON hợp lệ —
+    // firebase/php-jwt ném DomainException ở bước này, một loại lỗi KHÁC
+    // chưa từng được JwtService::decodeAccessToken() bắt tới trước khi sửa,
+    // khiến toàn bộ request vỡ thành 500 thay vì 401 sạch để Frontend tự làm
+    // mới token. Phát hiện qua kiểm thử thật (Playwright) với 1 access_token
+    // bị hỏng trong localStorage, không phải suy đoán.
+    public function test_access_token_with_invalid_payload_encoding_is_rejected(): void
+    {
+        $response = $this->getJson('/api/v1/auth/me', [
+            'Authorization' => 'Bearer expired.invalid.token',
+        ]);
+
+        $response->assertStatus(401);
+    }
 }

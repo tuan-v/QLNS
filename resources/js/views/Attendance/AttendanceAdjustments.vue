@@ -50,7 +50,7 @@
             </template>
             <template #item.proposed="{ item }">
                 <div v-if="item.type === 'excuse'" style="opacity: 0.75">
-                    Xin miễn trừ đi muộn ({{ item.attendance?.late_minutes ?? "?" }} phút)
+                    Xin miễn trừ đi muộn ({{ formatMinutesAsHours(item.attendance?.late_minutes) }})
                 </div>
                 <div v-if="item.proposed_check_in_at">
                     Vào: {{ formatDateTime(item.proposed_check_in_at) }}
@@ -128,6 +128,16 @@ function formatDateTime(value) {
         return "—";
     }
     return new Date(value).toLocaleString("vi-VN");
+}
+
+// Quy đổi phút sang giờ để dễ đối chiếu khi tính lương sau này (Phase 4) —
+// chỉ đổi hiển thị, backend vẫn lưu/tính nguyên phút (xem useCheckIn.js).
+function formatMinutesAsHours(minutes) {
+    if (!minutes) {
+        return "—";
+    }
+    const hours = Math.round((minutes / 60) * 10) / 10;
+    return `${hours}h (${minutes} phút)`;
 }
 
 async function loadData() {

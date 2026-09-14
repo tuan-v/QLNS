@@ -309,6 +309,88 @@ class AttendanceTest extends TestCase
         $this->assertDatabaseCount('attendances', 2);
     }
 
+    /* --------------------- Ngày 44: khung giờ chấm công VÀO --------------------- */
+
+    // Bug thật đã gặp: gán cả Ca sáng (06:00-12:00) lẫn Ca chiều (13:00-18:00)
+    // cùng ngày thì trước đây chấm công được Ca chiều lúc 6h sáng, vì
+    // resolveActiveAssignment() chỉ kiểm tra ca có được gán đúng NGÀY, không
+    // so giờ hiện tại với start_time/end_time của ca.
+    public function test_cannot_check_in_more_than_30_minutes_before_shift_start(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA001', '13:00', '18:00');
+        $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
+        // Ca bắt đầu 13:00, sớm nhất được phép vào lúc 12:30 -> 8h sáng còn
+        // cách xa 4 tiếng rưỡi, phải bị chặn.
+        $this->travelToMonday('08:00');
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->postJson('/api/v1/attendances/check-in', [
+            'method' => 'wifi',
+            'work_shift_id' => $workShift->id,
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('work_shift_id');
+        $this->assertDatabaseMissing('attendances', ['employee_id' => $employee->id]);
+    }
+
+    public function test_can_check_in_exactly_30_minutes_before_shift_start(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA001', '13:00', '18:00');
+        $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
+        AttendanceLocation::create([
+            'code' => 'DD001', 'name' => 'VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
+        ]);
+        $this->travelToMonday('12:30');
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->postJson('/api/v1/attendances/check-in', [
+            'method' => 'wifi',
+            'work_shift_id' => $workShift->id,
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(201);
+    }
+
+    public function test_cannot_check_in_after_shift_has_ended(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
+        $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
+        // Ca đã kết thúc lúc 17:00, quên chấm công cả ca -> phải dùng "Xin
+        // bổ sung chấm công" (mục 17), không cho tự chấm công khống nữa.
+        $this->travelToMonday('17:30');
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->postJson('/api/v1/attendances/check-in', [
+            'method' => 'wifi',
+            'work_shift_id' => $workShift->id,
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('work_shift_id');
+        $this->assertDatabaseMissing('attendances', ['employee_id' => $employee->id]);
+    }
+
+    public function test_can_check_in_exactly_at_shift_end_time(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
+        $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
+        AttendanceLocation::create([
+            'code' => 'DD001', 'name' => 'VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
+        ]);
+        $this->travelToMonday('17:00');
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->postJson('/api/v1/attendances/check-in', [
+            'method' => 'wifi',
+            'work_shift_id' => $workShift->id,
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(201);
+    }
+
     public function test_check_out_without_check_in_is_rejected(): void
     {
         [$employee, $user] = $this->makeEmployeeWithLogin();

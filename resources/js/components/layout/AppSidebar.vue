@@ -1,9 +1,11 @@
 <template>
     <v-navigation-drawer
-        :rail="rail"
+        v-model="open"
+        :rail="!mobile && rail"
         rail-width="80"
         width="264"
-        permanent
+        :permanent="!mobile"
+        :temporary="mobile"
         class="border-e"
     >
         <div
@@ -38,7 +40,7 @@
                     <path d="M12 7.5v4M12 11.5 6.5 16M12 11.5l5.5 4.5"></path>
                 </svg>
             </div>
-            <div v-if="!rail" style="overflow: hidden">
+            <div v-if="showLabels" style="overflow: hidden">
                 <div class="text-subtitle-2 font-weight-bold text-no-wrap">
                     QLNS
                 </div>
@@ -64,7 +66,7 @@
                 rounded="lg"
             />
 
-            <v-list-subheader v-if="!rail && (can('employee.view') || can('department.view'))"
+            <v-list-subheader v-if="showLabels && (can('employee.view') || can('department.view'))"
                 >NHÂN SỰ</v-list-subheader
             >
             <v-list-item
@@ -89,7 +91,7 @@
                 rounded="lg"
             />
 
-            <v-list-subheader v-if="!rail"
+            <v-list-subheader v-if="showLabels"
                 >CHẤM CÔNG &amp; NGHỈ PHÉP</v-list-subheader
             >
             <v-list-item
@@ -135,7 +137,7 @@
                 rounded="lg"
             />
 
-            <v-list-subheader v-if="!rail"
+            <v-list-subheader v-if="showLabels"
                 >LƯƠNG &amp; BÁO CÁO</v-list-subheader
             >
             <v-list-item
@@ -151,7 +153,7 @@
                 disabled
             />
 
-            <v-list-subheader v-if="!rail">HỆ THỐNG</v-list-subheader>
+            <v-list-subheader v-if="showLabels">HỆ THỐNG</v-list-subheader>
             <v-list-item
                 prepend-icon="mdi-shield-account-outline"
                 title="Vai trò &amp; Phân quyền"
@@ -181,17 +183,35 @@
 </template>
 
 <script setup>
+import { computed, watch } from "vue";
+import { useDisplay } from "vuetify";
+import { useRoute } from "vue-router";
 import { useAuthStore } from "../../stores/authStore";
 
-// "rail" giờ đến từ AppLayout.vue (component cha chung với AppHeader) — không
-// còn tự giữ state riêng, để nút hamburger ở AppHeader điều khiển được sidebar.
-const { rail } = defineProps({
-    rail: {
-        type: Boolean,
-        default: true,
+// Cả 2 đều đến từ AppLayout.vue (component cha chung với AppHeader) — không
+// tự giữ state riêng, để nút hamburger ở AppHeader điều khiển được sidebar.
+// v-model mặc định: ẩn/hiện HẲN sidebar — chỉ có ý nghĩa thật khi mobile
+// (temporary overlay); desktop permanent thì luôn hiện, bỏ qua giá trị này.
+const open = defineModel({ type: Boolean, default: true });
+// v-model:rail — thu gọn còn icon, chỉ áp dụng khi desktop (xem AppLayout.vue).
+const rail = defineModel("rail", { type: Boolean, default: true });
+
+const { mobile } = useDisplay();
+// Mobile: overlay đang mở thì luôn hiện đủ nhãn (không có khái niệm "rail"
+// cho temporary drawer). Desktop: ẩn nhãn khi đang thu gọn (rail=true).
+const showLabels = computed(() => mobile.value || !rail.value);
+
+// Ngày 44: bấm 1 mục menu trên mobile thì tự đóng overlay lại — giống mọi
+// app di động khác, tránh phải bấm ra ngoài (scrim) hoặc bấm lại hamburger.
+const route = useRoute();
+watch(
+    () => route.fullPath,
+    () => {
+        if (mobile.value) {
+            open.value = false;
+        }
     },
-});
-defineEmits(["update:rail"]);
+);
 
 const auth = useAuthStore();
 // Chỉ ẩn/hiện mục menu — lớp UX phụ. Quyền thật vẫn do backend enforce qua
