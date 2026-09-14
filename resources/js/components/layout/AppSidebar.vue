@@ -66,7 +66,11 @@
                 rounded="lg"
             />
 
-            <v-list-subheader v-if="showLabels && (can('employee.view') || can('department.view'))"
+            <v-list-subheader
+                v-if="
+                    showLabels &&
+                    (can('employee.view') || can('department.view'))
+                "
                 >NHÂN SỰ</v-list-subheader
             >
             <v-list-item
@@ -141,11 +145,13 @@
                 >LƯƠNG &amp; BÁO CÁO</v-list-subheader
             >
             <v-list-item
-                prepend-icon="mdi-wallet-outline"
+                v-if="can('payroll.view_all')"
+                prepend-icon="mdi-cash-multiple"
                 title="Bảng lương"
+                to="/payrolls"
                 rounded="lg"
-                disabled
             />
+
             <v-list-item
                 prepend-icon="mdi-chart-bar"
                 title="Báo cáo"

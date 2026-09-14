@@ -50,6 +50,13 @@ const routes = [
         component: () => import("../views/Position/Positions.vue"),
     },
     {
+        path: "/payrolls",
+        name: "payrolls",
+        meta: { title: "Bảng lương", permission: "payroll.view_all" },
+        component: () => import("../views/Payroll/PayrollList.vue"),
+    },
+
+    {
         path: "/employees",
         name: "employees",
         meta: { title: "Nhân viên", permission: "employee.view" },
