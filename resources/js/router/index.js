@@ -55,6 +55,12 @@ const routes = [
         meta: { title: "Bảng lương", permission: "payroll.view_all" },
         component: () => import("../views/Payroll/PayrollList.vue"),
     },
+    {
+        path: "/payrolls/:id",
+        name: "payroll-detail",
+        meta: { title: "Chi tiết bảng lương", permission: "payroll.view_all" },
+        component: () => import("../views/Payroll/PayrollDetail.vue"),
+    },
 
     {
         path: "/employees",

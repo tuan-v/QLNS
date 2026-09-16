@@ -52,6 +52,7 @@
                     <EmployeeContractsTab
                         v-if="tabsOpened.contracts"
                         :employee-id="props.id"
+                        :employment-status="employee.employment_status"
                         @preview="openPreview"
                     />
                 </v-window-item>
@@ -91,10 +92,10 @@
                 </v-window-item>
 
                 <v-window-item value="payroll">
-                    <v-alert type="info" variant="tonal" icon="mdi-information-outline">
-                        Chưa triển khai — Lương thuộc Phase 4 (Ngày 46+), Nghỉ
-                        phép thuộc Phase 3 (Ngày 36+) theo kế hoạch dự án.
-                    </v-alert>
+                    <EmployeeSalaryLeaveTab
+                        v-if="tabsOpened.payroll"
+                        :employee-id="props.id"
+                    />
                 </v-window-item>
             </v-window>
         </template>
@@ -126,6 +127,7 @@ import EmployeeContractsTab from "./EmployeeContractsTab.vue";
 import EmployeeDocumentsTab from "./EmployeeDocumentsTab.vue";
 import EmployeeTransfersTab from "./EmployeeTransfersTab.vue";
 import EmployeeShiftAssignmentsTab from "./EmployeeShiftAssignmentsTab.vue";
+import EmployeeSalaryLeaveTab from "./EmployeeSalaryLeaveTab.vue";
 
 const props = defineProps({
     id: {
@@ -167,6 +169,7 @@ const tabsOpened = reactive({
     transfers: false,
     shift_assignments: false,
     attendance: false,
+    payroll: false,
 });
 watch(tab, (value) => {
     if (value in tabsOpened) {

@@ -63,7 +63,7 @@
                         <th>Lịch làm</th>
                         <th>Thực tế</th>
                         <th>Trạng thái</th>
-                        <th v-if="!readOnly" class="text-end">Thao tác</th>
+                        <th v-if="!readOnly" class="text-center">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -87,7 +87,7 @@
                         <td>
                             <StatusChip :status="row.status" :map="HISTORY_STATUS_MAP" />
                         </td>
-                        <td v-if="!readOnly" class="text-end">
+                        <td v-if="!readOnly" class="text-center">
                             <v-btn
                                 v-if="row.attendance"
                                 icon="mdi-eye-outline"

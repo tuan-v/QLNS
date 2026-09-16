@@ -9,6 +9,9 @@ Route::middleware('auth:api')->prefix('leave-requests')->group(function (): void
     // khác trong dự án (routes/api/v1/employees.php, attendances.php...).
     Route::get('/me', [LeaveRequestController::class, 'mine'])->middleware('permission:leave.view_own');
     Route::get('/balances/me', [LeaveRequestController::class, 'balancesMine'])->middleware('permission:leave.view_own');
+    // "/balances/{employee}" phải khai SAU "/balances/me" — cùng lý do thứ tự
+    // route mọi nơi khác, không thì "me" bị hiểu nhầm thành 1 employee id.
+    Route::get('/balances/{employee}', [LeaveRequestController::class, 'balances'])->middleware('permission:leave.view_all');
     Route::get('/', [LeaveRequestController::class, 'index'])->middleware('permission:leave.view_all');
     Route::put('/{leaveRequest}/decide', [LeaveRequestController::class, 'decide'])->middleware('permission:leave.approve_manager,leave.approve_hr');
     // Không gắn permission riêng — download() tự kiểm tra "chính mình hoặc

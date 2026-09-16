@@ -497,6 +497,42 @@ class LeaveRequestTest extends TestCase
         $this->assertEquals(8, $annual['available_days']);
     }
 
+    public function test_balances_for_employee_requires_leave_view_all_permission(): void
+    {
+        [$targetEmployee] = $this->makeEmployeeWithLogin();
+        [, $viewerUser] = $this->makeEmployeeWithLogin();
+        $token = $this->loginAs($viewerUser->email, 'Secret@123');
+
+        $response = $this->getJson('/api/v1/leave-requests/balances/'.$targetEmployee->id, [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(403);
+    }
+
+    public function test_hr_can_view_balances_for_any_employee(): void
+    {
+        [$targetEmployee] = $this->makeEmployeeWithLogin();
+        $annualType = LeaveType::where('code', 'annual')->first();
+        LeaveBalance::create([
+            'employee_id' => $targetEmployee->id,
+            'leave_type_id' => $annualType->id,
+            'year' => now()->year,
+            'allocated_days' => 12,
+            'used_days' => 3,
+        ]);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $response = $this->getJson('/api/v1/leave-requests/balances/'.$targetEmployee->id, [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $annual = collect($response->json())->firstWhere('leave_type.code', 'annual');
+        $this->assertEquals(3, $annual['used_days']);
+        $this->assertEquals(9, $annual['remaining_days']);
+    }
+
     /* ------------------------------ Nghỉ theo giờ ----------------------------- */
 
     public function test_hourly_request_calculates_fraction_of_day(): void

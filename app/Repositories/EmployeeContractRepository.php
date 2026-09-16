@@ -20,6 +20,19 @@ class EmployeeContractRepository
 
     public function create(array $data): EmployeeContract
     {
-        return EmployeeContract::create($data);
+        // fresh(): client không gửi "status" nên Eloquent không biết giá trị
+        // DEFAULT 'active' MySQL tự gán ở tầng DB — object trả về ngay sau
+        // create() sẽ có status=null dù DB đã lưu đúng 'active', khiến
+        // response trả JSON status=null (Frontend hiện "—" thay vì đúng chip
+        // trạng thái) cho tới khi tải lại trang (query lại DB mới đúng). Phát
+        // hiện qua kiểm thử thật (Playwright), không phải suy đoán.
+        return EmployeeContract::create($data)->fresh();
+    }
+
+    public function update(EmployeeContract $contract, array $data): EmployeeContract
+    {
+        $contract->update($data);
+
+        return $contract;
     }
 }

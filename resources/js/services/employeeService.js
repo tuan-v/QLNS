@@ -35,6 +35,15 @@ export default {
     contracts(id) {
         return axios.get(`${API_BASE}/${id}/contracts`);
     },
+    createContract(id, formData) {
+        return axios.post(`${API_BASE}/${id}/contracts`, formData);
+    },
+    terminateContract(id, contractId) {
+        return axios.post(`${API_BASE}/${id}/contracts/${contractId}/terminate`);
+    },
+    payslips(id) {
+        return axios.get(`${API_BASE}/${id}/payslips`);
+    },
     documents(id) {
         return axios.get(`${API_BASE}/${id}/documents`);
     },
@@ -69,9 +78,14 @@ export default {
         return axios.post(`${API_BASE}/${id}/shift-assignments`, payload);
     },
     updateShiftAssignment(id, assignmentId, payload) {
-        return axios.put(`${API_BASE}/${id}/shift-assignments/${assignmentId}`, payload);
+        return axios.put(
+            `${API_BASE}/${id}/shift-assignments/${assignmentId}`,
+            payload,
+        );
     },
     deleteShiftAssignment(id, assignmentId) {
-        return axios.delete(`${API_BASE}/${id}/shift-assignments/${assignmentId}`);
+        return axios.delete(
+            `${API_BASE}/${id}/shift-assignments/${assignmentId}`,
+        );
     },
 };

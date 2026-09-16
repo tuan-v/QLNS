@@ -43,6 +43,17 @@ class EmployeeContractController extends Controller
         return (new EmployeeContractResource($contract))->response()->setStatusCode(201);
     }
 
+    public function terminate(Request $request, Employee $employee, EmployeeContract $contract): JsonResponse
+    {
+        if ($contract->employee_id !== $employee->id) {
+            abort(404);
+        }
+
+        $contract = $this->employeeContractService->terminate($contract);
+
+        return (new EmployeeContractResource($contract))->response();
+    }
+
     public function download(Request $request, Employee $employee, EmployeeContract $contract): StreamedResponse
     {
         // kiểm tra hợp đồng có thuộc về nhân viên này không

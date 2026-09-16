@@ -29,25 +29,45 @@
                         </td>
                     </tr>
                     <tr v-else-if="!shifts.length">
-                        <td colspan="5" class="text-center py-6" style="opacity: 0.6">
+                        <td
+                            colspan="5"
+                            class="text-center py-6"
+                            style="opacity: 0.6"
+                        >
                             Chưa được gán ca làm việc nào.
                         </td>
                     </tr>
                     <tr v-for="a in shifts" v-else :key="a.id">
                         <td>
                             {{ a.work_shift?.name ?? "—" }}
-                            <span style="opacity: 0.5">({{ a.work_shift?.code }})</span>
+                            <span style="opacity: 0.5"
+                                >({{ a.work_shift?.code }})</span
+                            >
                         </td>
                         <td>{{ formatDate(a.effective_from) }}</td>
-                        <td>{{ a.effective_to ? formatDate(a.effective_to) : "—" }}</td>
+                        <td>
+                            {{
+                                a.effective_to
+                                    ? formatDate(a.effective_to)
+                                    : "—"
+                            }}
+                        </td>
                         <td>{{ formatWorkDays(a.work_days) }}</td>
                         <td>
                             <v-chip
                                 size="small"
                                 variant="tonal"
-                                :color="a.status === 'active' ? 'success' : 'default'"
+                                :color="
+                                    a.status === 'active'
+                                        ? 'success'
+                                        : 'default'
+                                "
                             >
-                                {{ a.status === "active" ? "Đang áp dụng" : "Đã kết thúc" }}
+                                {{
+                                    a.status === "active"
+                                        ? "Đang áp dụng"
+                                        : "Đã kết thúc"
+                                }}
                             </v-chip>
                         </td>
                     </tr>
@@ -71,13 +91,24 @@ function formatDate(value) {
     return new Date(value).toLocaleDateString("vi-VN");
 }
 
-const WEEK_DAY_LABEL = { 1: "T2", 2: "T3", 3: "T4", 4: "T5", 5: "T6", 6: "T7", 7: "CN" };
+const WEEK_DAY_LABEL = {
+    1: "T2",
+    2: "T3",
+    3: "T4",
+    4: "T5",
+    5: "T6",
+    6: "T7",
+    7: "CN",
+};
 
 function formatWorkDays(days) {
     if (!days?.length) {
         return "—";
     }
-    return [...days].sort((a, b) => a - b).map((d) => WEEK_DAY_LABEL[d] ?? d).join(", ");
+    return [...days]
+        .sort((a, b) => a - b)
+        .map((d) => WEEK_DAY_LABEL[d] ?? d)
+        .join(", ");
 }
 
 const shifts = ref([]);
@@ -91,7 +122,8 @@ async function loadShifts() {
         const response = await employeeService.myShiftAssignments();
         shifts.value = response.data;
     } catch (e) {
-        shiftsError.value = e.response?.data?.message ?? "Không thể tải danh sách ca làm việc.";
+        shiftsError.value =
+            e.response?.data?.message ?? "Không thể tải danh sách ca làm việc.";
     } finally {
         shiftsLoading.value = false;
     }

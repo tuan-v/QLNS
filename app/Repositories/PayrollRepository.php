@@ -19,7 +19,7 @@ class PayrollRepository
 
     public function find(int $id): ?Payroll
     {
-        return Payroll::with(['details.employee', 'createdBy', 'closedBy'])->find($id);
+        return Payroll::with(['details.employee.position', 'details.employee.department', 'createdBy', 'closedBy'])->find($id);
     }
 
     public function findByPeriod(int $month, int $year): ?Payroll

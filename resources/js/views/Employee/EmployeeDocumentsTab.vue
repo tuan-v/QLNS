@@ -31,7 +31,7 @@
                         <th>Kích thước</th>
                         <th>Người tải lên</th>
                         <th>Ngày tải lên</th>
-                        <th class="text-end">Thao tác</th>
+                        <th class="text-center">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -41,26 +41,39 @@
                         </td>
                     </tr>
                     <tr v-else-if="!documents.length">
-                        <td colspan="6" class="text-center py-6" style="opacity: 0.6">
+                        <td
+                            colspan="6"
+                            class="text-center py-6"
+                            style="opacity: 0.6"
+                        >
                             Chưa có tài liệu nào.
                         </td>
                     </tr>
                     <tr v-for="doc in documents" v-else :key="doc.id">
                         <td>
-                            {{ DOCUMENT_TYPE_MAP[doc.document_type] ?? doc.document_type }}
+                            {{
+                                DOCUMENT_TYPE_MAP[doc.document_type] ??
+                                doc.document_type
+                            }}
                         </td>
                         <td>{{ doc.document_name }}</td>
                         <td>{{ formatFileSize(doc.file_size) }}</td>
                         <td>{{ doc.uploaded_by ?? "—" }}</td>
                         <td>{{ formatDate(doc.created_at) }}</td>
-                        <td class="text-end">
-                            <div class="d-flex justify-end ga-2">
+                        <td class="text-center">
+                            <div class="d-flex justify-center ga-2">
                                 <v-btn
                                     icon="mdi-eye-outline"
                                     variant="tonal"
                                     size="small"
                                     rounded="lg"
-                                    @click="$emit('preview', doc.download_url, doc.file_name)"
+                                    @click="
+                                        $emit(
+                                            'preview',
+                                            doc.download_url,
+                                            doc.file_name,
+                                        )
+                                    "
                                 >
                                     <v-icon icon="mdi-eye-outline" />
                                     <v-tooltip activator="parent" location="top"
@@ -77,7 +90,10 @@
                                     @click="downloadDocument(doc)"
                                 >
                                     <v-icon icon="mdi-download-outline" />
-                                    <v-tooltip activator="parent" location="top">
+                                    <v-tooltip
+                                        activator="parent"
+                                        location="top"
+                                    >
                                         Tải file
                                     </v-tooltip>
                                 </v-btn>
@@ -90,7 +106,10 @@
                                     @click="confirmDeleteDocument(doc)"
                                 >
                                     <v-icon icon="mdi-delete-outline" />
-                                    <v-tooltip activator="parent" location="top">
+                                    <v-tooltip
+                                        activator="parent"
+                                        location="top"
+                                    >
                                         Xóa
                                     </v-tooltip>
                                 </v-btn>
@@ -168,7 +187,11 @@
                 </v-card-text>
                 <v-card-actions class="px-5 pb-5">
                     <v-spacer />
-                    <v-btn variant="text" :disabled="uploading" @click="closeUploadDialog">
+                    <v-btn
+                        variant="text"
+                        :disabled="uploading"
+                        @click="closeUploadDialog"
+                    >
                         Hủy
                     </v-btn>
                     <v-btn
@@ -338,12 +361,17 @@ async function submitUpload() {
         formData.append("document_type", uploadForm.document_type ?? "");
         formData.append("document_name", uploadForm.document_name);
         // v-file-input trả về mảng (kể cả khi multiple=false) — lấy phần tử đầu.
-        const file = Array.isArray(uploadForm.file) ? uploadForm.file[0] : uploadForm.file;
+        const file = Array.isArray(uploadForm.file)
+            ? uploadForm.file[0]
+            : uploadForm.file;
         if (file) {
             formData.append("document_file", file);
         }
 
-        const response = await employeeService.uploadDocument(props.employeeId, formData);
+        const response = await employeeService.uploadDocument(
+            props.employeeId,
+            formData,
+        );
         documents.value = [response.data.data, ...documents.value];
         toast.success("Đã tải lên tài liệu.");
         closeUploadDialog();
@@ -357,7 +385,8 @@ async function submitUpload() {
                 document_file: data.errors.document_file?.[0],
             };
         } else {
-            uploadGeneralError.value = data?.message ?? "Không thể tải lên tài liệu.";
+            uploadGeneralError.value =
+                data?.message ?? "Không thể tải lên tài liệu.";
         }
     } finally {
         uploading.value = false;
@@ -378,14 +407,18 @@ function confirmDeleteDocument(doc) {
 async function submitDeleteDocument() {
     deletingSubmitting.value = true;
     try {
-        await employeeService.deleteDocument(props.employeeId, deletingDocument.value.id);
+        await employeeService.deleteDocument(
+            props.employeeId,
+            deletingDocument.value.id,
+        );
         documents.value = documents.value.filter(
             (doc) => doc.id !== deletingDocument.value.id,
         );
         toast.success("Đã xóa tài liệu.");
         deleteDialog.value = false;
     } catch (e) {
-        documentsError.value = e.response?.data?.message ?? "Không thể xóa tài liệu.";
+        documentsError.value =
+            e.response?.data?.message ?? "Không thể xóa tài liệu.";
         deleteDialog.value = false;
     } finally {
         deletingSubmitting.value = false;

@@ -222,7 +222,10 @@ async function loadProvinces() {
     provincesLoading.value = true;
     try {
         const response = await addressService.provinces();
-        provinceOptions.value = response.data.map((p) => ({ title: p.name, value: p.code }));
+        provinceOptions.value = response.data.map((p) => ({
+            title: p.name,
+            value: p.code,
+        }));
     } finally {
         provincesLoading.value = false;
     }
@@ -238,7 +241,10 @@ async function loadCommunes(provinceCode) {
     communesLoading.value = true;
     try {
         const response = await addressService.communes(provinceCode);
-        communeOptions.value = response.data.map((c) => ({ title: c.name, value: c.code }));
+        communeOptions.value = response.data.map((c) => ({
+            title: c.name,
+            value: c.code,
+        }));
     } finally {
         communesLoading.value = false;
     }
@@ -280,7 +286,9 @@ async function submitContact() {
     contactGeneralError.value = "";
     contactSubmitting.value = true;
     try {
-        const response = await employeeService.updateMe({ ...contactForm.value });
+        const response = await employeeService.updateMe({
+            ...contactForm.value,
+        });
         emit("updated", response.data.data);
         toast.success("Đã cập nhật thông tin liên hệ.");
         closeEditContactDialog();
@@ -296,7 +304,8 @@ async function submitContact() {
                 commune_code: data.errors.commune_code?.[0],
             };
         } else {
-            contactGeneralError.value = data?.message ?? "Không thể kết nối máy chủ.";
+            contactGeneralError.value =
+                data?.message ?? "Không thể kết nối máy chủ.";
         }
     } finally {
         contactSubmitting.value = false;

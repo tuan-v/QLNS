@@ -32,7 +32,7 @@
                         <th>Ngày hiệu lực</th>
                         <th>Lý do</th>
                         <th>Người duyệt</th>
-                        <th class="text-end">Quyết định</th>
+                        <th class="text-center">Quyết định</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -53,41 +53,43 @@
                         <td>{{ formatDate(t.effective_date) }}</td>
                         <td>{{ t.reason ?? "—" }}</td>
                         <td>{{ t.approver ?? "—" }}</td>
-                        <td class="text-end">
-                            <v-btn
-                                icon="mdi-eye-outline"
-                                variant="tonal"
-                                size="small"
-                                rounded="lg"
-                                @click="
-                                    $emit(
-                                        'preview',
-                                        t.decision_file_url,
-                                        'quyet-dinh' + t.id + '.pdf',
-                                    )
-                                "
-                            >
-                                <v-icon icon="mdi-eye-outline" />
-                                <v-tooltip activator="parent" location="top"
-                                    >Xem trước</v-tooltip
+                        <td class="text-center">
+                            <div class="d-flex justify-center align-center ga-2">
+                                <v-btn
+                                    icon="mdi-eye-outline"
+                                    variant="tonal"
+                                    size="small"
+                                    rounded="lg"
+                                    @click="
+                                        $emit(
+                                            'preview',
+                                            t.decision_file_url,
+                                            'quyet-dinh' + t.id + '.pdf',
+                                        )
+                                    "
                                 >
-                            </v-btn>
+                                    <v-icon icon="mdi-eye-outline" />
+                                    <v-tooltip activator="parent" location="top"
+                                        >Xem trước</v-tooltip
+                                    >
+                                </v-btn>
 
-                            <v-btn
-                                v-if="t.decision_file_url"
-                                icon="mdi-download-outline"
-                                variant="tonal"
-                                size="small"
-                                rounded="lg"
-                                :loading="downloadingTransferId === t.id"
-                                @click="downloadTransferDecision(t)"
-                            >
-                                <v-icon icon="mdi-download-outline" />
-                                <v-tooltip activator="parent" location="top">
-                                    Tải quyết định
-                                </v-tooltip>
-                            </v-btn>
-                            <span v-else style="opacity: 0.4">—</span>
+                                <v-btn
+                                    v-if="t.decision_file_url"
+                                    icon="mdi-download-outline"
+                                    variant="tonal"
+                                    size="small"
+                                    rounded="lg"
+                                    :loading="downloadingTransferId === t.id"
+                                    @click="downloadTransferDecision(t)"
+                                >
+                                    <v-icon icon="mdi-download-outline" />
+                                    <v-tooltip activator="parent" location="top">
+                                        Tải quyết định
+                                    </v-tooltip>
+                                </v-btn>
+                                <span v-else style="opacity: 0.4">—</span>
+                            </div>
                         </td>
                     </tr>
                 </tbody>

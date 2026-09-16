@@ -40,6 +40,10 @@ class PayrollTest extends TestCase
         ], $overrides));
     }
 
+    // work_coefficient mặc định 1.0 (ca đầy đủ, không phải ca nửa ngày) — các
+    // test trong file này nhắm vào công thức tính GIỜ/OT/nghỉ phép, không
+    // phải hành vi work_coefficient (xem WorkTimeCalculationServiceTest.php
+    // cho việc đó), nên factory mặc định không nên tự nhân thêm hệ số ẩn.
     private function makeWorkShift(array $overrides = []): WorkShift
     {
         return WorkShift::create(array_merge([
@@ -48,7 +52,7 @@ class PayrollTest extends TestCase
             'start_time' => '08:00',
             'end_time' => '12:00',
             'standard_work_minutes' => 240,
-            'work_coefficient' => 0.5,
+            'work_coefficient' => 1.0,
         ], $overrides));
     }
 
@@ -138,8 +142,16 @@ class PayrollTest extends TestCase
     {
         // Kịch bản đã kiểm tra tay qua tinker trên DB thật trước khi viết
         // test này (xem review PayrollService) — 8/2026 có đúng 21 ngày công
-        // chuẩn (T2-T6), ca test hệ số 0.5, 3 ngày có mặt (1 ngày có 60' OT),
-        // 1 ngày nghỉ không lương.
+        // chuẩn (T2-T6), ca test 240 phút chuẩn, 3 ngày có mặt (1 ngày có 60'
+        // OT), 1 ngày nghỉ không lương. Ngày công quy đổi giờ KHÔNG còn dùng
+        // work_coefficient của ca nữa (Payroll tự tính từ actual_work_minutes
+        // / standard_work_minutes, tối đa 1.0/ngày) — cả 3 ngày đều đi làm đủ
+        // giờ ca (kể cả ngày có OT, vì OT tính riêng qua overtime_minutes) nên
+        // ra đủ 3.0 ngày công, không phải 1.5 như công thức cũ theo hệ số ca.
+        // Chỉ đi làm 3/21 công nên net_salary ra ÂM — đúng vì bảo hiểm vẫn
+        // tính đủ trên lương hợp đồng dù đi làm ít, không phải lỗi tính toán,
+        // chỉ là input cố tình cực đoan để dễ soát tay từng bước; xem test
+        // riêng ở dưới cho kịch bản thực tế hơn (đa số ngày công bình thường).
         $employee = $this->makeEmployee();
         $workShift = $this->makeWorkShift();
         $this->assignShift($employee, $workShift);
@@ -159,15 +171,63 @@ class PayrollTest extends TestCase
 
         $detail = $payroll->details()->where('employee_id', $employee->id)->first();
         $this->assertEqualsWithDelta(21.0, (float) $detail->standard_work_days, 0.001);
-        $this->assertEqualsWithDelta(1.5, (float) $detail->actual_work_days, 0.001);
+        $this->assertEqualsWithDelta(3.0, (float) $detail->actual_work_days, 0.001);
         $this->assertSame(60, $detail->overtime_minutes);
+        // Đơn giá giờ OT giờ tính riêng theo ca (240 phút chuẩn = 4h), không
+        // còn chia cố định cho 8h nữa -> gấp đôi số cũ (133.928,57 -> 267.857,14).
+        $this->assertEqualsWithDelta(267_857.14, (float) $detail->overtime_amount, 0.01);
+        // base_salary giờ = đơn giá ngày công x 3.0 ngày đã đi làm (không còn
+        // là nguyên lương hợp đồng 15tr nữa).
+        $this->assertEqualsWithDelta(2_142_857.14, (float) $detail->base_salary, 0.01);
         $this->assertEqualsWithDelta(714_285.71, (float) $detail->unpaid_leave_deduction, 0.01);
         $this->assertEqualsWithDelta(1_575_000.00, (float) $detail->insurance_amount, 0.01);
-        $this->assertEqualsWithDelta(14_419_642.86, (float) $detail->gross_salary, 0.01);
-        $this->assertEqualsWithDelta(1_844_642.86, (float) $detail->taxable_income, 0.01);
-        $this->assertEqualsWithDelta(92_232.14, (float) $detail->personal_income_tax, 0.01);
-        $this->assertEqualsWithDelta(12_752_410.72, (float) $detail->net_salary, 0.01);
-        $this->assertEqualsWithDelta(12_752_410.72, (float) $payroll->total_payroll_amount, 0.01);
+        $this->assertEqualsWithDelta(2_410_714.28, (float) $detail->gross_salary, 0.01);
+        $this->assertEqualsWithDelta(0.0, (float) $detail->taxable_income, 0.01);
+        $this->assertEqualsWithDelta(0.0, (float) $detail->personal_income_tax, 0.01);
+        $this->assertEqualsWithDelta(835_714.28, (float) $detail->net_salary, 0.01);
+        $this->assertEqualsWithDelta(835_714.28, (float) $payroll->total_payroll_amount, 0.01);
+    }
+
+    public function test_salary_reflects_actual_attendance_when_no_leave_is_filed(): void
+    {
+        // Đúng kịch bản bug thật đã báo: đi làm 2/21 ngày công, KHÔNG nộp đơn
+        // xin nghỉ phép nào cả — lương phải tính theo đúng 2 ngày đã đi làm,
+        // KHÔNG được lấy nguyên lương hợp đồng vì "không có gì để trừ".
+        $employee = $this->makeEmployee();
+        $workShift = $this->makeWorkShift();
+        $this->assignShift($employee, $workShift);
+        $this->makeContract($employee, ['agreed_salary' => 10_000_000, 'insurance_salary' => 10_000_000]);
+
+        $this->makeAttendance($employee, $workShift, '2026-08-03');
+        $this->makeAttendance($employee, $workShift, '2026-08-04');
+        // Không tạo thêm bản ghi chấm công nào khác, không có đơn nghỉ phép nào.
+
+        $payroll = $this->service()->generateForPeriod(8, 2026, $this->creator());
+
+        $detail = $payroll->details()->where('employee_id', $employee->id)->first();
+        $this->assertEqualsWithDelta(2.0, (float) $detail->actual_work_days, 0.001);
+        // đơn giá ngày = 10.000.000 / 21 ≈ 476.190,48 -> 2 ngày ≈ 952.380,95
+        $this->assertEqualsWithDelta(952_380.95, (float) $detail->base_salary, 0.01);
+        // Quan trọng nhất: KHÔNG được gần bằng lương hợp đồng đầy đủ (10tr).
+        $this->assertLessThan(1_000_000, (float) $detail->base_salary);
+    }
+
+    public function test_day_equivalent_is_capped_at_one_per_day(): void
+    {
+        // Làm dư giờ 1 ngày (gấp đôi giờ chuẩn của ca) nhưng KHÔNG đăng ký OT
+        // chính thức (overtime_minutes=0) — không được tự cộng thành 2.0 ngày
+        // công, tối đa vẫn chỉ 1.0/ngày như đã xác nhận thiết kế.
+        $employee = $this->makeEmployee();
+        $workShift = $this->makeWorkShift(['standard_work_minutes' => 240]);
+        $this->assignShift($employee, $workShift);
+        $this->makeContract($employee);
+
+        $this->makeAttendance($employee, $workShift, '2026-08-03', ['actual_work_minutes' => 480, 'overtime_minutes' => 0]);
+
+        $payroll = $this->service()->generateForPeriod(8, 2026, $this->creator());
+
+        $detail = $payroll->details()->where('employee_id', $employee->id)->first();
+        $this->assertEqualsWithDelta(1.0, (float) $detail->actual_work_days, 0.001);
     }
 
     public function test_cannot_generate_duplicate_period(): void
@@ -214,6 +274,41 @@ class PayrollTest extends TestCase
         $this->assertSame($withContract->id, $payroll->details()->first()->employee_id);
     }
 
+    // Regression: EmployeeContractService::create() tự auto-supersede hợp
+    // đồng active cũ, và job contracts:expire tự chuyển hợp đồng quá
+    // end_date sang expired (xem CODE_MAP.md mục 8) — chọn hợp đồng theo
+    // status HIỆN TẠI (thay vì theo KHOẢNG THỜI GIAN của kỳ đang tính) sẽ
+    // vớ nhầm hợp đồng của kỳ SAU khi chốt lương cho kỳ TRƯỚC đã bị auto-
+    // expire/supersede — đúng quy trình bình thường (chốt lương sau khi
+    // tháng đã qua), không phải edge case hiếm.
+    public function test_uses_the_contract_valid_during_the_period_not_the_current_status(): void
+    {
+        $employee = $this->makeEmployee();
+        $januaryContract = $this->makeContract($employee, [
+            'contract_number' => 'HD-JAN-'.uniqid(),
+            'start_date' => '2026-01-01',
+            'end_date' => '2026-01-31',
+            'agreed_salary' => 10_000_000,
+            'insurance_salary' => 10_000_000,
+            'status' => 'expired', // da bi auto-expire truoc khi HR chot luong thang 1
+        ]);
+        $februaryContract = $this->makeContract($employee, [
+            'contract_number' => 'HD-FEB-'.uniqid(),
+            'start_date' => '2026-02-01',
+            'agreed_salary' => 15_000_000,
+            'insurance_salary' => 15_000_000,
+            'status' => 'active',
+        ]);
+
+        $januaryPayroll = $this->service()->generateForPeriod(1, 2026, $this->creator());
+        $januaryDetail = $januaryPayroll->details()->where('employee_id', $employee->id)->first();
+        $this->assertSame($januaryContract->id, $januaryDetail->employee_contract_id);
+
+        $februaryPayroll = $this->service()->generateForPeriod(2, 2026, $this->creator());
+        $februaryDetail = $februaryPayroll->details()->where('employee_id', $employee->id)->first();
+        $this->assertSame($februaryContract->id, $februaryDetail->employee_contract_id);
+    }
+
     public function test_paid_leave_does_not_create_unpaid_deduction(): void
     {
         $employee = $this->makeEmployee();
@@ -225,6 +320,10 @@ class PayrollTest extends TestCase
 
         $detail = $payroll->details()->first();
         $this->assertEqualsWithDelta(0.0, (float) $detail->unpaid_leave_deduction, 0.001);
+        // Nghỉ phép CÓ LƯƠNG phải được tính như đi làm (không chấm công
+        // ngày nào nhưng vẫn có 2 ngày phép có lương -> vẫn được trả lương
+        // cho 2 ngày đó, base_salary không được là 0).
+        $this->assertGreaterThan(0, (float) $detail->base_salary);
     }
 
     public function test_standard_work_days_excludes_holiday_falling_on_weekday(): void

@@ -32,7 +32,7 @@
                         <th>Ngày kết thúc</th>
                         <th>Ngày trong tuần</th>
                         <th>Trạng thái</th>
-                        <th class="text-end">Thao tác</th>
+                        <th class="text-center">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -67,33 +67,34 @@
                                 {{ a.status === "active" ? "Đang áp dụng" : "Đã kết thúc" }}
                             </v-chip>
                         </td>
-                        <td class="text-end">
-                            <v-btn
-                                v-if="canUpdate"
-                                icon="mdi-pencil-outline"
-                                variant="tonal"
-                                color="primary"
-                                size="small"
-                                rounded="lg"
-                                class="me-1"
-                                @click="openAssignShiftDialog(a)"
-                            >
-                                <v-icon icon="mdi-pencil-outline" />
-                                <v-tooltip activator="parent" location="top">Sửa</v-tooltip>
-                            </v-btn>
-                            <v-btn
-                                v-if="canUpdate"
-                                icon="mdi-delete-outline"
-                                variant="tonal"
-                                color="error"
-                                size="small"
-                                rounded="lg"
-                                :loading="deletingAssignmentId === a.id"
-                                @click="deleteShiftAssignment(a)"
-                            >
-                                <v-icon icon="mdi-delete-outline" />
-                                <v-tooltip activator="parent" location="top">Xóa</v-tooltip>
-                            </v-btn>
+                        <td class="text-center">
+                            <div class="d-flex justify-center ga-2">
+                                <v-btn
+                                    v-if="canUpdate"
+                                    icon="mdi-pencil-outline"
+                                    variant="tonal"
+                                    color="primary"
+                                    size="small"
+                                    rounded="lg"
+                                    @click="openAssignShiftDialog(a)"
+                                >
+                                    <v-icon icon="mdi-pencil-outline" />
+                                    <v-tooltip activator="parent" location="top">Sửa</v-tooltip>
+                                </v-btn>
+                                <v-btn
+                                    v-if="canUpdate"
+                                    icon="mdi-delete-outline"
+                                    variant="tonal"
+                                    color="error"
+                                    size="small"
+                                    rounded="lg"
+                                    :loading="deletingAssignmentId === a.id"
+                                    @click="deleteShiftAssignment(a)"
+                                >
+                                    <v-icon icon="mdi-delete-outline" />
+                                    <v-tooltip activator="parent" location="top">Xóa</v-tooltip>
+                                </v-btn>
+                            </div>
                         </td>
                     </tr>
                 </tbody>

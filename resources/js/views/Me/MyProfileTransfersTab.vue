@@ -29,7 +29,11 @@
                         </td>
                     </tr>
                     <tr v-else-if="!transfers.length">
-                        <td colspan="5" class="text-center py-6" style="opacity: 0.6">
+                        <td
+                            colspan="5"
+                            class="text-center py-6"
+                            style="opacity: 0.6"
+                        >
                             Chưa có lượt luân chuyển nào.
                         </td>
                     </tr>
@@ -70,7 +74,8 @@ async function loadTransfers() {
         const response = await employeeService.myTransfers();
         transfers.value = response.data.data;
     } catch (e) {
-        transfersError.value = e.response?.data?.message ?? "Không thể tải lịch sử luân chuyển.";
+        transfersError.value =
+            e.response?.data?.message ?? "Không thể tải lịch sử luân chuyển.";
     } finally {
         transfersLoading.value = false;
     }

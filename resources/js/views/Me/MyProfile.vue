@@ -24,7 +24,10 @@
             >
                 <div class="d-flex align-center flex-wrap ga-4">
                     <v-avatar size="80" color="surface-variant">
-                        <v-img v-if="employee.avatar_url" :src="employee.avatar_url" />
+                        <v-img
+                            v-if="employee.avatar_url"
+                            :src="employee.avatar_url"
+                        />
                         <v-icon v-else icon="mdi-account" size="40" />
                     </v-avatar>
                     <div class="flex-grow-1">
@@ -42,7 +45,11 @@
                                 :status="employee.employment_status"
                                 :map="EMPLOYMENT_STATUS_MAP"
                             />
-                            <v-chip size="small" variant="tonal" color="default">
+                            <v-chip
+                                size="small"
+                                variant="tonal"
+                                color="default"
+                            >
                                 {{ employee.code }}
                             </v-chip>
                         </div>
@@ -53,27 +60,40 @@
             <!-- Thẻ thông tin nhanh -->
             <StatCards :stats="quickStats" />
 
-            <v-sheet class="border rounded-lg mb-4 mt-4 glass-panel" color="transparent">
+            <v-sheet
+                class="border rounded-lg mb-4 mt-4 glass-panel"
+                color="transparent"
+            >
                 <v-tabs v-model="tab">
                     <v-tab value="info">Thông tin cá nhân</v-tab>
                     <v-tab value="contracts">Hợp đồng</v-tab>
                     <v-tab value="documents">Tài liệu</v-tab>
                     <v-tab value="shifts">Ca làm việc</v-tab>
                     <v-tab value="transfers">Luân chuyển</v-tab>
+                    <v-tab value="payslips">Phiếu lương</v-tab>
                 </v-tabs>
             </v-sheet>
 
             <v-window v-model="tab">
                 <v-window-item value="info">
-                    <MyProfileInfoTab :employee="employee" @updated="employee = $event" />
+                    <MyProfileInfoTab
+                        :employee="employee"
+                        @updated="employee = $event"
+                    />
                 </v-window-item>
 
                 <v-window-item value="contracts">
-                    <MyProfileContractsTab v-if="tabsOpened.contracts" @preview="openPreview" />
+                    <MyProfileContractsTab
+                        v-if="tabsOpened.contracts"
+                        @preview="openPreview"
+                    />
                 </v-window-item>
 
                 <v-window-item value="documents">
-                    <MyProfileDocumentsTab v-if="tabsOpened.documents" @preview="openPreview" />
+                    <MyProfileDocumentsTab
+                        v-if="tabsOpened.documents"
+                        @preview="openPreview"
+                    />
                 </v-window-item>
 
                 <v-window-item value="shifts">
@@ -82,6 +102,10 @@
 
                 <v-window-item value="transfers">
                     <MyProfileTransfersTab v-if="tabsOpened.transfers" />
+                </v-window-item>
+
+                <v-window-item value="payslips">
+                    <MyProfilePayslipsTab v-if="tabsOpened.payslips" />
                 </v-window-item>
             </v-window>
         </template>
@@ -121,6 +145,7 @@ import MyProfileContractsTab from "./MyProfileContractsTab.vue";
 import MyProfileDocumentsTab from "./MyProfileDocumentsTab.vue";
 import MyProfileShiftsTab from "./MyProfileShiftsTab.vue";
 import MyProfileTransfersTab from "./MyProfileTransfersTab.vue";
+import MyProfilePayslipsTab from "./MyProfilePayslipsTab.vue";
 
 const EMPLOYMENT_STATUS_MAP = {
     probation: { label: "Thử việc", color: "warning" },
@@ -145,7 +170,8 @@ function formatTenure(hireDate) {
     const start = new Date(hireDate);
     const now = new Date();
     let months =
-        (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+        (now.getFullYear() - start.getFullYear()) * 12 +
+        (now.getMonth() - start.getMonth());
     if (now.getDate() < start.getDate()) {
         months -= 1;
     }
@@ -225,6 +251,7 @@ const tabsOpened = reactive({
     documents: false,
     shifts: false,
     transfers: false,
+    payslips: false,
 });
 
 watch(tab, (value) => {
@@ -249,7 +276,11 @@ onMounted(() => {
 <style scoped>
 .profile-hero {
     background:
-        radial-gradient(circle at 8% 0%, rgba(117, 117, 219, 0.16), transparent 22rem),
+        radial-gradient(
+            circle at 8% 0%,
+            rgba(117, 117, 219, 0.16),
+            transparent 22rem
+        ),
         rgba(var(--v-theme-surface), 0.72);
 }
 </style>

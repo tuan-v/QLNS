@@ -14,4 +14,10 @@ export default {
     markAsPaid(id) {
         return axios.post(`${API_BASE}/${id}/mark-paid`);
     },
+    show(id) {
+        return axios.get(`${API_BASE}/${id}`);
+    },
+    mine() {
+        return axios.get(`${API_BASE}/me`);
+    },
 };

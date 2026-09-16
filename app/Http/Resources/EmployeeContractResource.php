@@ -18,6 +18,7 @@ class EmployeeContractResource extends JsonResource
             'agreed_salary' => $this->agreed_salary,
             'insurance_salary' => $this->insurance_salary,
             'status' => $this->status,
+            'terminated_at' => $this->terminated_at,
             // route('...') sinh URL trỏ tới action download ở Bước D — chưa cần lo tên route sai vì Bước D mới đăng ký
             'download_url' => route('employees.contracts.download', [
                 'employee' => $this->employee_id,

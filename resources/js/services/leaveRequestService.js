@@ -11,6 +11,9 @@ export default {
     balancesMine() {
         return axios.get(`${API_BASE}/balances/me`);
     },
+    balancesForEmployee(employeeId) {
+        return axios.get(`${API_BASE}/balances/${employeeId}`);
+    },
     list(params = {}) {
         return axios.get(API_BASE, { params });
     },

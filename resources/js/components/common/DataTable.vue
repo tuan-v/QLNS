@@ -174,7 +174,7 @@ const tableHeaders = computed(() => {
             title: props.actionsLabel,
             key: "actions",
             sortable: false,
-            align: "end",
+            align: "center",
             width: props.actionsWidth,
         },
     ];
@@ -297,7 +297,7 @@ async function submitConfirm() {
             </template>
 
             <template v-if="useBuiltInActions" #item.actions="{ item }">
-                <div class="d-flex justify-end ga-2">
+                <div class="d-flex justify-center ga-2">
                     <template v-for="(action, index) in actions" :key="index">
                         <v-btn
                             v-if="!isHidden(action, item)"

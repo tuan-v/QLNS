@@ -86,14 +86,14 @@ const LEAVE_STATUS_MAP = {
 };
 
 const statusOptions = [
+    { title: "Tất cả", value: null },
     { title: "Chờ duyệt (Quản lý)", value: "pending" },
     { title: "Chờ HR duyệt", value: "manager_approved" },
     { title: "Đã duyệt", value: "approved" },
     { title: "Từ chối", value: "rejected" },
-    { title: "Tất cả", value: null },
 ];
 
-const statusFilter = ref("pending");
+const statusFilter = ref(null);
 const leaveRequests = ref([]);
 const loading = ref(false);
 const loadError = ref("");

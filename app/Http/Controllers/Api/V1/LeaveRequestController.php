@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Leave\DecideLeaveRequest;
 use App\Http\Requests\Leave\StoreLeaveRequest;
+use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Services\LeaveApprovalService;
 use App\Services\LeaveRequestService;
@@ -63,6 +64,13 @@ class LeaveRequestController extends Controller
 
         abort_if(! $employee, 404, 'Tài khoản này chưa liên kết với hồ sơ nhân viên nào.');
 
+        return response()->json($this->leaveRequestService->listBalancesForEmployee($employee));
+    }
+
+    // Quỹ phép của 1 nhân viên BẤT KỲ (khác balancesMine() — chỉ chính mình)
+    // — dùng cho tab "Lương / Phép" ở Chi tiết nhân viên phía HR.
+    public function balances(Request $request, Employee $employee): JsonResponse
+    {
         return response()->json($this->leaveRequestService->listBalancesForEmployee($employee));
     }
 

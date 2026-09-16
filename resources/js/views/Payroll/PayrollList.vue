@@ -65,6 +65,8 @@ import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
 import PayrollGenerateDialog from "./PayrollGenerateDialog.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useRouter } from "vue-router";
+const router = useRouter();
 
 const PAYROLL_STATUS_MAP = {
     processing: { label: "Đang xử lý", color: "warning" },
@@ -110,6 +112,13 @@ async function fetchData() {
 }
 
 const actions = computed(() => [
+    {
+        icon: "mdi-eye-outline",
+        tooltip: "Xem chi tiết",
+        color: "primary",
+        onClick: (item) => router.push(`/payrolls/${item.id}`),
+    },
+
     {
         icon: "mdi-lock-check-outline",
         tooltip: "Chốt bảng lương",

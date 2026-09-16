@@ -195,7 +195,7 @@
                         <th>Về sớm</th>
                         <th>OT</th>
                         <th>Trạng thái</th>
-                        <th class="text-end">Thao tác</th>
+                        <th class="text-center">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -225,34 +225,35 @@
                         <td>
                             <StatusChip :status="a.status" :map="ATTENDANCE_STATUS_MAP" />
                         </td>
-                        <td class="text-end">
-                            <v-btn
-                                icon="mdi-file-edit-outline"
-                                variant="tonal"
-                                size="small"
-                                rounded="lg"
-                                class="mr-1"
-                                @click="openAdjustDialog(a)"
-                            >
-                                <v-icon icon="mdi-file-edit-outline" />
-                                <v-tooltip activator="parent" location="top"
-                                    >Xin điều chỉnh</v-tooltip
+                        <td class="text-center">
+                            <div class="d-flex justify-center ga-2">
+                                <v-btn
+                                    icon="mdi-file-edit-outline"
+                                    variant="tonal"
+                                    size="small"
+                                    rounded="lg"
+                                    @click="openAdjustDialog(a)"
                                 >
-                            </v-btn>
-                            <v-btn
-                                v-if="a.late_minutes > 0 && !a.late_excused"
-                                icon="mdi-shield-check-outline"
-                                variant="tonal"
-                                color="secondary"
-                                size="small"
-                                rounded="lg"
-                                @click="openExcuseDialog(a)"
-                            >
-                                <v-icon icon="mdi-shield-check-outline" />
-                                <v-tooltip activator="parent" location="top"
-                                    >Xin miễn trừ đi muộn</v-tooltip
+                                    <v-icon icon="mdi-file-edit-outline" />
+                                    <v-tooltip activator="parent" location="top"
+                                        >Xin điều chỉnh</v-tooltip
+                                    >
+                                </v-btn>
+                                <v-btn
+                                    v-if="a.late_minutes > 0 && !a.late_excused"
+                                    icon="mdi-shield-check-outline"
+                                    variant="tonal"
+                                    color="secondary"
+                                    size="small"
+                                    rounded="lg"
+                                    @click="openExcuseDialog(a)"
                                 >
-                            </v-btn>
+                                    <v-icon icon="mdi-shield-check-outline" />
+                                    <v-tooltip activator="parent" location="top"
+                                        >Xin miễn trừ đi muộn</v-tooltip
+                                    >
+                                </v-btn>
+                            </div>
                         </td>
                     </tr>
                 </tbody>

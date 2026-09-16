@@ -31,7 +31,7 @@
                         <th>Kích thước</th>
                         <th>Người tải lên</th>
                         <th>Ngày tải lên</th>
-                        <th class="text-end">Xem</th>
+                        <th class="text-center">Xem</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -53,7 +53,7 @@
                         <td>{{ formatFileSize(doc.file_size) }}</td>
                         <td>{{ doc.uploaded_by ?? "—" }}</td>
                         <td>{{ formatDate(doc.created_at) }}</td>
-                        <td class="text-end">
+                        <td class="text-center">
                             <v-btn
                                 icon="mdi-eye-outline"
                                 variant="tonal"

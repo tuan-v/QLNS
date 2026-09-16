@@ -293,4 +293,42 @@ class PayrollControllerTest extends TestCase
 
         $response->assertStatus(422);
     }
+
+    public function test_hr_can_view_payslip_history_for_an_employee(): void
+    {
+        $employee = $this->makeEmployeeWithContract();
+        $token = $this->loginAs('hr@qlns.local', 'Hr@123456');
+        $generated = $this->postJson('/api/v1/payrolls/generate', ['month' => 11, 'year' => 2030], [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+        $payrollId = $generated->json('data.id');
+        // Chưa "close" -> vẫn "processing", không được tính là bản chính thức.
+        $processing = $this->getJson('/api/v1/employees/'.$employee->id.'/payslips', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+        $processing->assertStatus(200);
+        $this->assertCount(0, $processing->json('data'));
+
+        $this->postJson('/api/v1/payrolls/'.$payrollId.'/close', [], ['Authorization' => 'Bearer '.$token]);
+
+        $response = $this->getJson('/api/v1/employees/'.$employee->id.'/payslips', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertCount(1, $response->json('data'));
+        $this->assertSame($employee->id, $response->json('data.0.employee.id'));
+    }
+
+    public function test_employee_without_payroll_view_all_cannot_view_payslip_history(): void
+    {
+        $employee = $this->makeEmployeeWithContract();
+        $token = $this->loginAs('manager@qlns.local', 'Manager@123');
+
+        $response = $this->getJson('/api/v1/employees/'.$employee->id.'/payslips', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(403);
+    }
 }

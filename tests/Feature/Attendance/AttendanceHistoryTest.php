@@ -162,8 +162,17 @@ class AttendanceHistoryTest extends TestCase
         // Sắp theo ngày GIẢM DẦN.
         $this->assertSame(['2026-01-09', '2026-01-08', '2026-01-07', '2026-01-06', '2026-01-05'], array_column($data['rows'], 'date'));
 
-        // 4 dòng KHÔNG vắng, mỗi dòng work_coefficient=0.5 -> tổng 2.0.
-        $this->assertEquals(2.0, $data['summary']['total_work_days']);
+        // Ngày công giờ tính qua WorkTimeCalculationService: bậc thang theo
+        // % giờ làm/ca 480 phút + trần theo phút trễ/về sớm, NHÂN với
+        // work_coefficient=0.5 của ca này (ca nửa ngày — work_coefficient vẫn
+        // cần thiết dù không còn là YẾU TỐ DUY NHẤT như công thức cũ):
+        // 01-05: 540/480=112.5% -> bậc 1.0, không trễ -> 1.0 x 0.5 = 0.5
+        // 01-06: 525/480=109.4% -> bậc 1.0, trễ 15p (<=15, chưa phạt) -> 1.0 x 0.5 = 0.5
+        // 01-07: 520/480=108.3% -> bậc 1.0, về sớm 20p (15-30) -> trần 0.75 -> 0.75 x 0.5 = 0.375
+        // 01-09: 0/480=0% -> bậc 0.0 (chưa check-out) -> 0.0 x 0.5 = 0.0
+        // Tổng = 0.5 + 0.5 + 0.375 + 0.0 = 1.375 -> làm tròn 2 chữ số = 1.38
+        // (summarizeHistory() round(...,2), xem AttendanceService.php).
+        $this->assertEquals(1.38, $data['summary']['total_work_days']);
         $this->assertSame(540 + 525 + 520 + 0, $data['summary']['total_work_minutes']);
         $this->assertSame(1, $data['summary']['late_count']);
         $this->assertSame(1, $data['summary']['early_leave_count']);

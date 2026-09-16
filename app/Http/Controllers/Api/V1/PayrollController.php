@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Payroll\GeneratePayrollRequest;
+use App\Http\Resources\PayrollDetailResource;
 use App\Http\Resources\PayrollResource;
+use App\Models\Employee;
 use App\Models\Payroll;
 use App\Services\PayrollService;
 use Illuminate\Http\JsonResponse;
@@ -20,6 +22,24 @@ class PayrollController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         return PayrollResource::collection($this->payrollService->list($request->only(['year', 'status'])));
+    }
+    // Phiếu lương của CHÍNH người đang đăng nhập — cùng cách các mine() khác
+    // (EmployeeContractController, EmployeeTransferController...) không gắn
+    // permission:payroll.view_all. Chỉ trả kỳ ĐÃ CHỐT (closed/paid) — kỳ
+    // "processing" còn có thể bị HR sửa số liệu, chưa nên xem là bản chính thức.
+    public function mine(Request $request): AnonymousResourceCollection
+    {
+        $employee = $request->user()->employee;
+        abort_if(! $employee, 404, 'Tài khoản này chưa liên kết với hồ sơ nhân viên nào.');
+
+        return PayrollDetailResource::collection($this->payrollService->listPayslipsForEmployee($employee));
+    }
+
+    // Lịch sử phiếu lương của 1 nhân viên BẤT KỲ (khác mine() — chỉ chính
+    // mình) — dùng cho tab "Lương / Phép" ở Chi tiết nhân viên phía HR.
+    public function forEmployee(Employee $employee): AnonymousResourceCollection
+    {
+        return PayrollDetailResource::collection($this->payrollService->listPayslipsForEmployee($employee));
     }
 
     public function show(Payroll $payroll): PayrollResource

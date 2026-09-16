@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\EmployeeContractController;
 use App\Http\Controllers\Api\V1\EmployeeDocumentController;
 use App\Http\Controllers\Api\V1\EmployeeShiftAssignmentController;
 use App\Http\Controllers\Api\V1\EmployeeTransferController;
+use App\Http\Controllers\Api\V1\PayrollController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:api')->prefix('employees')->group(function (): void {
@@ -35,6 +36,7 @@ Route::middleware('auth:api')->prefix('employees')->group(function (): void {
     Route::post('/{employee}/account', [EmployeeAccountController::class, 'store'])->middleware('permission:employee.update');
     Route::get('/{employee}/contracts', [EmployeeContractController::class, 'index'])->middleware('permission:employee.view');
     Route::post('/{employee}/contracts', [EmployeeContractController::class, 'store'])->middleware('permission:employee.update');
+    Route::post('/{employee}/contracts/{contract}/terminate', [EmployeeContractController::class, 'terminate'])->middleware('permission:employee.update');
     // Không gắn permission:employee.view — download() tự kiểm tra "chính
     // mình HOẶC có employee.view" bên trong Controller, vì route này còn
     // phải phục vụ luôn nhân viên tải hợp đồng của CHÍNH họ (không có
@@ -52,6 +54,10 @@ Route::middleware('auth:api')->prefix('employees')->group(function (): void {
     // Cùng lý do route tải Hợp đồng/Tài liệu ở trên — không gắn permission:employee.view.
     Route::get('/{employee}/transfers/{transfer}/download', [EmployeeTransferController::class, 'download'])
         ->name('employees.transfers.download');
+    // Lịch sử phiếu lương của nhân viên này — dùng cho tab "Lương / Phép" ở
+    // Chi tiết nhân viên phía HR (mục 8), payroll.view_all giống show()/index()
+    // của PayrollController.
+    Route::get('/{employee}/payslips', [PayrollController::class, 'forEmployee'])->middleware('permission:payroll.view_all');
     Route::get('/{employee}/shift-assignments', [EmployeeShiftAssignmentController::class, 'index'])->middleware('permission:shift.view');
     Route::post('/{employee}/shift-assignments', [EmployeeShiftAssignmentController::class, 'store'])->middleware('permission:shift.manage');
     Route::put('/{employee}/shift-assignments/{shiftAssignment}', [EmployeeShiftAssignmentController::class, 'update'])->middleware('permission:shift.manage');

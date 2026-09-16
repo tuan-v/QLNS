@@ -29,7 +29,9 @@ class AttendanceService
     public function __construct(
         private readonly AttendanceRepository $attendanceRepository,
         private readonly AttendanceLogRepository $attendanceLogRepository,
-    ) {}
+        private readonly WorkTimeCalculationService $workTimeCalculationService,
+    ) {
+    }
 
     // Trạng thái chấm công hôm nay theo TỪNG CA đang được gán (mục 14, có
     // thể nhiều ca cùng ngày) — mỗi phần tử là 1 ca kèm bản ghi attendances
@@ -40,7 +42,7 @@ class AttendanceService
         $now = now();
         $today = $now->toDateString();
 
-        return $this->listActiveAssignmentsForDate($employee, $now)->map(fn(EmployeeShiftAssignment $assignment) => [
+        return $this->listActiveAssignmentsForDate($employee, $now)->map(fn (EmployeeShiftAssignment $assignment) => [
             'work_shift' => $assignment->workShift,
             'attendance' => $this->attendanceRepository->findForShift($employee, $assignment->work_shift_id, $today),
         ])->values();
@@ -55,7 +57,7 @@ class AttendanceService
     {
         $attendancesByKey = $this->attendanceRepository
             ->listForEmployeeInRange($employee, $dateFrom, $dateTo)
-            ->keyBy(fn(Attendance $a) => $a->attendance_date->toDateString() . '|' . $a->work_shift_id);
+            ->keyBy(fn (Attendance $a) => $a->attendance_date->toDateString() . '|' . $a->work_shift_id);
         $approvedLeaveDates = $this->approvedLeaveDatesForEmployee($employee, $dateFrom, $dateTo);
 
         $rows = collect();
@@ -96,7 +98,7 @@ class AttendanceService
         // nhau phủ lên cùng ngày (vd sửa gán lại) — dedupe theo ngày+ca,
         // tránh hiện 2 dòng cho đúng 1 ca cùng ngày.
         $rows = $rows
-            ->unique(fn(array $row) => $row['date'] . '|' . $row['work_shift']->id)
+            ->unique(fn (array $row) => $row['date'] . '|' . $row['work_shift']->id)
             ->sortBy([
                 ['date', 'desc'],
                 ['work_shift.start_time', 'asc'],
@@ -160,21 +162,23 @@ class AttendanceService
         return $dates;
     }
 
-    // Tổng ngày công tính bằng work_coefficient của Ca (mục 12, cột có sẵn
-    // từ đầu dự án nhưng chưa từng dùng tới) — ca nửa ngày đặt
-    // work_coefficient=0.5 thì 2 ca sáng+chiều cùng ngày cộng đúng 1.0.
+    // Tổng ngày công tính qua WorkTimeCalculationService (dùng CHUNG với
+    // PayrollService) — bậc thang theo % giờ làm so với ca + trần theo phút
+    // đi muộn/về sớm, NHÂN với work_coefficient của ca đó (ca nửa ngày vẫn
+    // chỉ đóng góp tối đa 0.5, dù làm đủ 100% giờ của ca đó — xem
+    // WorkTimeCalculationService để hiểu rõ vì sao vẫn cần work_coefficient).
     // Ngày "on_leave" không tính vào Vắng lẫn Tổng ngày công/giờ làm — nghỉ
     // phép đã duyệt không phải đi làm cũng không phải vắng không lý do.
     private function summarizeHistory(Collection $rows): array
     {
-        $withAttendance = $rows->filter(fn(array $row) => ! in_array($row['status'], ['absent', 'on_leave'], true));
+        $withAttendance = $rows->filter(fn (array $row) => ! in_array($row['status'], ['absent', 'on_leave'], true));
 
         return [
-            'total_work_days' => round((float) $withAttendance->sum(fn(array $row) => (float) $row['work_shift']->work_coefficient), 2),
-            'total_work_minutes' => (int) $withAttendance->sum(fn(array $row) => $row['attendance']->actual_work_minutes ?? 0),
-            'late_count' => $rows->filter(fn(array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->late_minutes ?? 0) > 0 && ! ($row['attendance']->late_excused ?? false))->count(),
-            'early_leave_count' => $rows->filter(fn(array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->early_leave_minutes ?? 0) > 0)->count(),
-            'on_leave_count' => $rows->filter(fn(array $row) => $row['status'] === 'on_leave')->count(),
+            'total_work_days' => round((float) $withAttendance->sum(fn (array $row) => $this->workTimeCalculationService->dayEquivalentFor($row['attendance'], $row['work_shift'])), 2),
+            'total_work_minutes' => (int) $withAttendance->sum(fn (array $row) => $row['attendance']->actual_work_minutes ?? 0),
+            'late_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->late_minutes ?? 0) > 0 && ! ($row['attendance']->late_excused ?? false))->count(),
+            'early_leave_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->early_leave_minutes ?? 0) > 0)->count(),
+            'on_leave_count' => $rows->filter(fn (array $row) => $row['status'] === 'on_leave')->count(),
         ];
     }
 
@@ -369,15 +373,15 @@ class AttendanceService
             })
             ->with('workShift')
             ->get()
-            ->filter(fn(EmployeeShiftAssignment $assignment) => in_array($dayIso, $assignment->work_days, true))
-            ->sortBy(fn(EmployeeShiftAssignment $assignment) => $assignment->workShift->start_time)
+            ->filter(fn (EmployeeShiftAssignment $assignment) => in_array($dayIso, $assignment->work_days, true))
+            ->sortBy(fn (EmployeeShiftAssignment $assignment) => $assignment->workShift->start_time)
             ->values();
     }
 
     public function resolveActiveAssignment(Employee $employee, WorkShift $workShift, Carbon $date): ?EmployeeShiftAssignment
     {
         return $this->listActiveAssignmentsForDate($employee, $date)
-            ->first(fn(EmployeeShiftAssignment $assignment) => $assignment->work_shift_id === $workShift->id);
+            ->first(fn (EmployeeShiftAssignment $assignment) => $assignment->work_shift_id === $workShift->id);
     }
 
     // Khớp điểm chấm công theo đúng phương thức đang dùng — trả null nếu
@@ -391,7 +395,7 @@ class AttendanceService
         if ($method === 'wifi') {
             $ip = request()->ip();
 
-            return $locations->first(fn(AttendanceLocation $loc) => $loc->allowed_ip_cidr && $this->ipInCidr($ip, $loc->allowed_ip_cidr));
+            return $locations->first(fn (AttendanceLocation $loc) => $loc->allowed_ip_cidr && $this->ipInCidr($ip, $loc->allowed_ip_cidr));
         }
 
         if ($method === 'gps') {
@@ -408,7 +412,7 @@ class AttendanceService
         }
 
         if ($method === 'qr') {
-            return $locations->first(fn(AttendanceLocation $loc) => $loc->qr_secret && $loc->qr_secret === $data['qr_reference']);
+            return $locations->first(fn (AttendanceLocation $loc) => $loc->qr_secret && $loc->qr_secret === $data['qr_reference']);
         }
 
         return null;
