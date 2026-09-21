@@ -52,6 +52,9 @@
                 <div v-if="item.type === 'excuse'" style="opacity: 0.75">
                     Xin miễn trừ đi muộn ({{ formatMinutesAsHours(item.attendance?.late_minutes) }})
                 </div>
+                <div v-if="item.type === 'overtime'" style="opacity: 0.75">
+                    Xin duyệt OT ({{ formatMinutesAsHours(item.attendance?.overtime_minutes) }})
+                </div>
                 <div v-if="item.proposed_check_in_at">
                     Vào: {{ formatDateTime(item.proposed_check_in_at) }}
                 </div>
@@ -92,6 +95,7 @@ const ADJUSTMENT_TYPE_MAP = {
     correction: { label: "Điều chỉnh", color: "info" },
     supplement: { label: "Bổ sung", color: "purple" },
     excuse: { label: "Miễn trừ đi muộn", color: "secondary" },
+    overtime: { label: "Duyệt OT", color: "teal" },
 };
 
 const statusOptions = [

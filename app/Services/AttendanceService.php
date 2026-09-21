@@ -26,6 +26,13 @@ class AttendanceService
     // được gán đúng NGÀY hay không, không so giờ hiện tại với giờ ca).
     private const CHECK_IN_EARLY_MINUTES = 30;
 
+    // Ân hạn OT (2026-09-21, theo yêu cầu người dùng) — ra trễ vài phút do
+    // dọn dẹp/di chuyển không nên tính thành OT ngay lập tức, cùng tinh
+    // thần late_grace_minutes/early_leave_grace_minutes đã có trên
+    // WorkShift, nhưng đây là hằng số CỐ ĐỊNH toàn hệ thống (không cấu
+    // hình theo Ca) theo đúng yêu cầu — xem calculateOvertimeMinutes().
+    private const OVERTIME_GRACE_MINUTES = 5;
+
     public function __construct(
         private readonly AttendanceRepository $attendanceRepository,
         private readonly AttendanceLogRepository $attendanceLogRepository,
@@ -496,11 +503,20 @@ class AttendanceService
 
     // OT tính từ lúc HẾT CA (end_time) — chỉ phần chấm công RA sau giờ tan
     // ca mới coi là làm thêm giờ, khác actual_work_minutes (tổng thời gian
-    // có mặt, không liên quan mốc tan ca).
+    // có mặt, không liên quan mốc tan ca). Số phút trả về VẪN LÀ SỐ THỰC (đã
+    // trừ ân hạn) dù có đạt ngưỡng tối thiểu để được TRẢ LƯƠNG hay không —
+    // ngưỡng đó chỉ áp dụng ở PayrollService::calculateWorkedMetrics(),
+    // không zero ở đây để HR vẫn thấy đúng dữ liệu chấm công thật.
     private function calculateOvertimeMinutes(WorkShift $workShift, Carbon $checkOutAt): int
     {
         $shiftEnd = $this->shiftTimeToday($workShift->end_time, $checkOutAt);
 
-        return $checkOutAt->gt($shiftEnd) ? (int) $shiftEnd->diffInMinutes($checkOutAt) : 0;
+        if ($checkOutAt->lte($shiftEnd)) {
+            return 0;
+        }
+
+        $rawMinutes = (int) $shiftEnd->diffInMinutes($checkOutAt);
+
+        return max(0, $rawMinutes - self::OVERTIME_GRACE_MINUTES);
     }
 }

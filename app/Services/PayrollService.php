@@ -22,6 +22,16 @@ class PayrollService
     // (300%) như luật thực tế (KISS, có thể nâng cấp sau).
     private const OVERTIME_MULTIPLIER = 1.5;
 
+    // OT chỉ được TRẢ LƯƠNG khi (1) đã được HR duyệt (Attendance::
+    // overtime_approved, xem AttendanceAdjustmentService type "overtime") VÀ
+    // (2) đạt ngưỡng tối thiểu 30 phút THỰC TẾ đi trễ so với giờ tan ca
+    // (2026-09-21, theo yêu cầu người dùng — phương án B). overtime_minutes
+    // lưu trên Attendance đã bị trừ sẵn OVERTIME_GRACE_MINUTES=5 phút ân hạn
+    // (xem AttendanceService::calculateOvertimeMinutes()), nên ngưỡng tương
+    // đương khi so với overtime_minutes ĐÃ LƯU là 30 - 5 = 25 phút, không
+    // phải 30 — không cộng dồn/trừ lại ân hạn thêm 1 lần nữa ở đây.
+    private const OVERTIME_MINIMUM_PAYABLE_MINUTES = 25;
+
     // Bảo hiểm bắt buộc phía người lao động (BHXH 8% + BHYT 1.5% + BHTN 1%) —
     // cùng cảnh báo như PersonalIncomeTaxCalculator: số theo luật hiện hành,
     // cần xác nhận lại trước khi dùng dữ liệu thật.
@@ -158,9 +168,15 @@ class PayrollService
             }
 
             $dayEquivalent += $this->workTimeCalculationService->dayEquivalentFor($attendance, $attendance->workShift);
-            $overtimeMinutes += $attendance->overtime_minutes;
 
-            if ($attendance->overtime_minutes > 0) {
+            // Chưa duyệt HOẶC chưa đạt ngưỡng tối thiểu thì KHÔNG cộng vào cả
+            // overtime_minutes lẫn overtime_amount hiển thị trên phiếu lương
+            // — tránh lệch giữa số phút hiện ra và số tiền thực trả.
+            $isPayableOvertime = $attendance->overtime_approved
+                && $attendance->overtime_minutes >= self::OVERTIME_MINIMUM_PAYABLE_MINUTES;
+
+            if ($isPayableOvertime) {
+                $overtimeMinutes += $attendance->overtime_minutes;
                 $hourlyRateForShift = $dailyRate / ($standardMinutes / 60);
                 $overtimeAmount += ($attendance->overtime_minutes / 60) * $hourlyRateForShift * self::OVERTIME_MULTIPLIER;
             }

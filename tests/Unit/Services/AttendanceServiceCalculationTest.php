@@ -128,6 +128,8 @@ class AttendanceServiceCalculationTest extends TestCase
         $this->assertSame(0, $result);
     }
 
+    // OVERTIME_GRACE_MINUTES=5 (2026-09-21, theo yêu cầu người dùng) — 90
+    // phút thực tế trừ 5 phút ân hạn = 85, không còn 90 như trước.
     public function test_check_out_after_shift_end_calculates_overtime(): void
     {
         $service = $this->makeService();
@@ -136,7 +138,53 @@ class AttendanceServiceCalculationTest extends TestCase
 
         $result = $this->callPrivateMethod($service, 'calculateOvertimeMinutes', [$workShift, $checkOut]);
 
-        $this->assertSame(90, $result);
+        $this->assertSame(85, $result);
+    }
+
+    // 4 mốc đúng ví dụ người dùng đưa ra khi xác nhận thiết kế ân hạn OT:
+    // ca kết thúc 17:00, ân hạn 5 phút.
+    public function test_check_out_three_minutes_after_shift_end_has_no_overtime(): void
+    {
+        $service = $this->makeService();
+        $workShift = $this->makeWorkShift();
+        $checkOut = Carbon::parse('2026-01-05 17:03:00');
+
+        $result = $this->callPrivateMethod($service, 'calculateOvertimeMinutes', [$workShift, $checkOut]);
+
+        $this->assertSame(0, $result);
+    }
+
+    public function test_check_out_exactly_at_grace_boundary_has_no_overtime(): void
+    {
+        $service = $this->makeService();
+        $workShift = $this->makeWorkShift();
+        $checkOut = Carbon::parse('2026-01-05 17:05:00');
+
+        $result = $this->callPrivateMethod($service, 'calculateOvertimeMinutes', [$workShift, $checkOut]);
+
+        $this->assertSame(0, $result);
+    }
+
+    public function test_check_out_one_minute_past_grace_boundary_gives_one_minute_overtime(): void
+    {
+        $service = $this->makeService();
+        $workShift = $this->makeWorkShift();
+        $checkOut = Carbon::parse('2026-01-05 17:06:00');
+
+        $result = $this->callPrivateMethod($service, 'calculateOvertimeMinutes', [$workShift, $checkOut]);
+
+        $this->assertSame(1, $result);
+    }
+
+    public function test_check_out_thirty_minutes_after_shift_end_gives_twenty_five_minutes_overtime(): void
+    {
+        $service = $this->makeService();
+        $workShift = $this->makeWorkShift();
+        $checkOut = Carbon::parse('2026-01-05 17:30:00');
+
+        $result = $this->callPrivateMethod($service, 'calculateOvertimeMinutes', [$workShift, $checkOut]);
+
+        $this->assertSame(25, $result);
     }
 
     /* -------------------------------- deriveHistoryStatus ------------------------------ */

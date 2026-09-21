@@ -349,6 +349,54 @@ export function useCheckIn() {
         }
     }
 
+    /* ------------------------ Xin duyệt OT (2026-09-21) ----------------------- */
+
+    const otApprovalDialog = ref(false);
+    const otApprovalTarget = ref(null);
+    const otApprovalForm = ref({ reason: "" });
+    const otApprovalErrors = ref({});
+    const otApprovalGeneralError = ref("");
+    const otApprovalSubmitting = ref(false);
+
+    function openOtApprovalDialog(attendance) {
+        otApprovalTarget.value = attendance;
+        otApprovalForm.value = { reason: "" };
+        otApprovalErrors.value = {};
+        otApprovalGeneralError.value = "";
+        otApprovalDialog.value = true;
+    }
+
+    function closeOtApprovalDialog() {
+        otApprovalDialog.value = false;
+    }
+
+    async function submitOtApprovalRequest() {
+        otApprovalErrors.value = {};
+        otApprovalGeneralError.value = "";
+
+        otApprovalSubmitting.value = true;
+        try {
+            await attendanceService.requestAdjustment({
+                type: "overtime",
+                attendance_id: otApprovalTarget.value.id,
+                reason: otApprovalForm.value.reason,
+            });
+            toast.success("Đã gửi yêu cầu duyệt OT, chờ duyệt.");
+            closeOtApprovalDialog();
+        } catch (e) {
+            const status = e.response?.status;
+            const data = e.response?.data;
+            if (status === 422 && data?.errors) {
+                otApprovalErrors.value = { reason: data.errors.reason?.[0] };
+                otApprovalGeneralError.value = data.errors.attendance_id?.[0] ?? "";
+            } else {
+                otApprovalGeneralError.value = data?.message ?? "Không thể gửi yêu cầu, vui lòng thử lại.";
+            }
+        } finally {
+            otApprovalSubmitting.value = false;
+        }
+    }
+
     onMounted(() => {
         loadToday();
         loadHistory();
@@ -394,5 +442,14 @@ export function useCheckIn() {
         openExcuseDialog,
         closeExcuseDialog,
         submitExcuseRequest,
+        otApprovalDialog,
+        otApprovalTarget,
+        otApprovalForm,
+        otApprovalErrors,
+        otApprovalGeneralError,
+        otApprovalSubmitting,
+        openOtApprovalDialog,
+        closeOtApprovalDialog,
+        submitOtApprovalRequest,
     };
 }

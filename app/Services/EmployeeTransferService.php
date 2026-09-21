@@ -40,13 +40,27 @@ class EmployeeTransferService
             ]);
         }
 
-        if (
-            ! empty($data['new_manager_id'])
-            && $this->employeeRepository->wouldCreateCycle($employee->id, $data['new_manager_id'])
-        ) {
-            throw ValidationException::withMessages([
-                'new_manager_id' => 'Không thể chọn nhân viên này làm quản lý vì sẽ tạo vòng lặp trong cơ cấu tổ chức.',
-            ]);
+        if (! empty($data['new_manager_id'])) {
+            // Quản lý mới chỉ được là Trưởng phòng (Department.manager_id) của
+            // CHÍNH phòng ban đang được điều tới (2026-09-21, theo yêu cầu
+            // người dùng) — không cho chọn nhân viên tùy ý. Kiểm tra ở
+            // Backend chứ không chỉ ẩn ở dropdown, vì client có thể gọi API
+            // trực tiếp với bất kỳ new_manager_id nào.
+            $toDepartment = Department::findOrFail($data['to_department_id']);
+
+            if ((int) $toDepartment->manager_id !== (int) $data['new_manager_id']) {
+                throw ValidationException::withMessages([
+                    'new_manager_id' => $toDepartment->manager_id
+                        ? 'Quản lý mới phải là Trưởng phòng của phòng ban mới.'
+                        : 'Phòng ban mới chưa có Trưởng phòng, không thể chọn Quản lý mới.',
+                ]);
+            }
+
+            if ($this->employeeRepository->wouldCreateCycle($employee->id, $data['new_manager_id'])) {
+                throw ValidationException::withMessages([
+                    'new_manager_id' => 'Không thể chọn nhân viên này làm quản lý vì sẽ tạo vòng lặp trong cơ cấu tổ chức.',
+                ]);
+            }
         }
 
         // Đang là Trưởng phòng (Position type='head') mà bị điều sang phòng ban

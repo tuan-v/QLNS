@@ -12,18 +12,20 @@ class StoreAttendanceAdjustmentRequest extends FormRequest
         return true;
     }
 
-    // 3 loại: 'correction' (mặc định — sửa 1 bản ghi attendances ĐÃ TỒN
+    // 4 loại: 'correction' (mặc định — sửa 1 bản ghi attendances ĐÃ TỒN
     // TẠI, chỉ cần đề xuất 1 trong 2 mốc), 'supplement' (bổ sung — tạo bản
     // ghi cho 1 ca+ngày CHƯA từng chấm công, nên bắt buộc đủ cả giờ vào lẫn
-    // giờ ra vì không có gì để "giữ nguyên" như correction), và 'excuse'
+    // giờ ra vì không có gì để "giữ nguyên" như correction), 'excuse'
     // (Ngày 42 — xin miễn trừ đi muộn, KHÔNG sửa giờ nên không cần
-    // proposed_check_in_at/proposed_check_out_at, chỉ cần lý do).
+    // proposed_check_in_at/proposed_check_out_at, chỉ cần lý do), và
+    // 'overtime' (2026-09-21 — xin duyệt OT, cùng khuôn 'excuse': không sửa
+    // giờ, chỉ cần lý do).
     public function rules(): array
     {
         $type = $this->input('type', 'correction');
 
         $rules = [
-            'type' => ['nullable', 'in:correction,supplement,excuse'],
+            'type' => ['nullable', 'in:correction,supplement,excuse,overtime'],
             'reason' => ['required', 'string', 'max:1000'],
         ];
 
@@ -36,7 +38,7 @@ class StoreAttendanceAdjustmentRequest extends FormRequest
             return $rules;
         }
 
-        if ($type === 'excuse') {
+        if ($type === 'excuse' || $type === 'overtime') {
             $rules['attendance_id'] = ['required', 'exists:attendances,id'];
 
             return $rules;

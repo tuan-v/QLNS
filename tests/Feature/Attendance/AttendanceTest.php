@@ -470,8 +470,9 @@ class AttendanceTest extends TestCase
         ]);
     }
 
-    // Chấm công RA muộn hơn giờ tan ca 45 phút -> overtime_minutes = 45,
-    // đúng bằng phần thời gian SAU end_time, không phải actual - standard.
+    // Chấm công RA muộn hơn giờ tan ca 45 phút -> overtime_minutes = 40 (45
+    // phút thực tế SAU end_time, trừ OVERTIME_GRACE_MINUTES=5 phút ân hạn —
+    // 2026-09-21, theo yêu cầu người dùng), không phải actual - standard.
     public function test_check_out_after_shift_end_calculates_overtime_from_shift_end(): void
     {
         [$employee, $user] = $this->makeEmployeeWithLogin();
@@ -494,7 +495,7 @@ class AttendanceTest extends TestCase
 
         $this->assertDatabaseHas('attendances', [
             'employee_id' => $employee->id,
-            'overtime_minutes' => 45,
+            'overtime_minutes' => 40,
         ]);
     }
 

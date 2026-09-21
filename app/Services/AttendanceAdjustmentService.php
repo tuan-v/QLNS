@@ -21,13 +21,17 @@ class AttendanceAdjustmentService
     ) {
     }
 
-    // 3 loại: 'correction' (sửa 1 bản ghi attendances ĐÃ TỒN TẠI — hành vi
+    // 4 loại: 'correction' (sửa 1 bản ghi attendances ĐÃ TỒN TẠI — hành vi
     // cũ), 'supplement' (bổ sung chấm công cho 1 ca+ngày CHƯA từng có bản
-    // ghi nào, vd nhân viên quên chấm công cả ngày), và 'excuse' (Ngày 42 —
-    // xin miễn trừ đi muộn, chỉ hợp lệ khi bản ghi ĐANG bị tính trễ).
+    // ghi nào, vd nhân viên quên chấm công cả ngày), 'excuse' (Ngày 42 —
+    // xin miễn trừ đi muộn, chỉ hợp lệ khi bản ghi ĐANG bị tính trễ), và
+    // 'overtime' (2026-09-21 — xin duyệt OT, chỉ hợp lệ khi bản ghi có
+    // overtime_minutes > 0 và CHƯA được duyệt; PayrollService chỉ trả lương
+    // OT cho bản ghi đã overtime_approved=true, xem calculateWorkedMetrics()).
     // employee_id/work_shift_id/attendance_date luôn được set trên
-    // adjustment cho CẢ 3 loại (copy từ attendance nếu correction/excuse) để
-    // nơi đọc (HR review, listForEmployee) không cần phân nhánh theo type.
+    // adjustment cho CẢ 4 loại (copy từ attendance nếu correction/excuse/
+    // overtime) để nơi đọc (HR review, listForEmployee) không cần phân
+    // nhánh theo type.
     public function requestForEmployee(Employee $employee, array $data, int $requestedBy): AttendanceAdjustment
     {
         $type = $data['type'] ?? 'correction';
@@ -77,6 +81,20 @@ class AttendanceAdjustmentService
                 }
             }
 
+            if ($type === 'overtime') {
+                if ($attendance->overtime_minutes <= 0) {
+                    throw ValidationException::withMessages([
+                        'attendance_id' => 'Bản ghi này không có giờ làm thêm, không thể xin duyệt OT.',
+                    ]);
+                }
+
+                if ($attendance->overtime_approved) {
+                    throw ValidationException::withMessages([
+                        'attendance_id' => 'Bản ghi này đã được duyệt OT trước đó.',
+                    ]);
+                }
+            }
+
             $data['work_shift_id'] = $attendance->work_shift_id;
             $data['attendance_date'] = $attendance->attendance_date;
         }
@@ -100,9 +118,10 @@ class AttendanceAdjustmentService
     // status: 'approved' | 'rejected'. Duyệt 'correction'/'supplement' thì áp
     // dụng giờ đề xuất vào Attendance gốc (AttendanceService::
     // applyAdjustment(), tái dùng công thức tính trễ/sớm/giờ công); duyệt
-    // 'excuse' thì CHỈ set cờ late_excused=true, KHÔNG đụng tới giờ hay gọi
-    // applyAdjustment() vì không có mốc giờ nào được đề xuất — từ chối thì
-    // ở mọi loại chỉ ghi nhận quyết định, không đụng gì tới Attendance.
+    // 'excuse'/'overtime' thì CHỈ set cờ late_excused/overtime_approved=true,
+    // KHÔNG đụng tới giờ hay gọi applyAdjustment() vì không có mốc giờ nào
+    // được đề xuất — từ chối thì ở mọi loại chỉ ghi nhận quyết định, không
+    // đụng gì tới Attendance.
     public function decide(AttendanceAdjustment $adjustment, string $status, ?string $decisionNote, int $approvedBy): AttendanceAdjustment
     {
         if ($adjustment->status !== 'pending') {
@@ -122,6 +141,12 @@ class AttendanceAdjustmentService
             if ($status === 'approved') {
                 if ($adjustment->type === 'excuse') {
                     $adjustment->attendance->forceFill(['late_excused' => true])->save();
+
+                    return $adjustment;
+                }
+
+                if ($adjustment->type === 'overtime') {
+                    $adjustment->attendance->forceFill(['overtime_approved' => true])->save();
 
                     return $adjustment;
                 }

@@ -148,6 +148,9 @@ class PayrollTest extends TestCase
         // / standard_work_minutes, tối đa 1.0/ngày) — cả 3 ngày đều đi làm đủ
         // giờ ca (kể cả ngày có OT, vì OT tính riêng qua overtime_minutes) nên
         // ra đủ 3.0 ngày công, không phải 1.5 như công thức cũ theo hệ số ca.
+        // overtime_approved=true (2026-09-21) trên bản ghi có OT — test này
+        // nhắm vào ĐÚNG công thức tính tiền OT, không phải cổng duyệt OT
+        // (xem test riêng cho việc chưa duyệt/chưa đạt ngưỡng không được trả).
         // Chỉ đi làm 3/21 công nên net_salary ra ÂM — đúng vì bảo hiểm vẫn
         // tính đủ trên lương hợp đồng dù đi làm ít, không phải lỗi tính toán,
         // chỉ là input cố tình cực đoan để dễ soát tay từng bước; xem test
@@ -157,7 +160,7 @@ class PayrollTest extends TestCase
         $this->assignShift($employee, $workShift);
         $this->makeContract($employee);
 
-        $this->makeAttendance($employee, $workShift, '2026-08-03', ['overtime_minutes' => 60, 'actual_work_minutes' => 300]);
+        $this->makeAttendance($employee, $workShift, '2026-08-03', ['overtime_minutes' => 60, 'overtime_approved' => true, 'actual_work_minutes' => 300]);
         $this->makeAttendance($employee, $workShift, '2026-08-04');
         $this->makeAttendance($employee, $workShift, '2026-08-05');
 
@@ -228,6 +231,66 @@ class PayrollTest extends TestCase
 
         $detail = $payroll->details()->where('employee_id', $employee->id)->first();
         $this->assertEqualsWithDelta(1.0, (float) $detail->actual_work_days, 0.001);
+    }
+
+    // 3 test khóa lại "cổng duyệt OT" (2026-09-21, theo yêu cầu người dùng):
+    // OT chỉ được TRẢ LƯƠNG khi overtime_approved=true VÀ overtime_minutes
+    // (đã trừ ân hạn 5 phút) đạt tối thiểu 25 phút (tương đương 30 phút thực
+    // tế trước khi trừ ân hạn — xem PayrollService::OVERTIME_MINIMUM_PAYABLE_MINUTES).
+    public function test_unapproved_overtime_is_not_paid(): void
+    {
+        $employee = $this->makeEmployee();
+        $workShift = $this->makeWorkShift();
+        $this->assignShift($employee, $workShift);
+        $this->makeContract($employee);
+
+        $this->makeAttendance($employee, $workShift, '2026-08-03', [
+            'overtime_minutes' => 60, 'overtime_approved' => false,
+        ]);
+
+        $payroll = $this->service()->generateForPeriod(8, 2026, $this->creator());
+
+        $detail = $payroll->details()->where('employee_id', $employee->id)->first();
+        $this->assertSame(0, $detail->overtime_minutes);
+        $this->assertEqualsWithDelta(0.0, (float) $detail->overtime_amount, 0.01);
+    }
+
+    public function test_approved_overtime_below_minimum_minutes_is_not_paid(): void
+    {
+        $employee = $this->makeEmployee();
+        $workShift = $this->makeWorkShift();
+        $this->assignShift($employee, $workShift);
+        $this->makeContract($employee);
+
+        // 24 phút < ngưỡng tối thiểu 25 phút -> dù đã duyệt vẫn không trả.
+        $this->makeAttendance($employee, $workShift, '2026-08-03', [
+            'overtime_minutes' => 24, 'overtime_approved' => true,
+        ]);
+
+        $payroll = $this->service()->generateForPeriod(8, 2026, $this->creator());
+
+        $detail = $payroll->details()->where('employee_id', $employee->id)->first();
+        $this->assertSame(0, $detail->overtime_minutes);
+        $this->assertEqualsWithDelta(0.0, (float) $detail->overtime_amount, 0.01);
+    }
+
+    public function test_approved_overtime_meeting_minimum_minutes_is_paid(): void
+    {
+        $employee = $this->makeEmployee();
+        $workShift = $this->makeWorkShift();
+        $this->assignShift($employee, $workShift);
+        $this->makeContract($employee);
+
+        // Đúng ngưỡng tối thiểu 25 phút, đã duyệt -> phải được trả.
+        $this->makeAttendance($employee, $workShift, '2026-08-03', [
+            'overtime_minutes' => 25, 'overtime_approved' => true,
+        ]);
+
+        $payroll = $this->service()->generateForPeriod(8, 2026, $this->creator());
+
+        $detail = $payroll->details()->where('employee_id', $employee->id)->first();
+        $this->assertSame(25, $detail->overtime_minutes);
+        $this->assertGreaterThan(0, (float) $detail->overtime_amount);
     }
 
     public function test_cannot_generate_duplicate_period(): void

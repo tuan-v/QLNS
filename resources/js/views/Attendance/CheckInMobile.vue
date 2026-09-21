@@ -231,8 +231,8 @@
                     <v-chip v-if="a.early_leave_minutes" size="small" color="warning" variant="tonal">
                         Về sớm {{ formatMinutesAsHours(a.early_leave_minutes) }}
                     </v-chip>
-                    <v-chip v-if="a.overtime_minutes" size="small" color="info" variant="tonal">
-                        OT {{ formatMinutesAsHours(a.overtime_minutes) }}
+                    <v-chip v-if="a.overtime_minutes" size="small" :color="a.overtime_approved ? 'success' : 'info'" variant="tonal">
+                        OT {{ formatMinutesAsHours(a.overtime_minutes) }}{{ a.overtime_approved ? " (đã duyệt)" : "" }}
                     </v-chip>
                 </div>
 
@@ -256,6 +256,17 @@
                         @click="openExcuseDialog(a)"
                     >
                         Miễn trừ đi muộn
+                    </v-btn>
+                    <v-btn
+                        v-if="a.overtime_minutes > 0 && !a.overtime_approved"
+                        size="small"
+                        variant="tonal"
+                        color="secondary"
+                        rounded="lg"
+                        prepend-icon="mdi-clock-plus-outline"
+                        @click="openOtApprovalDialog(a)"
+                    >
+                        Xin duyệt OT
                     </v-btn>
                 </div>
             </v-sheet>
@@ -503,6 +514,61 @@
                 </v-card-actions>
             </v-card>
         </v-dialog>
+
+        <!-- Xin duyệt OT (2026-09-21, KHÔNG sửa giờ, chỉ xin HR xác nhận
+        phần làm thêm giờ này được trả lương) -->
+        <v-dialog v-model="otApprovalDialog" fullscreen persistent>
+            <v-card>
+                <v-toolbar>
+                    <v-toolbar-title class="font-weight-bold">Xin duyệt OT</v-toolbar-title>
+                    <v-btn icon="mdi-close" :disabled="otApprovalSubmitting" @click="closeOtApprovalDialog" />
+                </v-toolbar>
+                <v-card-text
+                    style="display: flex; flex-direction: column; gap: 0.75rem"
+                >
+                    <div class="text-body-2" style="opacity: 0.75">
+                        Ngày công: <strong>{{ formatDate(otApprovalTarget?.attendance_date) }}</strong>,
+                        làm thêm <strong>{{ formatMinutesAsHours(otApprovalTarget?.overtime_minutes) }}</strong>.
+                        Chỉ khi HR duyệt, phần OT này mới được tính vào lương.
+                    </div>
+
+                    <div>
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Lý do <span class="text-error">*</span>
+                        </div>
+                        <v-textarea
+                            v-model="otApprovalForm.reason"
+                            rows="3"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            :error-messages="otApprovalErrors.reason"
+                        />
+                    </div>
+
+                    <v-alert
+                        v-if="otApprovalGeneralError"
+                        type="error"
+                        variant="tonal"
+                        density="compact"
+                    >
+                        {{ otApprovalGeneralError }}
+                    </v-alert>
+                </v-card-text>
+                <v-card-actions class="px-4 pb-4">
+                    <v-btn
+                        color="primary"
+                        variant="flat"
+                        block
+                        size="large"
+                        :loading="otApprovalSubmitting"
+                        @click="submitOtApprovalRequest"
+                    >
+                        Gửi yêu cầu
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
     </div>
 </template>
 
@@ -558,5 +624,14 @@ const {
     openExcuseDialog,
     closeExcuseDialog,
     submitExcuseRequest,
+    otApprovalDialog,
+    otApprovalTarget,
+    otApprovalForm,
+    otApprovalErrors,
+    otApprovalGeneralError,
+    otApprovalSubmitting,
+    openOtApprovalDialog,
+    closeOtApprovalDialog,
+    submitOtApprovalRequest,
 } = useCheckIn();
 </script>

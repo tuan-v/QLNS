@@ -221,7 +221,12 @@
                             </span>
                         </td>
                         <td>{{ formatMinutesAsHours(a.early_leave_minutes) }}</td>
-                        <td>{{ formatMinutesAsHours(a.overtime_minutes) }}</td>
+                        <td>
+                            {{ formatMinutesAsHours(a.overtime_minutes) }}
+                            <span v-if="a.overtime_minutes && a.overtime_approved" class="text-success" style="opacity: 0.8">
+                                (đã duyệt)
+                            </span>
+                        </td>
                         <td>
                             <StatusChip :status="a.status" :map="ATTENDANCE_STATUS_MAP" />
                         </td>
@@ -251,6 +256,20 @@
                                     <v-icon icon="mdi-shield-check-outline" />
                                     <v-tooltip activator="parent" location="top"
                                         >Xin miễn trừ đi muộn</v-tooltip
+                                    >
+                                </v-btn>
+                                <v-btn
+                                    v-if="a.overtime_minutes > 0 && !a.overtime_approved"
+                                    icon="mdi-clock-plus-outline"
+                                    variant="tonal"
+                                    color="secondary"
+                                    size="small"
+                                    rounded="lg"
+                                    @click="openOtApprovalDialog(a)"
+                                >
+                                    <v-icon icon="mdi-clock-plus-outline" />
+                                    <v-tooltip activator="parent" location="top"
+                                        >Xin duyệt OT</v-tooltip
                                     >
                                 </v-btn>
                             </div>
@@ -520,6 +539,67 @@
                 </v-card-actions>
             </v-card>
         </v-dialog>
+
+        <!-- Xin duyệt OT (2026-09-21, KHÔNG sửa giờ, chỉ xin HR xác nhận
+        phần làm thêm giờ này được trả lương) -->
+        <v-dialog v-model="otApprovalDialog" max-width="480" persistent>
+            <v-card rounded="xl" elevation="12" class="glass-panel">
+                <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
+                    Xin duyệt OT
+                </v-card-title>
+                <v-card-text
+                    class="px-5"
+                    style="display: flex; flex-direction: column; gap: 0.75rem"
+                >
+                    <div class="text-body-2" style="opacity: 0.75">
+                        Ngày công: <strong>{{ formatDate(otApprovalTarget?.attendance_date) }}</strong>,
+                        làm thêm <strong>{{ formatMinutesAsHours(otApprovalTarget?.overtime_minutes) }}</strong>.
+                        Chỉ khi HR duyệt, phần OT này mới được tính vào lương.
+                    </div>
+
+                    <div>
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Lý do <span class="text-error">*</span>
+                        </div>
+                        <v-textarea
+                            v-model="otApprovalForm.reason"
+                            rows="3"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            :error-messages="otApprovalErrors.reason"
+                        />
+                    </div>
+
+                    <v-alert
+                        v-if="otApprovalGeneralError"
+                        type="error"
+                        variant="tonal"
+                        density="compact"
+                    >
+                        {{ otApprovalGeneralError }}
+                    </v-alert>
+                </v-card-text>
+                <v-card-actions class="px-5 pb-5">
+                    <v-spacer />
+                    <v-btn
+                        variant="text"
+                        :disabled="otApprovalSubmitting"
+                        @click="closeOtApprovalDialog"
+                    >
+                        Hủy
+                    </v-btn>
+                    <v-btn
+                        color="primary"
+                        variant="flat"
+                        :loading="otApprovalSubmitting"
+                        @click="submitOtApprovalRequest"
+                    >
+                        Gửi yêu cầu
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
     </div>
 </template>
 
@@ -575,5 +655,14 @@ const {
     openExcuseDialog,
     closeExcuseDialog,
     submitExcuseRequest,
+    otApprovalDialog,
+    otApprovalTarget,
+    otApprovalForm,
+    otApprovalErrors,
+    otApprovalGeneralError,
+    otApprovalSubmitting,
+    openOtApprovalDialog,
+    closeOtApprovalDialog,
+    submitOtApprovalRequest,
 } = useCheckIn();
 </script>

@@ -533,6 +533,113 @@ class AttendanceAdjustmentTest extends TestCase
         $this->assertFalse($attendance->late_excused);
     }
 
+    /* --------------------- type=overtime (xin duyệt OT — 2026-09-21) --------------------- */
+
+    public function test_employee_can_request_overtime_approval(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, [
+            'overtime_minutes' => 60,
+            'status' => 'completed',
+        ]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'overtime',
+            'attendance_id' => $attendance->id,
+            'reason' => 'Xin duyet OT do gap deadline du an',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(201);
+        $response->assertJsonPath('status', 'pending');
+        $response->assertJsonPath('type', 'overtime');
+        $this->assertDatabaseHas('attendance_adjustments', [
+            'type' => 'overtime',
+            'attendance_id' => $attendance->id,
+            'employee_id' => $employee->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_cannot_request_overtime_approval_when_no_overtime_minutes(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, ['overtime_minutes' => 0]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'overtime',
+            'attendance_id' => $attendance->id,
+            'reason' => 'Khong co OT nen khong the xin duyet',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('attendance_id');
+    }
+
+    public function test_cannot_request_overtime_approval_twice_for_already_approved_attendance(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, ['overtime_minutes' => 60, 'overtime_approved' => true]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'overtime',
+            'attendance_id' => $attendance->id,
+            'reason' => 'Da duoc duyet roi',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('attendance_id');
+    }
+
+    public function test_hr_can_approve_overtime_sets_overtime_approved(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, [
+            'overtime_minutes' => 60,
+            'status' => 'completed',
+        ]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $store = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'overtime',
+            'attendance_id' => $attendance->id,
+            'reason' => 'Xin duyet OT do gap deadline du an',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
+        $response = $this->putJson('/api/v1/attendances/adjustments/'.$store->json('id'), [
+            'status' => 'approved',
+            'decision_note' => 'Da xac nhan hop le',
+        ], ['Authorization' => 'Bearer '.$hrToken]);
+
+        $response->assertStatus(200);
+        $attendance->refresh();
+        // overtime_minutes GIU NGUYEN — chi bat co da duyet, khong sua so phut.
+        $this->assertSame(60, $attendance->overtime_minutes);
+        $this->assertTrue($attendance->overtime_approved);
+    }
+
+    public function test_hr_reject_overtime_does_not_set_overtime_approved(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, ['overtime_minutes' => 60, 'status' => 'completed']);
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $store = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'overtime',
+            'attendance_id' => $attendance->id,
+            'reason' => 'Xin duyet OT',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
+        $response = $this->putJson('/api/v1/attendances/adjustments/'.$store->json('id'), [
+            'status' => 'rejected',
+            'decision_note' => 'Khong hop le',
+        ], ['Authorization' => 'Bearer '.$hrToken]);
+
+        $response->assertStatus(200);
+        $attendance->refresh();
+        $this->assertFalse($attendance->overtime_approved);
+    }
+
     public function test_approving_adjustment_marks_completed_only_when_check_out_also_present(): void
     {
         [$employee, $user] = $this->makeEmployeeWithLogin();

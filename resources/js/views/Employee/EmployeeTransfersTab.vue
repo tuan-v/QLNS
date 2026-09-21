@@ -138,6 +138,8 @@
                             v-model="transferForm.new_manager_id"
                             :items="transferManagerOptions"
                             :error-messages="transferErrors.new_manager_id"
+                            :disabled="!transferManagerOptions.length"
+                            :placeholder="transferManagerPlaceholder"
                             clearable
                         />
                     </div>
@@ -312,7 +314,6 @@ const transferSubmitting = ref(false);
 
 const allDepartments = ref([]);
 const allPositionsForTransfer = ref([]);
-const allManagersForTransfer = ref([]);
 const transferOptionsLoaded = ref(false);
 
 function flattenDepartments(nodes) {
@@ -341,34 +342,52 @@ const transferPositionOptions = computed(() =>
         .map((position) => ({ title: position.name, value: position.id })),
 );
 
-const transferManagerOptions = computed(() =>
-    allManagersForTransfer.value
-        .filter((e) => String(e.id) !== String(props.employeeId))
-        .map((e) => ({ title: `${e.full_name} (${e.code})`, value: e.id })),
-);
+// "Quản lý mới" chỉ được là Trưởng phòng của CHÍNH phòng ban đang chọn (Backend
+// cũng chặn lại ở EmployeeTransferService::create() — ẩn ở đây chỉ để người
+// dùng không phải thử sai). Cây phòng ban đã kèm sẵn `manager` cho từng nút
+// (DepartmentRepository::tree()) nên không cần gọi thêm API nào.
+const transferManagerOptions = computed(() => {
+    const department = flattenDepartments(allDepartments.value).find(
+        (dept) => dept.id === transferForm.to_department_id,
+    );
+    const manager = department?.manager;
 
-// Đổi Phòng ban mới thì Chức vụ mới (thuộc phòng ban cũ) không còn hợp lệ —
-// cùng lý do onDepartmentChange() của EmployeeForm.vue không dùng watch() chung.
+    return manager
+        ? [{ title: `${manager.full_name} (${manager.code})`, value: manager.id }]
+        : [];
+});
+
+const transferManagerPlaceholder = computed(() => {
+    if (!transferForm.to_department_id) {
+        return "Chọn phòng ban mới trước";
+    }
+    return transferManagerOptions.value.length
+        ? "Chưa chọn"
+        : "Phòng ban này chưa có Trưởng phòng";
+});
+
+// Đổi Phòng ban mới thì Chức vụ mới (thuộc phòng ban cũ) lẫn Quản lý mới (là
+// Trưởng phòng của phòng ban cũ) đều không còn hợp lệ — cùng lý do
+// onDepartmentChange() của EmployeeForm.vue không dùng watch() chung.
 function onTransferDepartmentChange(value) {
     transferForm.to_department_id = value;
     transferForm.new_position_id = null;
+    transferForm.new_manager_id = null;
 }
 
-// Tải danh sách Phòng ban/Chức vụ/Quản lý chỉ khi thật sự mở dialog — hành
-// động "tạo luân chuyển" hiếm khi dùng hơn nhiều so với xem tab, không đáng
-// tải sẵn lúc mount.
+// Tải danh sách Phòng ban/Chức vụ chỉ khi thật sự mở dialog — hành động "tạo
+// luân chuyển" hiếm khi dùng hơn nhiều so với xem tab, không đáng tải sẵn lúc
+// mount.
 async function loadTransferOptions() {
     if (transferOptionsLoaded.value) {
         return;
     }
-    const [deptRes, posRes, empRes] = await Promise.all([
+    const [deptRes, posRes] = await Promise.all([
         departmentService.tree(),
         positionService.list({ per_page: 1000 }),
-        employeeService.list({ per_page: 1000 }),
     ]);
     allDepartments.value = deptRes.data;
     allPositionsForTransfer.value = posRes.data.data;
-    allManagersForTransfer.value = empRes.data.data;
     transferOptionsLoaded.value = true;
 }
 

@@ -9,6 +9,10 @@ use App\Models\User;
 use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+// "OA" chỉ là BÍ DANH (alias) do `use ... as OA` tự đặt cho thư viện swagger-php
+// (namespace OpenApi\Attributes) — để bên dưới viết ngắn #[OA\Post(...)] thay vì
+// #[OpenApi\Attributes\Post(...)]. Chữ OA viết tắt của OpenAPI, chuẩn mô tả REST
+// API mà Swagger dùng. Cách đọc các khối #[OA\...] xem chú thích ở login().
 use OpenApi\Attributes as OA;
 
 class AuthController extends Controller
@@ -16,6 +20,22 @@ class AuthController extends Controller
     public function __construct(private readonly AuthService $authService)
     {
     }
+
+    // Các khối #[OA\...] là "Attribute" của PHP 8 (giống annotation @Operation/
+    // @ApiResponse của Swagger bên Java). Chúng CHỈ dùng để sinh TÀI LIỆU API
+    // (trang Swagger UI tại /api/documentation, theo yêu cầu dự án), KHÔNG ảnh
+    // hưởng gì tới việc chạy — xóa hết thì API vẫn chạy y nguyên. Đọc từng phần:
+    //   OA\Post(path, summary, tags)      endpoint dùng POST, đường dẫn, tên hiển
+    //                                     thị, nhóm ("Auth") trong giao diện Swagger
+    //   OA\RequestBody + OA\JsonContent   mô tả JSON client phải gửi lên
+    //   OA\Property(property, type,       từng trường trong JSON; `required` liệt kê
+    //               example)              trường bắt buộc, `example` là giá trị mẫu
+    //                                     điền sẵn ở nút "Try it out"
+    //   OA\Response(response, description) các mã HTTP có thể trả về và ý nghĩa
+    // Tài liệu được sinh từ các khối này bằng lệnh `php artisan l5-swagger:generate`
+    // (ra file storage/api-docs/api-docs.json). Cấu hình đang KHÔNG tự sinh lại
+    // (generate_always=false) nên sửa khối này xong phải chạy lại lệnh đó, nếu
+    // không trang /api/documentation vẫn hiện bản cũ.
     #[OA\Post(
         path: '/api/v1/auth/login',
         summary: 'Đăng nhập',
@@ -71,6 +91,10 @@ class AuthController extends Controller
 
         return response()->json($this->formatTokenResponse($result));
     }
+    // security: [['bearerAuth' => []]] = endpoint này CẦN đăng nhập — Swagger UI sẽ
+    // gửi kèm header "Authorization: Bearer <access_token>". Tên 'bearerAuth' phải
+    // khớp #[OA\SecurityScheme] khai báo ở app/Http/Controllers/Controller.php.
+    // login/refresh không có dòng này vì lúc gọi chưa có token.
     #[OA\Post(
         path: '/api/v1/auth/logout',
         summary: 'Đăng xuất',
