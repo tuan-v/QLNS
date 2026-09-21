@@ -23,4 +23,11 @@ Route::middleware('auth:api')->prefix('attendances')->group(function (): void {
     Route::get('/adjustments/me', [AttendanceAdjustmentController::class, 'mine'])->middleware('permission:attendance.view_own');
     Route::get('/adjustments', [AttendanceAdjustmentController::class, 'index'])->middleware('permission:attendance.adjust');
     Route::put('/adjustments/{adjustment}', [AttendanceAdjustmentController::class, 'decide'])->middleware('permission:attendance.adjust');
+
+    // Duyệt chấm công (2026-09-21) — HR duyệt/từ chối từng bản ghi ca+ngày; chưa
+    // duyệt thì không tính công/lương. whereNumber() để '/{attendance}/approval'
+    // không bao giờ nuốt nhầm các route cố định ở trên (vd '/adjustments/...').
+    Route::put('/{attendance}/approval', [AttendanceController::class, 'decideApproval'])
+        ->whereNumber('attendance')
+        ->middleware('permission:attendance.approve');
 });

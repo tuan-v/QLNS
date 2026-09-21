@@ -33,6 +33,7 @@ class PermissionSeeder extends Seeder
             ['code' => 'attendance.view_own', 'name' => 'Xem chấm công của bản thân'],
             ['code' => 'attendance.view_all', 'name' => 'Xem chấm công toàn bộ nhân viên'],
             ['code' => 'attendance.adjust', 'name' => 'Yêu cầu / duyệt điều chỉnh công'],
+            ['code' => 'attendance.approve', 'name' => 'Duyệt chấm công (chưa duyệt thì không tính công/lương)'],
 
             // Leave
             ['code' => 'leave.request', 'name' => 'Tạo đơn xin nghỉ phép'],

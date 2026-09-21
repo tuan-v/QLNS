@@ -48,7 +48,7 @@
 
             <div class="mb-3">
                 <div class="text-body-2 font-weight-medium mb-1">
-                    Phương thức chấm công <span class="text-error">*</span>
+                    Cách nhận diện điểm <span class="text-error">*</span>
                 </div>
                 <v-select
                     v-model="form.method"

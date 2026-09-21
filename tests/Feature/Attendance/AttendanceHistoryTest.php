@@ -89,6 +89,9 @@ class AttendanceHistoryTest extends TestCase
             'work_shift_id' => $workShift->id,
             'attendance_date' => $date,
             'status' => 'completed',
+            // Tổng ngày công chỉ cộng bản ghi đã duyệt — test nào cần bản ghi
+            // chờ duyệt/bị từ chối thì truyền đè approval_status.
+            'approval_status' => 'approved',
         ], $overrides));
     }
 
@@ -176,6 +179,41 @@ class AttendanceHistoryTest extends TestCase
         $this->assertSame(540 + 525 + 520 + 0, $data['summary']['total_work_minutes']);
         $this->assertSame(1, $data['summary']['late_count']);
         $this->assertSame(1, $data['summary']['early_leave_count']);
+    }
+
+    // Duyệt chấm công (2026-09-21): chỉ bản ghi HR đã duyệt mới cộng vào Tổng
+    // ngày công/giờ làm (cùng luật với bảng lương); chờ duyệt/bị từ chối đếm
+    // riêng ở unapproved_count và vẫn hiện trong danh sách để nhân viên thấy.
+    public function test_history_summary_counts_only_approved_attendance(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA-H1', ['work_coefficient' => 1.0]);
+        $this->assignShift($employee, $workShift);
+
+        foreach ([
+            '2026-01-05' => 'approved',
+            '2026-01-06' => 'pending',
+            '2026-01-07' => 'rejected',
+        ] as $date => $approval) {
+            $this->makeAttendance($employee, $workShift, $date, [
+                'first_check_in_at' => $date.' 08:00:00', 'last_check_out_at' => $date.' 17:00:00',
+                'late_minutes' => 0, 'early_leave_minutes' => 0, 'actual_work_minutes' => 540,
+                'approval_status' => $approval,
+            ]);
+        }
+
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $data = $this->getJson('/api/v1/attendances/history/me?date_from=2026-01-05&date_to=2026-01-07', [
+            'Authorization' => 'Bearer '.$token,
+        ])->assertStatus(200)->json('data');
+
+        $this->assertCount(3, $data['rows']);
+        $this->assertEquals(1.0, $data['summary']['total_work_days']);
+        $this->assertSame(540, $data['summary']['total_work_minutes']);
+        $this->assertSame(2, $data['summary']['unapproved_count']);
+        $byDate = collect($data['rows'])->keyBy('date');
+        $this->assertSame('pending', $byDate['2026-01-06']['attendance']['approval_status']);
+        $this->assertSame('rejected', $byDate['2026-01-07']['attendance']['approval_status']);
     }
 
     // Ngày 42: HR đã duyệt "Xin miễn trừ đi muộn" (late_excused=true) — ngày

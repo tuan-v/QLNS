@@ -27,6 +27,7 @@ class RolePermissionSeeder extends Seeder
                 'location.manage',
                 'attendance.view_all',
                 'attendance.adjust',
+                'attendance.approve',
                 'leave.view_all',
                 'leave.approve_hr',
                 'payroll.view_all',

@@ -81,6 +81,9 @@ class PayrollTest extends TestCase
             'late_minutes' => 0,
             'early_leave_minutes' => 0,
             'status' => 'completed',
+            // Bảng lương chỉ tính bản ghi HR đã duyệt — test nào cần bản ghi
+            // chờ duyệt/bị từ chối thì truyền đè approval_status.
+            'approval_status' => 'approved',
         ], $overrides));
     }
 
@@ -213,6 +216,64 @@ class PayrollTest extends TestCase
         $this->assertEqualsWithDelta(952_380.95, (float) $detail->base_salary, 0.01);
         // Quan trọng nhất: KHÔNG được gần bằng lương hợp đồng đầy đủ (10tr).
         $this->assertLessThan(1_000_000, (float) $detail->base_salary);
+    }
+
+    // Duyệt chấm công (2026-09-21, theo yêu cầu người dùng): chưa duyệt (hoặc bị
+    // từ chối) thì KHÔNG có công/lương — chỉ bản ghi approval_status=approved
+    // được tính.
+    public function test_only_approved_attendance_counts_toward_salary(): void
+    {
+        $employee = $this->makeEmployee();
+        $workShift = $this->makeWorkShift();
+        $this->assignShift($employee, $workShift);
+        $this->makeContract($employee, ['agreed_salary' => 10_000_000, 'insurance_salary' => 10_000_000]);
+
+        $this->makeAttendance($employee, $workShift, '2026-08-03'); // đã duyệt (mặc định của helper)
+        $this->makeAttendance($employee, $workShift, '2026-08-04', ['approval_status' => 'rejected']);
+        // Bản ghi chờ duyệt nhưng CHƯA chấm công ra: không duyệt được, cũng không
+        // được chặn việc tạo bảng lương (xem test chặn bên dưới).
+        $this->makeAttendance($employee, $workShift, '2026-08-05', [
+            'approval_status' => 'pending', 'last_check_out_at' => null, 'actual_work_minutes' => 0,
+        ]);
+
+        $payroll = $this->service()->generateForPeriod(8, 2026, $this->creator());
+
+        $detail = $payroll->details()->where('employee_id', $employee->id)->first();
+        $this->assertEqualsWithDelta(1.0, (float) $detail->actual_work_days, 0.001);
+    }
+
+    public function test_cannot_generate_payroll_while_checked_out_attendance_awaits_approval(): void
+    {
+        $employee = $this->makeEmployee();
+        $workShift = $this->makeWorkShift();
+        $this->assignShift($employee, $workShift);
+        $this->makeContract($employee);
+        $this->makeAttendance($employee, $workShift, '2026-08-03');
+        $this->makeAttendance($employee, $workShift, '2026-08-04', ['approval_status' => 'pending']);
+
+        try {
+            $this->service()->generateForPeriod(8, 2026, $this->creator());
+            $this->fail('Phải chặn tạo bảng lương khi còn bản ghi chờ duyệt.');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('1 bản ghi chấm công', $e->errors()['period'][0]);
+        }
+
+        // Không được để lại bảng lương nửa vời.
+        $this->assertDatabaseCount('payrolls', 0);
+    }
+
+    public function test_pending_attendance_in_another_month_does_not_block_payroll(): void
+    {
+        $employee = $this->makeEmployee();
+        $workShift = $this->makeWorkShift();
+        $this->assignShift($employee, $workShift);
+        $this->makeContract($employee);
+        $this->makeAttendance($employee, $workShift, '2026-08-03');
+        $this->makeAttendance($employee, $workShift, '2026-09-01', ['approval_status' => 'pending']);
+
+        $payroll = $this->service()->generateForPeriod(8, 2026, $this->creator());
+
+        $this->assertSame(8, $payroll->period_month);
     }
 
     public function test_day_equivalent_is_capped_at_one_per_day(): void

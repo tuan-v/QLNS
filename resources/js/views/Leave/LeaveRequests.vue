@@ -207,15 +207,9 @@
                             Tài liệu đính kèm
                             <span v-if="attachmentRequired" class="text-error">*</span>
                         </div>
-                        <v-file-input
+                        <InputFile
                             v-model="form.evidenceFile"
-                            placeholder="Chọn ảnh (JPG, PNG) hoặc PDF, tối đa 5MB"
-                            variant="outlined"
-                            density="comfortable"
-                            rounded="lg"
-                            prepend-icon=""
-                            prepend-inner-icon="mdi-paperclip"
-                            accept=".pdf,.jpg,.jpeg,.png"
+                            :limit="UPLOAD_LIMITS.leaveEvidence"
                             :error-messages="errors.evidence_file"
                         />
                         <div v-if="attachmentRequired" class="text-caption" style="opacity: 0.6">
@@ -266,6 +260,7 @@ import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate from "../../components/common/InputDate.vue";
+import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import StatCards from "../../components/dashboard/StatCards.vue";
 import { useToastStore } from "../../stores/useToastStore";
 

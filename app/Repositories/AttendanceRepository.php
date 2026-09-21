@@ -28,6 +28,9 @@ class AttendanceRepository
             [
                 'scheduled_work_minutes' => $workShift->standard_work_minutes,
                 'status' => 'pending',
+                // Ghi rõ dù DB cũng mặc định 'pending': bản ghi chấm công mới
+                // luôn phải chờ HR duyệt mới được tính công/lương.
+                'approval_status' => Attendance::APPROVAL_PENDING,
             ],
         );
     }
@@ -54,12 +57,17 @@ class AttendanceRepository
 
     public function paginate(int $perPage = 15, array $filters = []): LengthAwarePaginator
     {
-        return Attendance::with(['employee', 'workShift'])
+        // Nạp cả logs (kèm điểm chấm công) và người duyệt để màn "Duyệt chấm
+        // công" của HR xem được IP/địa chỉ/thiết bị của từng lượt mà không phải
+        // gọi thêm request — mỗi trang chỉ vài chục dòng nên không đáng lo hiệu năng.
+        return Attendance::with(['employee', 'workShift', 'logs.attendanceLocation', 'approvedBy'])
             ->when($filters['employee_id'] ?? null, fn ($query, $id) => $query->where('employee_id', $id))
             ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->where('attendance_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->where('attendance_date', '<=', $date))
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            ->when($filters['approval_status'] ?? null, fn ($query, $status) => $query->where('approval_status', $status))
             ->latest('attendance_date')
+            ->latest('id')
             ->paginate($perPage);
     }
 }

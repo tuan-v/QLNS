@@ -32,4 +32,11 @@ export default {
     decideAdjustment(id, payload) {
         return axios.put(`${API_BASE}/adjustments/${id}`, payload);
     },
+    // Duyệt chấm công (HR): danh sách bản ghi kèm logs (lọc theo approval_status) và duyệt/từ chối 1 bản ghi.
+    listForApproval(params = {}) {
+        return axios.get(API_BASE, { params });
+    },
+    decideApproval(id, payload) {
+        return axios.put(`${API_BASE}/${id}/approval`, payload);
+    },
 };

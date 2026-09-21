@@ -16,6 +16,15 @@ export const ATTENDANCE_STATUS_MAP = {
     needs_review: { label: "Cần xem lại", color: "warning" },
 };
 
+// Bước HR duyệt chấm công (2026-09-21) — TÁCH khỏi ATTENDANCE_STATUS_MAP ở
+// trên (trạng thái ca làm việc). Chưa duyệt / bị từ chối thì không được tính
+// công/lương; dùng chung cho màn của nhân viên, lịch sử và màn "Duyệt chấm công".
+export const APPROVAL_STATUS_MAP = {
+    pending: { label: "Chờ duyệt", color: "warning" },
+    approved: { label: "Đã duyệt", color: "success" },
+    rejected: { label: "Bị từ chối", color: "error" },
+};
+
 export function formatDate(value) {
     if (!value) {
         return "—";
@@ -77,7 +86,10 @@ export function useCheckIn() {
         }
     }
 
-    const method = ref("wifi");
+    // Không còn 3 tab Wifi/GPS/QR (2026-09-21, theo yêu cầu người dùng): mỗi
+    // lượt bấm Chấm công tự ghi IP + vị trí + tên thiết bị của CHÍNH thiết bị
+    // đang dùng. IP và tên thiết bị do backend tự đọc từ request; frontend chỉ
+    // phải xin tọa độ từ trình duyệt. Mã QR là ô nhập TÙY CHỌN.
     const qrReference = ref("");
     const submitting = ref(false);
     const submittingShiftId = ref(null);
@@ -93,7 +105,7 @@ export function useCheckIn() {
             }
             navigator.geolocation.getCurrentPosition(
                 (position) => resolve(position.coords),
-                () => reject(new Error("Không lấy được vị trí GPS — kiểm tra lại quyền truy cập vị trí của trình duyệt.")),
+                () => reject(new Error("Không lấy được vị trí — kiểm tra lại quyền truy cập vị trí của trình duyệt.")),
                 { enableHighAccuracy: true, timeout: 10000 },
             );
         });
@@ -107,21 +119,24 @@ export function useCheckIn() {
         submitting.value = true;
         submittingShiftId.value = workShiftId;
         try {
-            const payload = { method: method.value, work_shift_id: workShiftId };
+            const payload = { work_shift_id: workShiftId };
 
-            if (method.value === "gps") {
-                try {
-                    const coords = await getGpsPosition();
-                    payload.latitude = coords.latitude;
-                    payload.longitude = coords.longitude;
-                    payload.accuracy_meters = coords.accuracy;
-                } catch (e) {
-                    submitError.value = e.message;
-                    return;
-                }
+            // Lấy vị trí là "cố gắng hết sức", KHÔNG chặn chấm công: nhân viên
+            // từ chối quyền / trình duyệt không hỗ trợ / trang chạy http
+            // (Geolocation chỉ chạy trên https hoặc localhost) thì vẫn chấm
+            // công được, chỉ là log không có địa chỉ và nếu IP cũng không
+            // khớp Wifi công ty thì backend đánh dấu "Cần xem lại".
+            try {
+                const coords = await getGpsPosition();
+                payload.latitude = coords.latitude;
+                payload.longitude = coords.longitude;
+                payload.accuracy_meters = coords.accuracy;
+            } catch (e) {
+                toast.warning(`${e.message} Lượt chấm công vẫn được ghi nhận nhưng không có địa chỉ.`);
             }
-            if (method.value === "qr") {
-                payload.qr_reference = qrReference.value;
+
+            if (qrReference.value.trim()) {
+                payload.qr_reference = qrReference.value.trim();
             }
 
             if (isCheckOut) {
@@ -136,7 +151,7 @@ export function useCheckIn() {
         } catch (e) {
             submitError.value =
                 e.response?.data?.errors?.work_shift_id?.[0] ??
-                e.response?.data?.errors?.method?.[0] ??
+                e.response?.data?.errors?.latitude?.[0] ??
                 e.response?.data?.errors?.qr_reference?.[0] ??
                 e.response?.data?.message ??
                 "Không thể chấm công, vui lòng thử lại.";
@@ -409,7 +424,6 @@ export function useCheckIn() {
         loadError,
         history,
         loadingHistory,
-        method,
         qrReference,
         submitting,
         submittingShiftId,

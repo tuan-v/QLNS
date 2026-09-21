@@ -170,6 +170,19 @@ class AttendanceAdjustmentService
                     $adjustment->proposed_check_in_at,
                     $adjustment->proposed_check_out_at,
                 );
+
+                // HR duyệt yêu cầu điều chỉnh/bổ sung CHÍNH LÀ đã xem xét và
+                // chấp nhận giờ vào/ra của bản ghi này — duyệt luôn để không
+                // bắt HR duyệt lần hai ở màn "Duyệt chấm công" (bản ghi 'bổ
+                // sung' mới tạo còn mặc định 'pending' nên sẽ mãi không có
+                // công nếu không làm bước này). 'excuse'/'overtime' ở trên
+                // không đụng giờ nên không đi qua đây.
+                $attendance->forceFill([
+                    'approval_status' => Attendance::APPROVAL_APPROVED,
+                    'approved_by' => $approvedBy,
+                    'approved_at' => now(),
+                    'approval_note' => "Duyệt cùng yêu cầu điều chỉnh công #{$adjustment->id}.",
+                ])->save();
             }
 
             return $adjustment;

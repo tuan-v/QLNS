@@ -120,6 +120,13 @@
                 rounded="lg"
             />
             <v-list-item
+                v-if="can('attendance.approve')"
+                prepend-icon="mdi-clipboard-check-outline"
+                title="Duyệt chấm công"
+                to="/attendance-approvals"
+                rounded="lg"
+            />
+            <v-list-item
                 v-if="can('attendance.adjust')"
                 prepend-icon="mdi-file-clock-outline"
                 title="Duyệt điều chỉnh công"

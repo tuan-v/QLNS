@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    // Đổi tọa độ chấm công thành địa chỉ chữ, xem App\Services\Attendance\ReverseGeocoder.
+    // Nominatim yêu cầu User-Agent nhận diện ứng dụng — nên đổi thành tên/email
+    // liên hệ thật của công ty khi triển khai.
+    'nominatim' => [
+        'url' => env('NOMINATIM_URL', 'https://nominatim.openstreetmap.org/reverse'),
+        'user_agent' => env('NOMINATIM_USER_AGENT', 'QLNS-HR-System/1.0'),
+    ],
+
 ];

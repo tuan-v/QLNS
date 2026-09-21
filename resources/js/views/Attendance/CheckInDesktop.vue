@@ -2,7 +2,7 @@
     <div>
         <PageHeader
             title="Chấm công"
-            subtitle="Chấm công vào/ra theo Wifi, GPS hoặc mã QR."
+            subtitle="Chấm công vào/ra — hệ thống tự ghi nhận IP, vị trí và thiết bị bạn đang dùng."
         >
             <template #actions>
                 <v-btn
@@ -27,47 +27,27 @@
             {{ loadError }}
         </v-alert>
 
-        <!-- Chọn phương thức -->
-        <v-sheet class="border rounded-lg mb-4 glass-panel" color="transparent">
-            <v-tabs v-model="method">
-                <v-tab value="wifi">Wifi</v-tab>
-                <v-tab value="gps">GPS</v-tab>
-                <v-tab value="qr">Mã QR</v-tab>
-            </v-tabs>
-        </v-sheet>
-
+        <!-- Không còn chọn phương thức: mỗi lần bấm Chấm công, hệ thống tự ghi
+        IP, vị trí (địa chỉ) và tên thiết bị của chính thiết bị đang dùng. -->
         <v-sheet class="border rounded-lg pa-5 mb-4 glass-panel" color="transparent">
-            <v-window v-model="method">
-                <v-window-item value="wifi">
-                    <div class="text-body-2" style="opacity: 0.75">
-                        Chấm công qua mạng Wifi công ty — hệ thống tự nhận diện
-                        theo địa chỉ mạng, không cần nhập gì thêm. Bấm nút ở
-                        ca tương ứng bên dưới khi đang kết nối đúng Wifi tại
-                        nơi làm việc.
-                    </div>
-                </v-window-item>
+            <div class="text-body-2" style="opacity: 0.75">
+                <v-icon size="small" class="mr-1">mdi-cellphone-information</v-icon>
+                Khi bấm Chấm công, hệ thống tự ghi nhận địa chỉ mạng (IP), vị trí
+                và tên thiết bị bạn đang dùng. Trình duyệt sẽ hỏi quyền truy
+                cập vị trí — nên cho phép để lượt chấm công có địa chỉ.
+            </div>
 
-                <v-window-item value="gps">
-                    <div class="text-body-2" style="opacity: 0.75">
-                        Chấm công theo vị trí hiện tại — trình duyệt sẽ hỏi
-                        quyền truy cập vị trí khi bạn bấm nút ở ca tương ứng
-                        bên dưới.
-                    </div>
-                </v-window-item>
-
-                <v-window-item value="qr">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Mã QR tại điểm chấm công
-                    </div>
-                    <v-text-field
-                        v-model="qrReference"
-                        placeholder="Quét hoặc dán nội dung mã QR"
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                    />
-                </v-window-item>
-            </v-window>
+            <div class="text-body-2 font-weight-medium mt-4 mb-1">
+                Mã QR tại điểm chấm công (không bắt buộc)
+            </div>
+            <v-text-field
+                v-model="qrReference"
+                placeholder="Quét hoặc dán nội dung mã QR nếu nơi làm việc có"
+                variant="outlined"
+                density="comfortable"
+                rounded="lg"
+                hide-details
+            />
 
             <v-alert
                 v-if="submitError"
@@ -110,11 +90,17 @@
                                 {{ entry.work_shift.start_time }} - {{ entry.work_shift.end_time }}
                             </div>
                         </div>
-                        <StatusChip
-                            v-if="entry.attendance"
-                            :status="entry.attendance.status"
-                            :map="ATTENDANCE_STATUS_MAP"
-                        />
+                        <div v-if="entry.attendance" class="d-flex flex-column align-end ga-1">
+                            <StatusChip
+                                :status="entry.attendance.status"
+                                :map="ATTENDANCE_STATUS_MAP"
+                            />
+                            <StatusChip
+                                v-if="entry.attendance.last_check_out_at"
+                                :status="entry.attendance.approval_status"
+                                :map="APPROVAL_STATUS_MAP"
+                            />
+                        </div>
                     </div>
 
                     <div class="d-flex justify-space-between text-body-2 py-1">
@@ -195,17 +181,18 @@
                         <th>Về sớm</th>
                         <th>OT</th>
                         <th>Trạng thái</th>
+                        <th>Duyệt công</th>
                         <th class="text-center">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr v-if="loadingHistory">
-                        <td colspan="9" class="text-center py-6">
+                        <td colspan="10" class="text-center py-6">
                             <v-progress-circular indeterminate size="24" />
                         </td>
                     </tr>
                     <tr v-else-if="!history.length">
-                        <td colspan="9" class="text-center py-6" style="opacity: 0.6">
+                        <td colspan="10" class="text-center py-6" style="opacity: 0.6">
                             Chưa có lịch sử chấm công.
                         </td>
                     </tr>
@@ -229,6 +216,22 @@
                         </td>
                         <td>
                             <StatusChip :status="a.status" :map="ATTENDANCE_STATUS_MAP" />
+                        </td>
+                        <td>
+                            <!-- Chưa duyệt / bị từ chối thì chưa được tính công/lương. -->
+                            <StatusChip
+                                v-if="a.last_check_out_at"
+                                :status="a.approval_status"
+                                :map="APPROVAL_STATUS_MAP"
+                            />
+                            <span v-else style="opacity: 0.5">—</span>
+                            <div
+                                v-if="a.approval_status === 'rejected' && a.approval_note"
+                                class="text-caption mt-1"
+                                style="opacity: 0.7; max-width: 180px"
+                            >
+                                {{ a.approval_note }}
+                            </div>
                         </td>
                         <td class="text-center">
                             <div class="d-flex justify-center ga-2">
@@ -609,7 +612,14 @@
 // hiển thị (bảng "Lịch sử gần đây" thay vì danh sách thẻ). Xem CheckIn.vue
 // (switcher chọn giữa 2 file này theo useDisplay().mobile) và
 // composables/useCheckIn.js.
-import { ATTENDANCE_STATUS_MAP, formatDate, formatMinutesAsHours, formatTime, useCheckIn } from "../../composables/useCheckIn";
+import {
+    APPROVAL_STATUS_MAP,
+    ATTENDANCE_STATUS_MAP,
+    formatDate,
+    formatMinutesAsHours,
+    formatTime,
+    useCheckIn,
+} from "../../composables/useCheckIn";
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
@@ -622,7 +632,6 @@ const {
     loadError,
     history,
     loadingHistory,
-    method,
     qrReference,
     submitting,
     submittingShiftId,

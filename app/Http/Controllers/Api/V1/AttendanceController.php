@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Attendance\CheckInRequest;
 use App\Http\Requests\Attendance\CheckOutRequest;
+use App\Http\Requests\Attendance\DecideAttendanceApprovalRequest;
+use App\Models\Attendance;
 use App\Models\Employee;
 use App\Services\AttendanceService;
 use Illuminate\Http\JsonResponse;
@@ -65,10 +67,26 @@ class AttendanceController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $filters = $request->only(['employee_id', 'date_from', 'date_to', 'status']);
+        $filters = $request->only(['employee_id', 'date_from', 'date_to', 'status', 'approval_status']);
         $perPage = (int) $request->input('per_page', 15);
 
         return response()->json($this->attendanceService->list($filters, $perPage));
+    }
+
+    // HR duyệt / từ chối 1 bản ghi chấm công (quyền attendance.approve, xem
+    // route) — chưa duyệt thì không tính công/lương. Tên field khớp
+    // DecideAttendanceAdjustmentRequest (status + decision_note).
+    public function decideApproval(DecideAttendanceApprovalRequest $request, Attendance $attendance): JsonResponse
+    {
+        $attendance = $this->attendanceService->decideApproval(
+            $attendance,
+            $request->validated('status'),
+            $request->validated('decision_note'),
+            $request->user()->id,
+        );
+        $attendance->load(['employee', 'workShift', 'logs.attendanceLocation', 'approvedBy']);
+
+        return response()->json($attendance);
     }
 
     // Báo cáo "Lịch sử chấm công" (mục 18) CHÍNH MÌNH — chỉ hiển thị, không

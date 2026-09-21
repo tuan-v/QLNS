@@ -171,15 +171,9 @@
                         <div class="text-body-2 font-weight-medium mb-1">
                             Quyết định điều động (PDF, không bắt buộc)
                         </div>
-                        <v-file-input
+                        <InputFile
                             v-model="transferForm.decision_file"
-                            placeholder="Chọn tệp PDF (tối đa 10MB)"
-                            variant="outlined"
-                            density="comfortable"
-                            rounded="lg"
-                            prepend-icon=""
-                            prepend-inner-icon="mdi-paperclip"
-                            accept=".pdf"
+                            :limit="UPLOAD_LIMITS.transferDecision"
                             :error-messages="transferErrors.decision_file"
                         />
                     </div>
@@ -227,6 +221,7 @@ import departmentService from "../../services/departmentService";
 import positionService from "../../services/positionService";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate from "../../components/common/InputDate.vue";
+import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import { useToastStore } from "../../stores/useToastStore";
 
 const props = defineProps({

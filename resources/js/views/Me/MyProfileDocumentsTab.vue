@@ -115,15 +115,9 @@
                         <div class="text-body-2 font-weight-medium mb-1">
                             Tệp đính kèm <span class="text-error">*</span>
                         </div>
-                        <v-file-input
+                        <InputFile
                             v-model="uploadForm.file"
-                            placeholder="Chọn PDF, Word (.docx), Excel (.xlsx), JPG hoặc PNG (tối đa 10MB)"
-                            variant="outlined"
-                            density="comfortable"
-                            rounded="lg"
-                            prepend-icon=""
-                            prepend-inner-icon="mdi-paperclip"
-                            accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx"
+                            :limit="UPLOAD_LIMITS.document"
                             :error-messages="uploadErrors.document_file"
                         />
                     </div>
@@ -161,6 +155,7 @@
 // Tự tải + tự nộp tài liệu cá nhân qua endpoint /employees/me/documents.
 import { onMounted, ref } from "vue";
 import employeeService from "../../services/employeeService";
+import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import { useToastStore } from "../../stores/useToastStore";
 
 defineEmits(["preview"]);

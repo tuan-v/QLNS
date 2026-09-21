@@ -57,6 +57,22 @@ class PayrollService
         $end = $start->copy()->endOfMonth();
         $standardWorkDays = $this->standardWorkDaysFor($start, $end);
 
+        // Bảng lương chỉ tính MỘT LẦN và không tự tính lại, mà chỉ bản ghi đã
+        // duyệt mới có công — tạo khi còn lượt chấm công chờ duyệt sẽ làm nhân
+        // viên bị thiếu lương mà không ai hay. Chỉ xét bản ghi ĐÃ chấm công ra:
+        // bản ghi quên chấm ra không duyệt được (phải qua "Xin điều chỉnh công"
+        // trước) nên không được chặn bảng lương vô thời hạn.
+        $pendingApprovalCount = Attendance::whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])
+            ->where('approval_status', Attendance::APPROVAL_PENDING)
+            ->whereNotNull('last_check_out_at')
+            ->count();
+
+        if ($pendingApprovalCount > 0) {
+            throw ValidationException::withMessages([
+                'period' => "Còn {$pendingApprovalCount} bản ghi chấm công trong kỳ này chưa được duyệt. Vui lòng duyệt hoặc từ chối hết ở màn \"Duyệt chấm công\" trước khi tính lương.",
+            ]);
+        }
+
         return DB::transaction(function () use ($start, $end, $month, $year, $creator, $standardWorkDays) {
             $payroll = $this->payrollRepository->create([
                 'period_month' => $month,
@@ -151,7 +167,12 @@ class PayrollService
     // từng ca — không dùng hằng số 8h cố định cho mọi nhân viên.
     private function calculateWorkedMetrics(Employee $employee, Carbon $start, Carbon $end, float $dailyRate): array
     {
+        // CHỈ tính bản ghi HR đã duyệt (approval_status=approved) — chờ duyệt
+        // hoặc bị từ chối thì không có công/lương (yêu cầu 2026-09-21). Cùng
+        // luật với AttendanceService::summarizeHistory() để số trên màn hình
+        // lịch sử khớp số ở phiếu lương.
         $attendances = Attendance::where('employee_id', $employee->id)
+            ->where('approval_status', Attendance::APPROVAL_APPROVED)
             ->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])
             ->with('workShift')
             ->get();

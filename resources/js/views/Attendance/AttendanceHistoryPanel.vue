@@ -63,17 +63,18 @@
                         <th>Lịch làm</th>
                         <th>Thực tế</th>
                         <th>Trạng thái</th>
+                        <th>Duyệt công</th>
                         <th v-if="!readOnly" class="text-center">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr v-if="loading">
-                        <td :colspan="readOnly ? 5 : 6" class="text-center py-6">
+                        <td :colspan="readOnly ? 6 : 7" class="text-center py-6">
                             <v-progress-circular indeterminate size="24" />
                         </td>
                     </tr>
                     <tr v-else-if="!rows.length">
-                        <td :colspan="readOnly ? 5 : 6" class="text-center py-6" style="opacity: 0.6">
+                        <td :colspan="readOnly ? 6 : 7" class="text-center py-6" style="opacity: 0.6">
                             Không có dữ liệu trong khoảng đã chọn.
                         </td>
                     </tr>
@@ -86,6 +87,15 @@
                         </td>
                         <td>
                             <StatusChip :status="row.status" :map="HISTORY_STATUS_MAP" />
+                        </td>
+                        <td>
+                            <!-- Chỉ bản ghi đã có giờ vào mới có bước duyệt (ngày vắng/nghỉ phép thì không). -->
+                            <StatusChip
+                                v-if="row.attendance?.first_check_in_at"
+                                :status="row.attendance.approval_status"
+                                :map="APPROVAL_STATUS_MAP"
+                            />
+                            <span v-else style="opacity: 0.5">—</span>
                         </td>
                         <td v-if="!readOnly" class="text-center">
                             <v-btn
@@ -105,35 +115,22 @@
             </v-table>
         </v-sheet>
 
-        <v-dialog v-model="detailDialog" max-width="520">
+        <v-dialog v-model="detailDialog" max-width="640">
             <v-card rounded="xl" elevation="12" class="glass-panel">
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     Chi tiết chấm công {{ detailTarget ? formatDate(detailTarget.date) : "" }}
                 </v-card-title>
                 <v-card-text class="px-5">
-                    <v-table density="comfortable">
-                        <thead>
-                            <tr>
-                                <th>Thời điểm</th>
-                                <th>Sự kiện</th>
-                                <th>Phương thức</th>
-                                <th>Điểm chấm công</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-if="!detailTarget?.attendance?.logs?.length">
-                                <td colspan="4" class="text-center py-4" style="opacity: 0.6">
-                                    Không có nhật ký nào.
-                                </td>
-                            </tr>
-                            <tr v-for="log in detailTarget?.attendance?.logs ?? []" v-else :key="log.id">
-                                <td>{{ formatDateTime(log.occurred_at) }}</td>
-                                <td>{{ log.event_type === "check_in" ? "Vào" : "Ra" }}</td>
-                                <td>{{ METHOD_LABEL[log.method] ?? log.method }}</td>
-                                <td>{{ log.attendance_location?.name ?? "Không khớp điểm" }}</td>
-                            </tr>
-                        </tbody>
-                    </v-table>
+                    <!-- Trạng thái HR duyệt của bản ghi này (chưa duyệt thì chưa được tính công/lương). -->
+                    <div v-if="detailTarget?.attendance" class="d-flex flex-wrap align-center ga-2 mb-3">
+                        <span class="text-body-2" style="opacity: 0.75">Duyệt chấm công:</span>
+                        <StatusChip :status="detailTarget.attendance.approval_status" :map="APPROVAL_STATUS_MAP" />
+                        <span v-if="detailTarget.attendance.approval_note" class="text-body-2" style="opacity: 0.75">
+                            — {{ detailTarget.attendance.approval_note }}
+                        </span>
+                    </div>
+
+                    <AttendanceLogList :logs="detailTarget?.attendance?.logs ?? []" />
                 </v-card-text>
                 <v-card-actions class="px-5 pb-5">
                     <v-spacer />
@@ -157,6 +154,8 @@ import StatCards from "../../components/dashboard/StatCards.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate from "../../components/common/InputDate.vue";
+import AttendanceLogList from "../../components/attendance/AttendanceLogList.vue";
+import { APPROVAL_STATUS_MAP } from "../../composables/useCheckIn";
 
 const props = defineProps({
     employeeId: {
@@ -178,8 +177,6 @@ const HISTORY_STATUS_MAP = {
     // AttendanceService::history()/CODE_MAP mục 16.
     on_leave: { label: "Nghỉ phép", color: "info" },
 };
-
-const METHOD_LABEL = { wifi: "Wifi", gps: "GPS", qr: "Mã QR" };
 
 const statusOptions = [
     { title: "Tất cả", value: null },
@@ -204,12 +201,6 @@ function formatTime(value) {
     return new Date(value).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
 }
 
-function formatDateTime(value) {
-    if (!value) {
-        return "—";
-    }
-    return new Date(value).toLocaleString("vi-VN");
-}
 
 function pad2(n) {
     return String(n).padStart(2, "0");
@@ -276,6 +267,7 @@ const summary = ref({
     late_count: 0,
     early_leave_count: 0,
     on_leave_count: 0,
+    unapproved_count: 0,
 });
 const rows = ref([]);
 const loading = ref(false);
@@ -311,6 +303,14 @@ const summaryStats = computed(() => [
         value: `${summary.value.on_leave_count} ngày`,
         color: "info",
         icon: "mdi-calendar-remove-outline",
+    },
+    // Chỉ bản ghi HR đã duyệt mới cộng vào "Tổng ngày công"/"Giờ làm" ở trên
+    // — thẻ này cho thấy vì sao công chưa lên.
+    {
+        label: "Chưa được duyệt (không tính công)",
+        value: `${summary.value.unapproved_count ?? 0} lượt`,
+        color: "warning",
+        icon: "mdi-clipboard-clock-outline",
     },
 ]);
 

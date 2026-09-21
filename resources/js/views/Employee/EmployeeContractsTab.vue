@@ -370,14 +370,9 @@
                         <div class="text-body-2 font-weight-medium mb-1">
                             Tệp hợp đồng (PDF) <span class="text-error">*</span>
                         </div>
-                        <v-file-input
+                        <InputFile
                             v-model="createForm.contract_file"
-                            variant="outlined"
-                            density="comfortable"
-                            rounded="lg"
-                            prepend-icon=""
-                            prepend-inner-icon="mdi-paperclip"
-                            accept=".pdf"
+                            :limit="UPLOAD_LIMITS.contract"
                             :error-messages="createErrors.contract_file"
                         />
                     </div>
@@ -420,6 +415,7 @@ import { onMounted, ref, reactive, watch } from "vue";
 import employeeService from "../../services/employeeService";
 import StatusChip from "../../components/common/StatusChip.vue";
 import InputMoney from "../../components/common/InputMoney.vue";
+import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import { useToastStore } from "../../stores/useToastStore";
 const toast = useToastStore();
 const props = defineProps({

@@ -25,7 +25,10 @@ class AttendanceLog extends Model
         'latitude',
         'longitude',
         'accuracy_meters',
+        'address',
         'ip_address',
+        'device_name',
+        'user_agent',
         'qr_reference',
         'raw_data',
     ];

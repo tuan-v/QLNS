@@ -2,7 +2,7 @@
     <div>
         <PageHeader
             title="Danh sách điểm chấm công"
-            subtitle="Quản lý điểm chấm công qua Wifi/GPS/QR."
+            subtitle="Địa điểm của công ty (Wifi/GPS/QR) dùng để đối chiếu với IP, vị trí của thiết bị khi nhân viên chấm công."
         >
             <template #actions>
                 <v-btn
@@ -103,7 +103,7 @@ const headers = [
     { title: "#", key: "index", sortable: false, width: 56 },
     { title: "Mã", key: "code", width: 110 },
     { title: "Tên điểm", key: "name" },
-    { title: "Phương thức", key: "method", width: 130 },
+    { title: "Cách nhận diện", key: "method", width: 140 },
     { title: "Chi tiết", key: "detail" },
     { title: "Trạng thái", key: "is_active", width: 150 },
 ];

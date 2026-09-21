@@ -11,6 +11,8 @@ use App\Models\LeaveRequest;
 use App\Models\WorkShift;
 use App\Repositories\AttendanceLogRepository;
 use App\Repositories\AttendanceRepository;
+use App\Services\Attendance\DeviceInfoParser;
+use App\Services\Attendance\ReverseGeocoder;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -37,6 +39,8 @@ class AttendanceService
         private readonly AttendanceRepository $attendanceRepository,
         private readonly AttendanceLogRepository $attendanceLogRepository,
         private readonly WorkTimeCalculationService $workTimeCalculationService,
+        private readonly DeviceInfoParser $deviceInfoParser,
+        private readonly ReverseGeocoder $reverseGeocoder,
     ) {
     }
 
@@ -176,13 +180,19 @@ class AttendanceService
     // WorkTimeCalculationService để hiểu rõ vì sao vẫn cần work_coefficient).
     // Ngày "on_leave" không tính vào Vắng lẫn Tổng ngày công/giờ làm — nghỉ
     // phép đã duyệt không phải đi làm cũng không phải vắng không lý do.
+    // Tổng ngày công/giờ làm CHỈ cộng bản ghi HR đã duyệt (approval_status=
+    // approved) — cùng luật với PayrollService để con số trên màn hình khớp
+    // với con số tính lương; bản ghi chờ duyệt/bị từ chối đếm riêng ở
+    // 'unapproved_count' để nhân viên thấy vì sao "công" chưa lên.
     private function summarizeHistory(Collection $rows): array
     {
         $withAttendance = $rows->filter(fn (array $row) => ! in_array($row['status'], ['absent', 'on_leave'], true));
+        $approved = $withAttendance->filter(fn (array $row) => $row['attendance']->approval_status === Attendance::APPROVAL_APPROVED);
 
         return [
-            'total_work_days' => round((float) $withAttendance->sum(fn (array $row) => $this->workTimeCalculationService->dayEquivalentFor($row['attendance'], $row['work_shift'])), 2),
-            'total_work_minutes' => (int) $withAttendance->sum(fn (array $row) => $row['attendance']->actual_work_minutes ?? 0),
+            'total_work_days' => round((float) $approved->sum(fn (array $row) => $this->workTimeCalculationService->dayEquivalentFor($row['attendance'], $row['work_shift'])), 2),
+            'total_work_minutes' => (int) $approved->sum(fn (array $row) => $row['attendance']->actual_work_minutes ?? 0),
+            'unapproved_count' => $withAttendance->count() - $approved->count(),
             'late_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->late_minutes ?? 0) > 0 && ! ($row['attendance']->late_excused ?? false))->count(),
             'early_leave_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->early_leave_minutes ?? 0) > 0)->count(),
             'on_leave_count' => $rows->filter(fn (array $row) => $row['status'] === 'on_leave')->count(),
@@ -197,6 +207,44 @@ class AttendanceService
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
         return $this->attendanceRepository->paginate(perPage: $perPage, filters: $filters);
+    }
+
+    // HR duyệt / từ chối 1 bản ghi chấm công (2026-09-21, theo yêu cầu người
+    // dùng: mọi lượt chấm công phải được duyệt, chưa duyệt thì không tính
+    // công/lương). $status: 'approved' | 'rejected'. Chỉ duyệt được bản ghi
+    // ĐÃ chấm công ra (còn đang trong ca thì giờ ra/giờ công còn thay đổi,
+    // duyệt sớm vô nghĩa) — quên chấm công ra thì nhân viên dùng "Xin điều
+    // chỉnh công", HR duyệt yêu cầu đó là duyệt luôn bản ghi (xem
+    // AttendanceAdjustmentService::decide()). Cho phép ĐỔI quyết định
+    // (duyệt <-> từ chối) vì HR có thể bấm nhầm; chỉ chặn quyết định trùng
+    // trạng thái hiện tại. LƯU Ý: bảng lương chỉ được tính MỘT LẦN lúc tạo
+    // kỳ lương (PayrollService::generateForPeriod()), không tự tính lại khi
+    // quyết định duyệt đổi sau đó — nên generateForPeriod() chặn tạo bảng
+    // lương khi kỳ đó còn bản ghi đã chấm công ra mà chưa được duyệt/từ chối.
+    public function decideApproval(Attendance $attendance, string $status, ?string $note, int $decidedBy): Attendance
+    {
+        if (! $attendance->first_check_in_at || ! $attendance->last_check_out_at) {
+            throw ValidationException::withMessages([
+                'status' => 'Bản ghi này chưa chấm công ra nên chưa thể duyệt.',
+            ]);
+        }
+
+        if ($attendance->approval_status === $status) {
+            throw ValidationException::withMessages([
+                'status' => $status === Attendance::APPROVAL_APPROVED
+                    ? 'Bản ghi này đã được duyệt rồi.'
+                    : 'Bản ghi này đã bị từ chối rồi.',
+            ]);
+        }
+
+        $attendance->forceFill([
+            'approval_status' => $status,
+            'approved_by' => $decidedBy,
+            'approved_at' => now(),
+            'approval_note' => $note,
+        ])->save();
+
+        return $attendance;
     }
 
     // Áp dụng giờ vào/ra đã được DUYỆT từ 1 yêu cầu điều chỉnh công (mục 17)
@@ -274,8 +322,9 @@ class AttendanceService
         }
 
         $matchedLocation = $this->matchLocation($data);
+        $device = $this->captureDeviceContext($data);
 
-        return DB::transaction(function () use ($employee, $workShift, $matchedLocation, $data, $now, $today) {
+        return DB::transaction(function () use ($employee, $workShift, $matchedLocation, $device, $data, $now, $today) {
             $attendance = $this->attendanceRepository->findOrCreateForShift($employee, $workShift, $today);
 
             $lateMinutes = $this->calculateLateMinutes($workShift, $now);
@@ -293,6 +342,7 @@ class AttendanceService
                 'check_in',
                 $now,
                 $data,
+                $device,
             ));
         });
     }
@@ -316,8 +366,9 @@ class AttendanceService
         }
 
         $matchedLocation = $this->matchLocation($data);
+        $device = $this->captureDeviceContext($data);
 
-        return DB::transaction(function () use ($employee, $attendance, $workShift, $matchedLocation, $data, $now) {
+        return DB::transaction(function () use ($employee, $attendance, $workShift, $matchedLocation, $device, $data, $now) {
             $earlyLeaveMinutes = $this->calculateEarlyLeaveMinutes($workShift, $now);
             $actualMinutes = max(0, $attendance->first_check_in_at->diffInMinutes($now));
 
@@ -341,11 +392,33 @@ class AttendanceService
                 'check_out',
                 $now,
                 $data,
+                $device,
             ));
         });
     }
 
-    private function logPayload(Employee $employee, Attendance $attendance, ?AttendanceLocation $location, string $eventType, Carbon $now, array $data): array
+    // Thông tin của CHÍNH THIẾT BỊ đang bấm chấm công (2026-09-21, theo yêu cầu
+    // người dùng: dùng điện thoại thì ghi IP điện thoại, địa chỉ nơi bấm, tên
+    // thiết bị) — ghi tự động ở MỌI lượt chấm công, không phụ thuộc có khớp
+    // điểm chấm công của công ty hay không. Gọi TRƯỚC DB::transaction() vì
+    // tra địa chỉ là gọi mạng ra ngoài (tối đa vài giây), không nên giữ
+    // transaction/khóa dòng trong lúc chờ. Tra địa chỉ lỗi → address = null,
+    // không làm hỏng lượt chấm công (xem ReverseGeocoder).
+    private function captureDeviceContext(array $data): array
+    {
+        $userAgent = request()->userAgent();
+        $hasCoordinates = isset($data['latitude'], $data['longitude']);
+
+        return [
+            'address' => $hasCoordinates
+                ? $this->reverseGeocoder->addressFor((float) $data['latitude'], (float) $data['longitude'])
+                : null,
+            'device_name' => $this->deviceInfoParser->describe($userAgent),
+            'user_agent' => $userAgent !== null ? mb_substr($userAgent, 0, 500) : null,
+        ];
+    }
+
+    private function logPayload(Employee $employee, Attendance $attendance, ?AttendanceLocation $location, string $eventType, Carbon $now, array $data, array $device): array
     {
         return [
             'employee_id' => $employee->id,
@@ -353,11 +426,17 @@ class AttendanceService
             'attendance_location_id' => $location?->id,
             'event_type' => $eventType,
             'occurred_at' => $now,
-            'method' => $data['method'],
+            // Cột method giờ nghĩa là "khớp điểm chấm công bằng cách nào"
+            // (wifi/gps/qr theo điểm đã khớp), không còn là lựa chọn của
+            // nhân viên. Không khớp điểm nào → 'device' (chỉ có dữ liệu thiết bị).
+            'method' => $location?->method ?? 'device',
             'latitude' => $data['latitude'] ?? null,
             'longitude' => $data['longitude'] ?? null,
             'accuracy_meters' => $data['accuracy_meters'] ?? null,
+            'address' => $device['address'],
             'ip_address' => request()->ip(),
+            'device_name' => $device['device_name'],
+            'user_agent' => $device['user_agent'],
             'qr_reference' => $data['qr_reference'] ?? null,
         ];
     }
@@ -391,38 +470,60 @@ class AttendanceService
             ->first(fn (EmployeeShiftAssignment $assignment) => $assignment->work_shift_id === $workShift->id);
     }
 
-    // Khớp điểm chấm công theo đúng phương thức đang dùng — trả null nếu
-    // không khớp được điểm nào (checkIn()/checkOut() tự xử lý trường hợp này,
-    // không chặn cứng). Chỉ xét điểm đang is_active.
+    // Đối chiếu dữ liệu của thiết bị đang chấm công với các "Điểm chấm công" của
+    // công ty (2026-09-21: đổi từ "nhân viên chọn phương thức" sang "hệ thống tự
+    // thu IP + GPS + QR rồi tự khớp"). Mỗi điểm vẫn có method riêng quyết định
+    // NÓ được khớp bằng gì: điểm 'wifi' so IP của request với allowed_ip_cidr,
+    // điểm 'gps' so tọa độ với bán kính, điểm 'qr' so mã QR. Khớp được điểm nào
+    // → status 'pending' + ghi tên điểm; không khớp → 'needs_review' cho HR
+    // xem lại (quyết định đã chốt, không chặn cứng). Thứ tự ưu tiên khi khớp
+    // nhiều điểm: QR (nhân viên chủ động quét) > Wifi (IP) > GPS. Chỉ xét
+    // điểm đang is_active.
     private function matchLocation(array $data): ?AttendanceLocation
     {
-        $method = $data['method'];
-        $locations = AttendanceLocation::where('is_active', true)->where('method', $method)->get();
+        $locations = AttendanceLocation::where('is_active', true)->get();
 
-        if ($method === 'wifi') {
-            $ip = request()->ip();
+        return $this->matchByQr($locations, $data['qr_reference'] ?? null)
+            ?? $this->matchByIp($locations, request()->ip())
+            ?? $this->matchByGps($locations, $data['latitude'] ?? null, $data['longitude'] ?? null);
+    }
 
-            return $locations->first(fn (AttendanceLocation $loc) => $loc->allowed_ip_cidr && $this->ipInCidr($ip, $loc->allowed_ip_cidr));
+    private function matchByQr(Collection $locations, ?string $qrReference): ?AttendanceLocation
+    {
+        if ($qrReference === null || $qrReference === '') {
+            return null;
         }
 
-        if ($method === 'gps') {
-            $lat = (float) $data['latitude'];
-            $lng = (float) $data['longitude'];
+        return $locations->first(fn (AttendanceLocation $loc) => $loc->method === 'qr' && $loc->qr_secret && $loc->qr_secret === $qrReference);
+    }
 
-            return $locations->first(function (AttendanceLocation $loc) use ($lat, $lng) {
-                if (! $loc->latitude || ! $loc->longitude || ! $loc->radius_meters) {
-                    return false;
-                }
-
-                return $this->distanceMeters($lat, $lng, (float) $loc->latitude, (float) $loc->longitude) <= $loc->radius_meters;
-            });
+    private function matchByIp(Collection $locations, ?string $ip): ?AttendanceLocation
+    {
+        if ($ip === null) {
+            return null;
         }
 
-        if ($method === 'qr') {
-            return $locations->first(fn (AttendanceLocation $loc) => $loc->qr_secret && $loc->qr_secret === $data['qr_reference']);
+        return $locations->first(fn (AttendanceLocation $loc) => $loc->method === 'wifi' && $loc->allowed_ip_cidr && $this->ipInCidr($ip, $loc->allowed_ip_cidr));
+    }
+
+    // Không có tọa độ (nhân viên từ chối quyền vị trí / trình duyệt không hỗ
+    // trợ) thì bỏ qua GPS chứ không lỗi — vẫn có thể khớp bằng IP hoặc QR.
+    private function matchByGps(Collection $locations, mixed $latitude, mixed $longitude): ?AttendanceLocation
+    {
+        if ($latitude === null || $longitude === null) {
+            return null;
         }
 
-        return null;
+        $lat = (float) $latitude;
+        $lng = (float) $longitude;
+
+        return $locations->first(function (AttendanceLocation $loc) use ($lat, $lng) {
+            if ($loc->method !== 'gps' || ! $loc->latitude || ! $loc->longitude || ! $loc->radius_meters) {
+                return false;
+            }
+
+            return $this->distanceMeters($lat, $lng, (float) $loc->latitude, (float) $loc->longitude) <= $loc->radius_meters;
+        });
     }
 
     private function ipInCidr(string $ip, string $cidr): bool

@@ -109,6 +109,12 @@ const routes = [
             import("../views/Attendance/AttendanceAdjustments.vue"),
     },
     {
+        path: "/attendance-approvals",
+        name: "attendance-approvals",
+        meta: { title: "Duyệt chấm công", permission: "attendance.approve" },
+        component: () => import("../views/Attendance/AttendanceApprovals.vue"),
+    },
+    {
         path: "/attendance-history",
         name: "attendance-history",
         meta: { title: "Lịch sử chấm công", permission: "attendance.view_own" },
