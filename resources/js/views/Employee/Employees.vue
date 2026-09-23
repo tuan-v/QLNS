@@ -81,6 +81,7 @@
                     </v-avatar>
                     <span>{{ item.full_name }}</span>
                 </div>
+                <div class=""></div>
             </template>
             <template #item.department="{ item }">{{
                 item.department?.name ?? "—"

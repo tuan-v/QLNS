@@ -18,8 +18,12 @@ class StoreEmployeeContractRequest extends FormRequest
             'start_date' => ['required', 'date'],
             'end_date' => ['nullable', 'date', 'after:start_date'],
             'signed_at' => ['nullable', 'date'],
+            // Lương đóng BHXH KHÔNG còn là ô nhập riêng (2026-09-24, theo yêu
+            // cầu người dùng: "lương đóng bh sẽ tính là lương cb luôn không
+            // tách ra") — EmployeeContractService::create() tự ghi đè
+            // insurance_salary = agreed_salary, không nhận giá trị riêng từ
+            // client nữa.
             'agreed_salary' => ['required', 'numeric', 'min:0'],
-            'insurance_salary' => ['nullable', 'required_if:contract_type,chinh_thuc', 'numeric', 'min:0'],
             // Client gửi lên bị bỏ qua hoàn toàn — EmployeeContractService::create()
             // luôn tự quyết định "active" hay "pending" dựa vào start_date, giữ rule
             // này chỉ để tài liệu hóa đủ giá trị hợp lệ của cột.
@@ -33,7 +37,6 @@ class StoreEmployeeContractRequest extends FormRequest
         return [
             'contract_type.required' => 'Loại hợp đồng không được để trống',
             'contract_type.in' => 'Loại hợp đồng không hợp lệ',
-            'insurance_salary.required_if' => 'Hợp đồng chính thức bắt buộc phải có lương đóng bảo hiểm',
             'start_date.required' => 'Ngày bắt đầu không được để trống',
             'start_date.date' => 'Ngày bắt đầu không đúng định dạng',
             'end_date.date' => 'Ngày kết thúc không đúng định dạng',
@@ -42,8 +45,6 @@ class StoreEmployeeContractRequest extends FormRequest
             'agreed_salary.required' => 'Lương thỏa thuận không được để trống',
             'agreed_salary.numeric' => 'Lương thỏa thuận phải là số',
             'agreed_salary.min' => 'Lương thỏa thuận không được nhỏ hơn 0',
-            'insurance_salary.numeric' => 'Lương đóng bảo hiểm phải là số',
-            'insurance_salary.min' => 'Lương đóng bảo hiểm không được nhỏ hơn 0',
             'status.in' => 'Trạng thái hợp đồng không hợp lệ',
             'contract_file.required' => 'Vui lòng đính kèm file PDF hợp đồng',
             'contract_file.file' => 'Tệp đính kèm không hợp lệ',

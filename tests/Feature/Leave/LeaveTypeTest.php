@@ -58,9 +58,10 @@ class LeaveTypeTest extends TestCase
 
         $response->assertStatus(200);
         $codes = array_column($response->json(), 'code');
-        // 5 loại phép seed sẵn (LeaveTypeSeeder) đều active.
+        // 3 loại phép seed sẵn (LeaveTypeSeeder, 2026-09-24) đều active.
         $this->assertContains('annual', $codes);
-        $this->assertContains('sick', $codes);
+        $this->assertContains('other', $codes);
+        $this->assertContains('unpaid', $codes);
         $this->assertNotContains('inactive-test', $codes);
     }
 
@@ -81,6 +82,6 @@ class LeaveTypeTest extends TestCase
         // encode) — dùng assertEquals thay vì assertSame cho đúng bản chất.
         $this->assertEquals(12, $byCode['annual']['annual_entitlement_days']);
         $this->assertTrue($byCode['annual']['is_paid']);
-        $this->assertEquals(0, $byCode['sick']['annual_entitlement_days']);
+        $this->assertEquals(0, $byCode['other']['annual_entitlement_days']);
     }
 }

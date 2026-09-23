@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Models\Attendance;
 use App\Models\Employee;
+use App\Models\EmployeeShiftAssignment;
 use App\Models\WorkShift;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -53,6 +54,40 @@ class AttendanceRepository
             ->whereBetween('attendance_date', [$from, $to])
             ->with(['workShift', 'logs.attendanceLocation'])
             ->get();
+    }
+
+    // "Tổng hợp chấm công trong ngày" (2026-09-23, theo yêu cầu người dùng, thay
+    // cho màn Duyệt chấm công chỉ liệt kê bản ghi ĐÃ chấm công) — TOÀN BỘ ca
+    // đang được gán cho MỌI nhân viên (không phải chỉ 1 người như
+    // AttendanceService::listActiveAssignmentsForDate()), lọc theo phòng ban/ca
+    // ngay trong SQL cho nhẹ, còn lọc đúng THỨ trong tuần vẫn phải làm ở PHP
+    // (work_days là cột JSON, xem cùng lý do ở listActiveAssignmentsForDate()).
+    public function listAssignmentsForDate(string $date, ?int $departmentId, ?int $workShiftId): Collection
+    {
+        return EmployeeShiftAssignment::where('status', 'active')
+            ->where('effective_from', '<=', $date)
+            ->where(function ($query) use ($date) {
+                $query->whereNull('effective_to')->orWhere('effective_to', '>=', $date);
+            })
+            ->when($workShiftId, fn ($query, $id) => $query->where('work_shift_id', $id))
+            ->when($departmentId, fn ($query, $id) => $query->whereHas(
+                'employee',
+                fn ($employeeQuery) => $employeeQuery->where('department_id', $id),
+            ))
+            ->with(['employee.department', 'workShift'])
+            ->get();
+    }
+
+    // Bản ghi chấm công của TOÀN CÔNG TY trong đúng 1 ngày, keyBy employee_id+
+    // work_shift_id để dailyOverview() tra cứu O(1) theo từng ca đã gán ở trên.
+    // Nạp logs.attendanceLocation + approvedBy để màn tổng hợp không phải gọi
+    // thêm request khi xem chi tiết 1 dòng.
+    public function listAttendancesForDate(string $date): Collection
+    {
+        return Attendance::where('attendance_date', $date)
+            ->with(['logs.attendanceLocation', 'approvedBy'])
+            ->get()
+            ->keyBy(fn (Attendance $a) => $a->employee_id.'|'.$a->work_shift_id);
     }
 
     public function paginate(int $perPage = 15, array $filters = []): LengthAwarePaginator

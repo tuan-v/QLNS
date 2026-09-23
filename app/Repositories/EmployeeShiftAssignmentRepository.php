@@ -21,6 +21,19 @@ class EmployeeShiftAssignmentRepository
         return EmployeeShiftAssignment::where('work_shift_id', $workShiftId)->get();
     }
 
+    // "Đang mở" = effective_to NULL (không giới hạn ngày kết thúc) — đúng
+    // hình dạng assignDefaultShift() tạo ra, khác bản gán 1-ngày của
+    // createOneOffAssignment() (effective_from = effective_to). Dùng để
+    // đồng bộ lại work_days khi Cài đặt đổi ngày làm việc mặc định — xem
+    // EmployeeShiftAssignmentService::resyncOpenEndedWorkDays().
+    public function listOpenEndedByWorkShift(int $workShiftId): Collection
+    {
+        return EmployeeShiftAssignment::where('work_shift_id', $workShiftId)
+            ->where('status', 'active')
+            ->whereNull('effective_to')
+            ->get();
+    }
+
     public function create(array $data): EmployeeShiftAssignment
     {
         return EmployeeShiftAssignment::create($data);

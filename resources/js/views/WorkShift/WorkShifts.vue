@@ -2,7 +2,7 @@
     <div>
         <PageHeader
             title="Danh sách ca làm việc"
-            subtitle="Quản lý ca làm việc dùng cho chấm công."
+            subtitle="Quản lý ca làm việc dùng cho chấm công. Ca mặc định cho nhân viên mới sửa ở trang Cài đặt."
         >
             <template #actions>
                 <v-btn
@@ -62,6 +62,12 @@
             <template #item.is_active="{ item }">
                 <StatusChip :status="item.is_active" :map="ACTIVE_STATUS_MAP" />
             </template>
+            <template #item.is_default="{ item }">
+                <v-chip v-if="item.is_default" size="small" color="primary" variant="tonal">
+                    Mặc định
+                </v-chip>
+                <span v-else style="opacity: 0.4">—</span>
+            </template>
         </DataTable>
 
         <WorkShiftFormDialog
@@ -108,6 +114,7 @@ const headers = [
     { title: "Công chuẩn", key: "standard_work_minutes", width: 120 },
     { title: "Hệ số công", key: "work_coefficient", width: 110 },
     { title: "Trạng thái", key: "is_active", width: 150 },
+    { title: "Ca mặc định", key: "is_default", width: 120 },
 ];
 
 function formatHours(minutes) {

@@ -12,20 +12,27 @@ class StoreAttendanceAdjustmentRequest extends FormRequest
         return true;
     }
 
-    // 4 loại: 'correction' (mặc định — sửa 1 bản ghi attendances ĐÃ TỒN
+    // 5 loại: 'correction' (mặc định — sửa 1 bản ghi attendances ĐÃ TỒN
     // TẠI, chỉ cần đề xuất 1 trong 2 mốc), 'supplement' (bổ sung — tạo bản
     // ghi cho 1 ca+ngày CHƯA từng chấm công, nên bắt buộc đủ cả giờ vào lẫn
     // giờ ra vì không có gì để "giữ nguyên" như correction), 'excuse'
     // (Ngày 42 — xin miễn trừ đi muộn, KHÔNG sửa giờ nên không cần
-    // proposed_check_in_at/proposed_check_out_at, chỉ cần lý do), và
-    // 'overtime' (2026-09-21 — xin duyệt OT, cùng khuôn 'excuse': không sửa
-    // giờ, chỉ cần lý do).
+    // proposed_check_in_at/proposed_check_out_at, chỉ cần lý do), 'overtime'
+    // (2026-09-21 — xin duyệt OT, cùng khuôn 'excuse': không sửa giờ, chỉ
+    // cần lý do; 2026-09-23 cho xin cả khi CHƯA chấm công ra — xem
+    // AttendanceAdjustmentService), và 'extra_shift' (2026-09-23 — "xin làm
+    // OT/làm thêm ngày/làm bù T7-CN không có trong lịch", đăng ký TRƯỚC nên
+    // KHÔNG có giờ vào/ra đề xuất — chỉ cần ngày MUỐN làm (hôm nay hoặc
+    // tương lai, ngược `before_or_equal:today` của supplement) + MỘT trong 2
+    // cách chọn khung giờ: `work_shift_id` (chọn Ca có sẵn) HOẶC cặp
+    // `custom_start_time`/`custom_end_time` (tự chọn giờ — Backend tự tạo 1
+    // Ca mới, xem WorkShiftService::createCustomOneOff()).
     public function rules(): array
     {
         $type = $this->input('type', 'correction');
 
         $rules = [
-            'type' => ['nullable', 'in:correction,supplement,excuse,overtime'],
+            'type' => ['nullable', 'in:correction,supplement,excuse,overtime,extra_shift'],
             'reason' => ['required', 'string', 'max:1000'],
         ];
 
@@ -34,6 +41,18 @@ class StoreAttendanceAdjustmentRequest extends FormRequest
             $rules['attendance_date'] = ['required', 'date', 'before_or_equal:today'];
             $rules['proposed_check_in_at'] = ['required', 'date'];
             $rules['proposed_check_out_at'] = ['required', 'date'];
+
+            return $rules;
+        }
+
+        if ($type === 'extra_shift') {
+            $rules['attendance_date'] = ['required', 'date', 'after_or_equal:today'];
+            $rules['work_shift_id'] = [
+                'nullable', 'integer', 'exists:work_shifts,id',
+                'required_without_all:custom_start_time,custom_end_time',
+            ];
+            $rules['custom_start_time'] = ['nullable', 'date_format:H:i', 'required_without:work_shift_id'];
+            $rules['custom_end_time'] = ['nullable', 'date_format:H:i', 'required_without:work_shift_id', 'after:custom_start_time'];
 
             return $rules;
         }
@@ -65,8 +84,18 @@ class StoreAttendanceAdjustmentRequest extends FormRequest
             'attendance_id.exists' => 'Bản ghi chấm công không tồn tại',
             'work_shift_id.required' => 'Vui lòng chọn ca làm việc',
             'work_shift_id.exists' => 'Ca làm việc không tồn tại',
-            'attendance_date.required' => 'Vui lòng chọn ngày cần bổ sung chấm công',
+            // Dùng chung cho cả 'supplement' (ngày cần bổ sung) lẫn
+            // 'extra_shift' (ngày muốn đăng ký làm thêm) — chữ đủ trung
+            // tính cho cả 2 ngữ cảnh.
+            'attendance_date.required' => 'Vui lòng chọn ngày',
             'attendance_date.before_or_equal' => 'Không thể bổ sung chấm công cho ngày trong tương lai',
+            'attendance_date.after_or_equal' => 'Chỉ đăng ký được cho hôm nay hoặc ngày trong tương lai',
+            'work_shift_id.required_without_all' => 'Vui lòng chọn ca làm việc hoặc tự chọn giờ',
+            'custom_start_time.date_format' => 'Giờ bắt đầu không đúng định dạng (HH:mm)',
+            'custom_start_time.required_without' => 'Vui lòng nhập giờ bắt đầu',
+            'custom_end_time.date_format' => 'Giờ kết thúc không đúng định dạng (HH:mm)',
+            'custom_end_time.required_without' => 'Vui lòng nhập giờ kết thúc',
+            'custom_end_time.after' => 'Giờ kết thúc phải sau giờ bắt đầu',
             'proposed_check_in_at.required' => 'Vui lòng nhập giờ vào',
             'proposed_check_in_at.required_without' => 'Vui lòng đề xuất ít nhất giờ vào hoặc giờ ra',
             'proposed_check_in_at.date' => 'Giờ vào đề xuất không đúng định dạng',

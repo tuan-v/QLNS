@@ -325,6 +325,45 @@
             </v-row>
         </FormSection>
 
+        <!-- Chỉ hiện lúc Thêm mới (2026-09-24, theo yêu cầu người dùng) — Hợp
+             đồng lao động ĐẦU TIÊN tự tạo LUÔN cùng lúc, không cần thao tác
+             riêng ở tab "Hợp đồng" nữa (EmployeeService::create()). Muốn ký
+             hợp đồng MỚI sau này (hết thử việc, tăng lương...) vẫn qua tab
+             "Hợp đồng" ở trang chi tiết nhân viên như cũ — form này KHÔNG
+             sửa được lương của hợp đồng đã tạo. Chỉ 1 ô lương duy nhất
+             (2026-09-24, theo yêu cầu người dùng: "lương đóng bh sẽ tính là
+             lương cb luôn không tách ra") — không hỏi riêng "Lương đóng
+             BHXH" nữa, backend tự đặt bằng đúng Lương cơ bản
+             (EmployeeContractService::create()), áp dụng luôn cho cả tab
+             "Hợp đồng" (EmployeeContractsTab.vue). -->
+        <FormSection v-if="!isEdit" title="Lương & Hợp đồng">
+            <p class="text-body-2 mb-4" style="opacity: 0.75">
+                Lưu là tạo luôn hợp đồng lao động đầu tiên với mức lương này
+                (cũng là lương đóng BHXH) — không cần vào tab "Hợp đồng" tạo
+                riêng nữa. Loại hợp đồng tự suy theo Trạng thái làm việc ở
+                trên ("Đang làm việc" → chính thức, còn lại → thử việc); file
+                hợp đồng đã ký (nếu có) upload sau ở tab "Hợp đồng".
+            </p>
+            <v-row dense>
+                <v-col cols="12" sm="6">
+                    <div class="text-body-2 font-weight-medium mb-1">
+                        Lương cơ bản <span class="text-error">*</span>
+                    </div>
+                    <v-text-field
+                        v-model.number="agreedSalary"
+                        :rules="rules.agreedSalary"
+                        type="number"
+                        min="0"
+                        suffix="đ"
+                        variant="outlined"
+                        density="comfortable"
+                        rounded="lg"
+                        :error-messages="store.errors.agreed_salary"
+                    />
+                </v-col>
+            </v-row>
+        </FormSection>
+
         <!-- Chỉ hiện lúc Thêm mới — sửa nhân viên đã có/chưa có tài khoản thì
              dùng nút "Tạo tài khoản đăng nhập" riêng ở EmployeeDetail.vue. -->
         <FormSection v-if="!isEdit" title="Tài khoản đăng nhập">
@@ -460,6 +499,14 @@ const form = reactive({
 
 const formRef = ref(null);
 
+/* -------------------- Lương & Hợp đồng (chỉ lúc Thêm mới) ------------------- */
+
+// Tách riêng khỏi `form` (không phải field của Employee) — cùng cách
+// createAccount/accountRoleIds ở dưới xử lý phần "chỉ áp dụng lúc Thêm mới",
+// tránh gửi nhầm lên UpdateEmployeeRequest (backend tự bỏ qua field lạ,
+// nhưng tách riêng cho rõ ràng là 2 việc khác nhau).
+const agreedSalary = ref(null);
+
 /* --------------------- Tạo tài khoản đăng nhập ngay --------------------- */
 
 const createAccount = ref(false);
@@ -514,6 +561,11 @@ const maxLength = (limit, label) => (value) =>
 const isEmail = (label) => (value) =>
     !value || /^\S+@\S+\.\S+$/.test(String(value)) || `${label} không đúng định dạng`;
 
+const minValue = (min, label) => (value) =>
+    value === null || value === undefined || value === "" ||
+    Number(value) >= min ||
+    `${label} không được nhỏ hơn ${min}`;
+
 const rules = {
     fullName: [notEmpty("Tên nhân viên"), maxLength(255, "Tên nhân viên")],
     companyEmail: [notEmpty("Email công ty"), isEmail("Email công ty")],
@@ -536,6 +588,7 @@ const rules = {
     provinceCode: [notEmpty("Tỉnh/Thành phố")],
     communeCode: [notEmpty("Xã/Phường")],
     departmentId: [notEmpty("Phòng ban")],
+    agreedSalary: [notEmpty("Lương cơ bản"), minValue(0, "Lương cơ bản")],
 };
 
 // Giới hạn của picker phản chiếu đúng rule trong StoreEmployeeRequest /
@@ -594,6 +647,9 @@ watch(
             accountRoleIds.value = [];
             accountError.value = "";
             loadRoles();
+            // Lương & Hợp đồng cũng chỉ áp dụng lúc Thêm mới — cùng lý do reset
+            // như createAccount ở trên, không giữ số cũ của lần thêm trước.
+            agreedSalary.value = null;
             // Nạp lại danh sách Xã/Phường đúng theo Tỉnh đã có sẵn (modal Sửa) —
             // KHÔNG gọi qua onProvinceChange() vì hàm đó xóa luôn commune_code,
             // ở đây form.commune_code vừa được fillForm() gán đúng giá trị cũ.
@@ -637,6 +693,13 @@ async function submit() {
             value === "" ? null : value,
         ]),
     );
+
+    // Lương & Hợp đồng chỉ gửi lúc Thêm mới — Hợp đồng ĐẦU TIÊN tự tạo cùng
+    // lúc (2026-09-24), sửa nhân viên không tự sửa được lương hợp đồng qua
+    // form này (vẫn phải qua tab "Hợp đồng" để ký hợp đồng MỚI).
+    if (!isEdit.value) {
+        payload.agreed_salary = agreedSalary.value;
+    }
 
     try {
         if (isEdit.value) {

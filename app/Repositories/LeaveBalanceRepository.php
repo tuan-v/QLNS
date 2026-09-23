@@ -8,12 +8,22 @@ use App\Models\LeaveType;
 
 class LeaveBalanceRepository
 {
-    public function findOrCreateForYear(Employee $employee, LeaveType $leaveType, int $year): LeaveBalance
+    // $initialAllocatedDays do LeaveAccrualService::targetAllocatedDays()
+    // tính sẵn (2026-09-24, theo yêu cầu người dùng — không còn cấp thẳng
+    // annual_entitlement_days) rồi truyền vào đây, Repository chỉ lo lưu.
+    public function findOrCreateForYear(Employee $employee, LeaveType $leaveType, int $year, float $initialAllocatedDays): LeaveBalance
     {
         return LeaveBalance::firstOrCreate(
             ['employee_id' => $employee->id, 'leave_type_id' => $leaveType->id, 'year' => $year],
-            ['allocated_days' => $leaveType->annual_entitlement_days],
+            ['allocated_days' => $initialAllocatedDays],
         );
+    }
+
+    public function update(LeaveBalance $balance, array $data): LeaveBalance
+    {
+        $balance->update($data);
+
+        return $balance;
     }
 
     // Khóa dòng lại (SELECT ... FOR UPDATE) để trừ quỹ phép an toàn khi

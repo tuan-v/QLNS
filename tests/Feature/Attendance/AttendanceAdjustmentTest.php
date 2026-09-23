@@ -322,6 +322,43 @@ class AttendanceAdjustmentTest extends TestCase
         ]);
     }
 
+    // Giờ nghỉ trưa (2026-09-23, theo yêu cầu người dùng) cũng phải được trừ
+    // khi duyệt "Bổ sung chấm công" — dùng CHUNG công thức với checkOut()
+    // (AttendanceService::calculateActualWorkMinutes()), không viết lại.
+    public function test_hr_approving_supplement_subtracts_lunch_break(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = WorkShift::create([
+            'code' => 'CA-'.uniqid(), 'name' => 'Ca test',
+            'start_time' => '08:00', 'end_time' => '17:00', 'standard_work_minutes' => 480,
+            'break_start_time' => '12:00', 'break_end_time' => '13:00',
+        ]);
+        $today = now();
+        $this->assignShift($employee, $workShift, [$today->dayOfWeekIso]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $adjustmentId = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'supplement',
+            'work_shift_id' => $workShift->id,
+            'attendance_date' => $today->toDateString(),
+            'proposed_check_in_at' => $today->copy()->setTime(8, 0)->toDateTimeString(),
+            'proposed_check_out_at' => $today->copy()->setTime(17, 0)->toDateTimeString(),
+            'reason' => 'Quen cham cong ca hom nay',
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(201)->json('id');
+
+        $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
+        $this->putJson('/api/v1/attendances/adjustments/'.$adjustmentId, [
+            'status' => 'approved',
+        ], ['Authorization' => 'Bearer '.$hrToken])->assertStatus(200);
+
+        $this->assertDatabaseHas('attendances', [
+            'employee_id' => $employee->id,
+            'work_shift_id' => $workShift->id,
+            'attendance_date' => $today->toDateString(),
+            'actual_work_minutes' => 480,
+        ]);
+    }
+
     public function test_employee_without_attendance_adjust_cannot_decide(): void
     {
         [$employee, $user] = $this->makeEmployeeWithLogin();
@@ -561,10 +598,14 @@ class AttendanceAdjustmentTest extends TestCase
         ]);
     }
 
-    public function test_cannot_request_overtime_approval_when_no_overtime_minutes(): void
+    // 2026-09-23: SAU khi đã chấm công RA mà 0 phút OT thì chắc chắn không
+    // có gì để duyệt — vẫn bị chặn như trước.
+    public function test_cannot_request_overtime_approval_when_checked_out_with_no_overtime_minutes(): void
     {
         [$employee, $user] = $this->makeEmployeeWithLogin();
-        $attendance = $this->makeAttendance($employee, ['overtime_minutes' => 0]);
+        $attendance = $this->makeAttendance($employee, [
+            'overtime_minutes' => 0, 'last_check_out_at' => now(),
+        ]);
         $token = $this->loginAs($user->email, 'Secret@123');
 
         $response = $this->postJson('/api/v1/attendances/adjustments', [
@@ -574,6 +615,72 @@ class AttendanceAdjustmentTest extends TestCase
         ], ['Authorization' => 'Bearer '.$token]);
 
         $response->assertStatus(422)->assertJsonValidationErrors('attendance_id');
+    }
+
+    // 2026-09-23 (theo yêu cầu người dùng — tab "Xin OT"): ĐANG trong ca
+    // (chưa chấm công ra) thì XIN TRƯỚC được luôn, dù overtime_minutes hiện
+    // đang là 0 (chưa tính được) — khác hẳn trước đây chỉ cho xin SAU khi đã
+    // chấm công ra.
+    public function test_can_request_overtime_approval_in_advance_while_still_checked_in(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, [
+            'overtime_minutes' => 0, 'last_check_out_at' => null,
+        ]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'overtime',
+            'attendance_id' => $attendance->id,
+            'reason' => 'Toi se lam OT toi nay',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('attendance_adjustments', [
+            'attendance_id' => $attendance->id, 'type' => 'overtime', 'status' => 'pending',
+        ]);
+    }
+
+    public function test_cannot_request_overtime_approval_without_checking_in(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, [
+            'overtime_minutes' => 0, 'first_check_in_at' => null, 'last_check_out_at' => null,
+        ]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'overtime',
+            'attendance_id' => $attendance->id,
+            'reason' => 'Chua cham cong vao',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors('attendance_id');
+    }
+
+    // Duyệt TRƯỚC khi chấm công ra: chỉ set cờ overtime_approved=true ngay,
+    // không đụng overtime_minutes (vẫn đang 0, sẽ tính đúng lúc chấm công ra).
+    public function test_hr_approving_overtime_in_advance_only_sets_the_flag(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, [
+            'overtime_minutes' => 0, 'last_check_out_at' => null,
+        ]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $adjustmentId = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'overtime',
+            'attendance_id' => $attendance->id,
+            'reason' => 'Xin OT truoc',
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(201)->json('id');
+
+        $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
+        $this->putJson('/api/v1/attendances/adjustments/'.$adjustmentId, [
+            'status' => 'approved',
+        ], ['Authorization' => 'Bearer '.$hrToken])->assertStatus(200);
+
+        $this->assertDatabaseHas('attendances', [
+            'id' => $attendance->id, 'overtime_approved' => true, 'overtime_minutes' => 0,
+        ]);
     }
 
     public function test_cannot_request_overtime_approval_twice_for_already_approved_attendance(): void

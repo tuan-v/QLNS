@@ -26,8 +26,9 @@ class StoreLeaveRequest extends FormRequest
             'start_time' => ['nullable', 'date_format:H:i'],
             'end_time' => ['nullable', 'date_format:H:i', 'after:start_time'],
             'reason' => ['required', 'string', 'max:1000'],
-            // Không bắt buộc ở đây — 1 số loại phép (ốm, thai sản, chế độ
-            // cha/mẹ) bắt buộc đính kèm, kiểm tra tùy loại ở withValidator().
+            // Không bắt buộc ở đây — loại phép "Nghỉ khác theo chế độ/luật"
+            // (ốm, thai sản, chế độ cha/mẹ... gộp chung, 2026-09-24) bắt
+            // buộc đính kèm, kiểm tra ở withValidator().
             'evidence_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
         ];
     }
@@ -84,15 +85,16 @@ class StoreLeaveRequest extends FormRequest
             }
         });
 
-        // Ốm/Thai sản/Chế độ cha-mẹ bắt buộc đính kèm giấy tờ (khám bệnh,
-        // giấy chứng sinh...) — các loại khác thì tùy chọn.
+        // "Nghỉ khác theo chế độ/luật" (gộp ốm/thai sản/chế độ cha-mẹ...,
+        // 2026-09-24) bắt buộc đính kèm giấy tờ (khám bệnh, giấy chứng
+        // sinh...) — các loại khác (phép năm, không lương) thì tùy chọn.
         $validator->after(function (Validator $validator): void {
             if (! $this->filled('leave_type_id') || $this->hasFile('evidence_file')) {
                 return;
             }
 
             $leaveType = LeaveType::find($this->input('leave_type_id'));
-            $requiresEvidence = in_array($leaveType?->code, ['sick', 'maternity', 'paternity'], true);
+            $requiresEvidence = $leaveType?->code === 'other';
 
             if ($requiresEvidence) {
                 $validator->errors()->add('evidence_file', 'Loại phép này bắt buộc đính kèm tài liệu (giấy khám bệnh, giấy chứng sinh...).');

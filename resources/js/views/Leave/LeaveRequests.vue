@@ -90,8 +90,8 @@
                             :error-messages="errors.leave_type_id"
                         />
                         <div class="text-caption mt-1" style="opacity: 0.6">
-                            Chỉ "Nghỉ phép năm" bị giới hạn số ngày trong năm — các loại khác (Ốm,
-                            Thai sản, Không lương...) không giới hạn nhưng có thể không được trả lương.
+                            Chỉ "Nghỉ phép năm" bị giới hạn số ngày trong năm (hết quỹ sẽ không chọn
+                            được nữa) — các loại khác không giới hạn nhưng có thể không được trả lương.
                         </div>
                     </div>
 
@@ -288,9 +288,22 @@ function formatDate(value) {
 
 /* ---------------------------- Quỹ phép còn lại ---------------------------- */
 
-// Chỉ hiện thẻ cho loại phép nào THẬT SỰ có hạn mức (allocated_days > 0) —
-// hiện tại chỉ "Nghỉ phép năm" (12 ngày/năm), các loại khác (ốm, thai sản...)
-// đang để 0 vì tính theo chế độ riêng, không trừ vào quỹ phép năm (mục 19).
+// Chỉ hiện thẻ cho loại phép nào THẬT SỰ có khái niệm quỹ theo năm
+// (leave_type.annual_entitlement_days > 0) — hiện tại chỉ "Nghỉ phép năm",
+// các loại khác ("Nghỉ khác theo chế độ/luật", "Nghỉ không lương") đặt
+// entitlement = 0 vì tính theo chế độ riêng, không trừ vào quỹ phép năm
+// (mục 19).
+//
+// 2026-09-24 (theo yêu cầu người dùng, sau khi phát hiện thẻ "biến mất"
+// hoàn toàn với nhân viên mới): TRƯỚC lọc theo `allocated_days > 0` — đúng
+// với thiết kế cũ (cấp đủ 12 ngay từ đầu nên allocated_days luôn > 0 với
+// "Nghỉ phép năm"), nhưng từ khi có tích lũy theo 30 ngày (mục 29,
+// LeaveAccrualService), nhân viên MỚI có `allocated_days = 0` trong ~1
+// tháng đầu — lọc theo allocated_days vô tình ẩn LUÔN thẻ, trông như tính
+// năng bị hỏng thay vì "đang tích lũy". Đổi sang lọc theo
+// `leave_type.annual_entitlement_days` (loại phép có ÁP DỤNG quỹ hay không,
+// không phải đã tích lũy được bao nhiêu) để vẫn hiện thẻ ở trạng thái
+// "đang tích lũy" cho nhân viên mới.
 const balances = ref([]);
 
 // Hiện "available_days" (đã trừ cả các đơn đang chờ duyệt) làm số chính —
@@ -298,16 +311,30 @@ const balances = ref([]);
 // dễ khiến nhân viên tưởng còn nhiều hơn thực tế và gửi chồng đơn (mục 19).
 const balanceStats = computed(() =>
     balances.value
-        .filter((b) => b.allocated_days > 0)
-        .map((b) => ({
-            label:
-                b.pending_days > 0
-                    ? `${b.leave_type.name} khả dụng (${b.pending_days} ngày đang chờ duyệt)`
-                    : `${b.leave_type.name} còn lại`,
-            value: `${b.available_days}/${b.allocated_days} ngày`,
-            color: b.available_days > 0 ? "success" : "error",
-            icon: "mdi-calendar-star-outline",
-        })),
+        .filter((b) => b.leave_type.annual_entitlement_days > 0)
+        .map((b) => {
+            // Chưa tích lũy được ngày nào (nhân viên mới, <30 ngày làm) —
+            // hiện riêng, màu "info" (trung tính) thay vì "error" (đỏ, dễ
+            // hiểu nhầm là đang thiếu/vượt quỹ).
+            if (b.allocated_days <= 0) {
+                return {
+                    label: `${b.leave_type.name} — đang tích lũy (đủ 30 ngày làm được +1 ngày)`,
+                    value: "0 ngày",
+                    color: "info",
+                    icon: "mdi-calendar-clock-outline",
+                };
+            }
+
+            return {
+                label:
+                    b.pending_days > 0
+                        ? `${b.leave_type.name} khả dụng (${b.pending_days} ngày đang chờ duyệt)`
+                        : `${b.leave_type.name} còn lại`,
+                value: `${b.available_days}/${b.allocated_days} ngày`,
+                color: b.available_days > 0 ? "success" : "error",
+                icon: "mdi-calendar-star-outline",
+            };
+        }),
 );
 
 async function loadBalances() {
@@ -343,7 +370,9 @@ const dialog = ref(false);
 const submitting = ref(false);
 const errors = ref({});
 const generalError = ref("");
-const leaveTypeOptions = ref([]);
+// Danh sách THÔ nạp từ API, chưa gắn trạng thái "hết quỹ" (cần đối chiếu
+// với `balances` — xem leaveTypeOptions computed bên dưới).
+const rawLeaveTypes = ref([]);
 
 const defaultForm = () => ({
     leaveTypeId: null,
@@ -369,7 +398,9 @@ const isHourly = computed(() => isSingleDay.value && form.value.session === "hou
 
 const attachmentRequired = computed(() => {
     const option = leaveTypeOptions.value.find((o) => o.value === form.value.leaveTypeId);
-    return ["sick", "maternity", "paternity"].includes(option?.code);
+    // "Nghỉ khác theo chế độ/luật" (gộp ốm/thai sản/chế độ cha-mẹ..., 2026-09-24)
+    // — khớp StoreLeaveRequest::withValidator() ở backend.
+    return option?.code === "other";
 });
 
 // Preview client-side, mô phỏng lại đúng logic backend
@@ -441,16 +472,33 @@ function describeLeaveType(lt) {
     return `${lt.name} — ${payLabel}, ${quotaLabel}`;
 }
 
+// Loại phép CÓ giới hạn quỹ (annual_entitlement_days > 0) mà số ngày khả
+// dụng đã về 0 (chưa tích lũy đủ, hoặc đã dùng/đăng ký hết) -> KHÔNG cho
+// chọn (2026-09-24, theo yêu cầu người dùng: "không có ngày nghỉ phép năm
+// thì không cho tạo đơn với loại nghỉ phép năm") — chặn NGAY từ lúc chọn
+// loại phép, không để điền hết form rồi mới bị 422 từ backend (backend vẫn
+// giữ nguyên phần chặn này — LeaveRequestService::create() — làm lưới an
+// toàn cuối cùng, phòng trường hợp dữ liệu balances ở đây bị lỗi thời).
+const leaveTypeOptions = computed(() =>
+    rawLeaveTypes.value.map((lt) => {
+        const balance = balances.value.find((b) => b.leave_type.id === lt.id);
+        const outOfQuota = lt.annual_entitlement_days > 0 && balance && balance.available_days <= 0;
+
+        return {
+            title: outOfQuota ? `${describeLeaveType(lt)} — hết quỹ, không thể chọn` : describeLeaveType(lt),
+            value: lt.id,
+            code: lt.code,
+            props: { disabled: outOfQuota },
+        };
+    }),
+);
+
 async function loadLeaveTypeOptions() {
     try {
         const response = await leaveTypeService.list();
-        leaveTypeOptions.value = response.data.map((lt) => ({
-            title: describeLeaveType(lt),
-            value: lt.id,
-            code: lt.code,
-        }));
+        rawLeaveTypes.value = response.data;
     } catch {
-        leaveTypeOptions.value = [];
+        rawLeaveTypes.value = [];
     }
 }
 
@@ -460,6 +508,10 @@ function openDialog() {
     generalError.value = "";
     dialog.value = true;
     loadLeaveTypeOptions();
+    // Nạp lại số dư MỚI NHẤT mỗi lần mở form — tránh dùng số dư cũ từ lúc
+    // vào trang (vd vừa nộp 1 đơn khác lúc nãy làm available_days đổi) khi
+    // xét loại phép nào bị khóa (xem leaveTypeOptions computed).
+    loadBalances();
 }
 
 function closeDialog() {

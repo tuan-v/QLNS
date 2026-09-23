@@ -15,6 +15,9 @@ Route::middleware('auth:api')->prefix('attendances')->group(function (): void {
     // "/history/{employee}", cùng lý do mọi route "/me" khác trong dự án.
     Route::get('/history/me', [AttendanceController::class, 'historyMine'])->middleware('permission:attendance.view_own');
     Route::get('/history/{employee}', [AttendanceController::class, 'history'])->middleware('permission:attendance.view_all');
+    // Tổng hợp chấm công trong ngày (mục 16, thay màn "Duyệt chấm công" cũ) —
+    // toàn công ty theo 1 ngày, cùng quyền xem như /history/{employee}.
+    Route::get('/overview', [AttendanceController::class, 'overview'])->middleware('permission:attendance.view_all');
     Route::get('/', [AttendanceController::class, 'index'])->middleware('permission:attendance.view_all');
 
     // Điều chỉnh công — "/adjustments/me" phải khai TRƯỚC "/adjustments/{adjustment}",

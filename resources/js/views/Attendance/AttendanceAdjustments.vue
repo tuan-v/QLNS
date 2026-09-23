@@ -53,7 +53,18 @@
                     Xin miễn trừ đi muộn ({{ formatMinutesAsHours(item.attendance?.late_minutes) }})
                 </div>
                 <div v-if="item.type === 'overtime'" style="opacity: 0.75">
-                    Xin duyệt OT ({{ formatMinutesAsHours(item.attendance?.overtime_minutes) }})
+                    <template v-if="item.attendance?.last_check_out_at">
+                        Xin duyệt OT ({{ formatMinutesAsHours(item.attendance?.overtime_minutes) }})
+                    </template>
+                    <template v-else>
+                        Xin OT trước — đang trong ca "{{ item.work_shift?.name ?? "—" }}", kết thúc lúc
+                        {{ item.work_shift?.end_time?.slice(0, 5) }}, chưa chấm công ra
+                    </template>
+                </div>
+                <div v-if="item.type === 'extra_shift'" style="opacity: 0.75">
+                    Đăng ký làm ca "{{ item.work_shift?.name ?? "—" }}" ngày
+                    {{ formatDate(item.attendance_date) }} — chưa chấm công
+                    (đăng ký trước)
                 </div>
                 <div v-if="item.proposed_check_in_at">
                     Vào: {{ formatDateTime(item.proposed_check_in_at) }}
@@ -96,6 +107,7 @@ const ADJUSTMENT_TYPE_MAP = {
     supplement: { label: "Bổ sung", color: "purple" },
     excuse: { label: "Miễn trừ đi muộn", color: "secondary" },
     overtime: { label: "Duyệt OT", color: "teal" },
+    extra_shift: { label: "Làm ngoài lịch", color: "indigo" },
 };
 
 const statusOptions = [
@@ -175,7 +187,9 @@ const actions = computed(() => [
         confirm: {
             title: "Duyệt điều chỉnh công",
             message: (item) =>
-                `Áp dụng giờ đề xuất vào ngày công ${formatDate(item.attendance_date)}?`,
+                item.type === "extra_shift"
+                    ? `Cho phép làm ca "${item.work_shift?.name ?? "—"}" ngày ${formatDate(item.attendance_date)}? Nhân viên sẽ tự chấm công vào/ra vào đúng ngày này.`
+                    : `Áp dụng giờ đề xuất vào ngày công ${formatDate(item.attendance_date)}?`,
             confirmText: "Duyệt",
             input: { required: false, label: "Ghi chú (tùy chọn)" },
         },

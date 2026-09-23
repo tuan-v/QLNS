@@ -186,18 +186,16 @@
                             formatDate(detailContract?.end_date) ?? "—"
                         }}</strong>
                     </div>
+                    <!-- Lương đóng BHXH LUÔN bằng lương thỏa thuận (2026-09-24,
+                    theo yêu cầu người dùng: "lương đóng bh sẽ tính là lương cb
+                    luôn không tách ra") — chỉ hiện 1 dòng, không hiện 2 số
+                    giống hệt nhau gây rối mắt. -->
                     <div class="d-flex justify-space-between">
                         <span class="text-medium-emphasis"
-                            >Lương thỏa thuận</span
+                            >Lương thỏa thuận (= lương đóng BHXH)</span
                         >
                         <strong>{{
                             formatCurrency(detailContract?.agreed_salary)
-                        }}</strong>
-                    </div>
-                    <div class="d-flex justify-space-between">
-                        <span class="text-medium-emphasis">Lương đóng BH</span>
-                        <strong>{{
-                            formatCurrency(detailContract?.insurance_salary)
                         }}</strong>
                     </div>
                     <div class="d-flex justify-space-between align-center">
@@ -342,27 +340,19 @@
                             />
                         </v-col>
                     </v-row>
+                    <!-- Lương đóng BHXH KHÔNG còn là ô nhập riêng (2026-09-24,
+                    theo yêu cầu người dùng: "lương đóng bh sẽ tính là lương cb
+                    luôn không tách ra") — Backend tự đặt bằng đúng Lương thỏa
+                    thuận (EmployeeContractService::create()). -->
                     <v-row dense>
-                        <v-col cols="6">
+                        <v-col cols="12">
                             <div class="text-body-2 font-weight-medium mb-1">
-                                Lương thỏa thuận
+                                Lương thỏa thuận (= lương đóng BHXH)
                                 <span class="text-error">*</span>
                             </div>
                             <InputMoney
                                 v-model="createForm.agreed_salary"
                                 :error-messages="createErrors.agreed_salary"
-                            />
-                        </v-col>
-                        <v-col
-                            cols="6"
-                            v-if="createForm.contract_type === 'chinh_thuc'"
-                        >
-                            <div class="text-body-2 font-weight-medium mb-1">
-                                Lương đóng BH <span class="text-error">*</span>
-                            </div>
-                            <InputMoney
-                                v-model="createForm.insurance_salary"
-                                :error-messages="createErrors.insurance_salary"
                             />
                         </v-col>
                     </v-row>
@@ -411,7 +401,7 @@
 // Tab "Hợp đồng" của EmployeeDetail.vue — tách riêng theo yêu cầu dễ bảo
 // trì. Tự tải dữ liệu của chính nó ngay khi mount (component cha chỉ mount
 // component này lần đầu khi người dùng thật sự mở tab, xem EmployeeDetail.vue).
-import { onMounted, ref, reactive, watch } from "vue";
+import { onMounted, ref, reactive } from "vue";
 import employeeService from "../../services/employeeService";
 import StatusChip from "../../components/common/StatusChip.vue";
 import InputMoney from "../../components/common/InputMoney.vue";
@@ -548,7 +538,6 @@ const createForm = reactive({
     start_date: "",
     end_date: "",
     agreed_salary: null,
-    insurance_salary: null,
     contract_file: null,
 });
 const createErrors = ref({});
@@ -565,7 +554,6 @@ function openCreateDialog() {
     createForm.start_date = "";
     createForm.end_date = "";
     createForm.agreed_salary = null;
-    createForm.insurance_salary = null;
     createForm.contract_file = null;
     createErrors.value = {};
     createGeneralError.value = "";
@@ -585,7 +573,6 @@ async function submitCreate() {
         if (createForm.end_date)
             formData.append("end_date", createForm.end_date);
         formData.append("agreed_salary", createForm.agreed_salary ?? "");
-        formData.append("insurance_salary", createForm.insurance_salary ?? "");
         const file = Array.isArray(createForm.contract_file)
             ? createForm.contract_file[0]
             : createForm.contract_file;
@@ -649,19 +636,6 @@ async function submitTerminate() {
         terminating.value = false;
     }
 }
-
-// Đổi Loại hợp đồng SANG "Thử việc" thì xóa Lương đóng BH đã lỡ nhập trước đó
-// — field này bị ẩn khỏi form (xem v-if ở <template>), không xóa thì giá trị
-// cũ vẫn nằm trong createForm và bị gửi kèm lên server dù người dùng không
-// còn thấy ô đó nữa.
-watch(
-    () => createForm.contract_type,
-    (type) => {
-        if (type !== "chinh_thuc") {
-            createForm.insurance_salary = null;
-        }
-    },
-);
 
 /* ------------------------------------------------------------------ Vòng đời */
 onMounted(() => {

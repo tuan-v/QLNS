@@ -86,6 +86,14 @@ const routes = [
         component: () => import("../views/WorkShift/WorkShifts.vue"),
     },
     {
+        path: "/settings",
+        name: "settings",
+        // shift.manage — Admin có mọi quyền, HR cũng quản lý Ca làm việc
+        // (mục 12) nên hợp lý được sửa luôn ca mặc định ở đây.
+        meta: { title: "Cài đặt hệ thống", permission: "shift.manage" },
+        component: () => import("../views/Settings/Settings.vue"),
+    },
+    {
         path: "/attendance-locations",
         name: "attendance-locations",
         meta: { title: "Điểm chấm công", permission: "location.view" },
@@ -109,10 +117,13 @@ const routes = [
             import("../views/Attendance/AttendanceAdjustments.vue"),
     },
     {
-        path: "/attendance-approvals",
-        name: "attendance-approvals",
-        meta: { title: "Duyệt chấm công", permission: "attendance.approve" },
-        component: () => import("../views/Attendance/AttendanceApprovals.vue"),
+        path: "/attendance-overview",
+        name: "attendance-overview",
+        // Quyền view_all (không phải approve) — Manager xem được, nút
+        // Duyệt/Từ chối trong trang tự ẩn nếu không có attendance.approve
+        // (xem AttendanceOverview.vue), Backend vẫn tự chặn ở API duyệt.
+        meta: { title: "Tổng hợp chấm công", permission: "attendance.view_all" },
+        component: () => import("../views/Attendance/AttendanceOverview.vue"),
     },
     {
         path: "/attendance-history",

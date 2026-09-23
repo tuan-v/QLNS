@@ -23,6 +23,14 @@ class WorkShiftController extends Controller
         return response()->json($this->workShiftService->list($perPage));
     }
 
+    // Ca mặc định (2026-09-23) — trang "Cài đặt" đọc bản ghi này để hiển thị/
+    // sửa. Trả về `null` (không phải 404) khi công ty CHƯA cấu hình ca mặc
+    // định nào — đây là trạng thái hợp lệ (lần đầu thiết lập), không phải lỗi.
+    public function showDefault(): JsonResponse
+    {
+        return response()->json(['data' => $this->workShiftService->getDefault()]);
+    }
+
     public function store(StoreWorkShiftRequest $request): JsonResponse
     {
         $workShift = $this->workShiftService->create($request->validated());

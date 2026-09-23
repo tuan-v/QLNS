@@ -42,20 +42,24 @@ class LeaveRequestTest extends TestCase
         return Employee::create(array_merge([
             'full_name' => 'Nhan vien '.uniqid(),
             'company_email' => uniqid().'@qlns.local',
-            'hire_date' => now(),
+            // Vào làm từ 3 năm trước (mặc định) — đã qua năm đầu nên được
+            // cấp ĐỦ quỹ phép ngay (xem LeaveAccrualService, 2026-09-24), để
+            // các test KHÔNG liên quan tới tích lũy/thâm niên không bị ảnh
+            // hưởng. Test riêng cho nhân viên MỚI truyền hire_date = now().
+            'hire_date' => now()->subYears(3),
             'code' => 'NV-'.uniqid(),
             'department_id' => $department->id,
         ], $overrides));
     }
 
-    private function makeEmployeeWithLogin(): array
+    private function makeEmployeeWithLogin(array $overrides = []): array
     {
         $user = User::create([
             'email' => 'leave-'.uniqid().'@qlns.local', 'user_name' => 'Leave User',
             'password' => bcrypt('Secret@123'), 'status' => 'active',
         ]);
         \App\Models\Role::where('name', 'Employee')->first()->users()->attach($user->id);
-        $employee = $this->makeEmployee(['user_id' => $user->id]);
+        $employee = $this->makeEmployee(array_merge(['user_id' => $user->id], $overrides));
 
         return [$employee, $user];
     }
@@ -433,8 +437,9 @@ class LeaveRequestTest extends TestCase
         $response->assertStatus(401);
     }
 
-    // Chưa từng có LeaveBalance nào cho nhân viên này -> vẫn phải thấy đúng
-    // hạn mức mặc định (annual_entitlement_days), không phải báo lỗi/rỗng.
+    // Chưa từng có LeaveBalance nào cho nhân viên này, nhưng ĐÃ qua năm đầu
+    // (makeEmployee() mặc định hire_date 3 năm trước) -> vẫn phải thấy đúng
+    // hạn mức ĐẦY ĐỦ (annual_entitlement_days), không phải báo lỗi/rỗng.
     public function test_balances_mine_shows_full_entitlement_when_no_balance_row_yet(): void
     {
         [, $user] = $this->makeEmployeeWithLogin();
@@ -448,6 +453,38 @@ class LeaveRequestTest extends TestCase
         $this->assertEquals(12, $annual['allocated_days']);
         $this->assertEquals(0, $annual['used_days']);
         $this->assertEquals(12, $annual['remaining_days']);
+    }
+
+    // Nhân viên MỚI vào hôm nay (năm đầu tiên) -> CHƯA đủ 30 ngày làm nên
+    // CHƯA có ngày phép nào (2026-09-24, theo yêu cầu người dùng — cứ đủ 30
+    // ngày làm tính từ đúng ngày vào làm mới được 1 ngày, xem
+    // LeaveAccrualService), KHÔNG được cấp thẳng đủ 12 ngày ngay từ đầu.
+    public function test_balances_mine_prorates_annual_leave_for_employee_hired_this_year(): void
+    {
+        [, $user] = $this->makeEmployeeWithLogin(['hire_date' => now()]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->getJson('/api/v1/leave-requests/balances/me', ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(200);
+        $annual = collect($response->json())->firstWhere('leave_type.code', 'annual');
+        $this->assertEquals(0, $annual['allocated_days']);
+        $this->assertEquals(0, $annual['remaining_days']);
+    }
+
+    // Đã làm đủ 30 ngày kể từ lúc vào (vẫn trong năm đầu tiên) -> có đúng 1
+    // ngày phép, KHÔNG hơn.
+    public function test_balances_mine_shows_one_accrued_day_after_30_days_worked(): void
+    {
+        [, $user] = $this->makeEmployeeWithLogin(['hire_date' => now()->subDays(30)]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->getJson('/api/v1/leave-requests/balances/me', ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(200);
+        $annual = collect($response->json())->firstWhere('leave_type.code', 'annual');
+        $this->assertEquals(1, $annual['allocated_days']);
+        $this->assertEquals(1, $annual['remaining_days']);
     }
 
     public function test_balances_mine_reflects_used_days(): void
@@ -610,10 +647,12 @@ class LeaveRequestTest extends TestCase
 
     /* --------------------------- Tài liệu đính kèm ---------------------------- */
 
-    public function test_sick_leave_requires_evidence_file(): void
+    // "Nghỉ khác theo chế độ/luật" (2026-09-24, gộp ốm/thai sản/chế độ
+    // cha-mẹ cũ — xem StoreLeaveRequest::withValidator()).
+    public function test_other_regulated_leave_requires_evidence_file(): void
     {
         [, $user] = $this->makeEmployeeWithLogin();
-        $leaveType = LeaveType::where('code', 'sick')->first();
+        $leaveType = LeaveType::where('code', 'other')->first();
         $token = $this->loginAs($user->email, 'Secret@123');
         $monday = Carbon::parse('next monday');
 
@@ -627,10 +666,10 @@ class LeaveRequestTest extends TestCase
         $response->assertStatus(422)->assertJsonValidationErrors('evidence_file');
     }
 
-    public function test_sick_leave_with_evidence_file_succeeds_and_stores_file(): void
+    public function test_other_regulated_leave_with_evidence_file_succeeds_and_stores_file(): void
     {
         [$employee, $user] = $this->makeEmployeeWithLogin();
-        $leaveType = LeaveType::where('code', 'sick')->first();
+        $leaveType = LeaveType::where('code', 'other')->first();
         $token = $this->loginAs($user->email, 'Secret@123');
         $monday = Carbon::parse('next monday');
 
@@ -651,7 +690,7 @@ class LeaveRequestTest extends TestCase
     public function test_evidence_download_is_restricted_to_owner_or_hr(): void
     {
         [$employee, $user] = $this->makeEmployeeWithLogin();
-        $leaveType = LeaveType::where('code', 'sick')->first();
+        $leaveType = LeaveType::where('code', 'other')->first();
         $token = $this->loginAs($user->email, 'Secret@123');
         $monday = Carbon::parse('next monday');
 

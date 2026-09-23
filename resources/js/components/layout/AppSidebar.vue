@@ -120,10 +120,10 @@
                 rounded="lg"
             />
             <v-list-item
-                v-if="can('attendance.approve')"
+                v-if="can('attendance.view_all')"
                 prepend-icon="mdi-clipboard-check-outline"
-                title="Duyệt chấm công"
-                to="/attendance-approvals"
+                title="Tổng hợp chấm công"
+                to="/attendance-overview"
                 rounded="lg"
             />
             <v-list-item
@@ -167,6 +167,13 @@
             />
 
             <v-list-subheader v-if="showLabels">HỆ THỐNG</v-list-subheader>
+            <v-list-item
+                v-if="can('shift.manage')"
+                prepend-icon="mdi-cog-outline"
+                title="Cài đặt"
+                to="/settings"
+                rounded="lg"
+            />
             <v-list-item
                 prepend-icon="mdi-shield-account-outline"
                 title="Vai trò &amp; Phân quyền"

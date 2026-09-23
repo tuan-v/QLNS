@@ -26,6 +26,7 @@ class LeaveRequestService
     public function __construct(
         private readonly LeaveRequestRepository $leaveRequestRepository,
         private readonly LeaveBalanceRepository $leaveBalanceRepository,
+        private readonly LeaveAccrualService $leaveAccrualService,
     ) {
     }
 
@@ -76,7 +77,9 @@ class LeaveRequestService
             ]);
         }
 
-        $balance = $this->leaveBalanceRepository->findOrCreateForYear($employee, $leaveType, $fromDate->year);
+        // Tính/đồng bộ đúng số ngày "nên có" tại HÔM NAY (không phải cấp
+        // thẳng annual_entitlement_days nữa) — xem LeaveAccrualService.
+        $balance = $this->leaveAccrualService->resolveOrSyncBalance($employee, $leaveType, $fromDate->year);
 
         // Loại phép annual_entitlement_days = 0 (ốm, thai sản, không lương,
         // nghỉ khác...) KHÔNG bị giới hạn theo quỹ ngày — tính theo chế độ
@@ -109,7 +112,7 @@ class LeaveRequestService
         // Giấy tờ đính kèm (khám bệnh, chứng sinh...) — riêng tư, nên lưu
         // disk 'local' (không public), giống EmployeeDocumentService/
         // EmployeeContractService. StoreLeaveRequest đã bắt buộc có file cho
-        // ốm/thai sản/chế độ cha-mẹ, các loại khác thì tùy chọn.
+        // "Nghỉ khác theo chế độ/luật", các loại khác thì tùy chọn.
         $evidencePath = $evidenceFile?->store('leave-evidence', 'local');
 
         return $this->leaveRequestRepository->create([
@@ -136,10 +139,11 @@ class LeaveRequestService
 
     // Quỹ phép còn lại của nhân viên, theo TỪNG loại phép đang active, cho
     // đúng năm truyền vào (mặc định năm hiện tại). Chỉ ĐỌC — không tự tạo
-    // LeaveBalance cho loại phép chưa từng dùng tới (khác findOrCreateForYear()
-    // ở create()/deductBalance()) để tránh sinh rác dữ liệu chỉ vì xem trang;
-    // chưa có dòng nào thì coi allocated_days = leave_type.annual_entitlement_days,
-    // các cột còn lại = 0.
+    // LeaveBalance cho loại phép chưa từng dùng tới (khác resolveOrSyncBalance()
+    // ở create()) để tránh sinh rác dữ liệu chỉ vì xem trang; chưa có dòng
+    // nào thì TÍNH (không lưu) đúng mức "nên có" tại HÔM NAY qua
+    // LeaveAccrualService::targetAllocatedDays() — khớp với số sẽ được lưu
+    // thật nếu nhân viên nộp đơn ngay lúc này, các cột còn lại = 0.
     public function listBalancesForEmployee(Employee $employee, ?int $year = null): Collection
     {
         $year ??= now()->year;
@@ -151,7 +155,7 @@ class LeaveRequestService
 
         return LeaveType::active()->orderBy('name')->get()->map(function (LeaveType $leaveType) use ($balancesByLeaveType, $employee, $year) {
             $balance = $balancesByLeaveType->get($leaveType->id);
-            $allocated = (float) ($balance->allocated_days ?? $leaveType->annual_entitlement_days);
+            $allocated = (float) ($balance->allocated_days ?? $this->leaveAccrualService->targetAllocatedDays($employee, $leaveType, $year, now()));
             $carriedForward = (float) ($balance->carried_forward_days ?? 0);
             $adjusted = (float) ($balance->adjusted_days ?? 0);
             $used = (float) ($balance->used_days ?? 0);

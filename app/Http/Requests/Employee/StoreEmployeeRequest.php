@@ -38,6 +38,15 @@ class StoreEmployeeRequest extends FormRequest
             'user_id' => ['nullable', 'exists:users,id', 'unique:employees,user_id'],
             'termination_date' => ['nullable', 'date', 'after:hire_date'],
             'probation_end_date' => ['nullable', 'date', 'after:hire_date'],
+            // Hợp đồng ĐẦU TIÊN tự tạo luôn cùng lúc tạo nhân viên (2026-09-24,
+            // theo yêu cầu người dùng) — không hỏi thêm "loại hợp đồng"/"ngày
+            // bắt đầu" riêng: contract_type suy từ employment_status (active
+            // -> chính thức, còn lại -> thử việc), start_date = hire_date. Xem
+            // EmployeeService::create(). Không còn hỏi "lương đóng BHXH" riêng
+            // nữa (2026-09-24, theo yêu cầu người dùng) —
+            // EmployeeContractService::create() tự đặt insurance_salary =
+            // agreed_salary cho MỌI hợp đồng (kể cả tạo tay ở tab "Hợp đồng").
+            'agreed_salary' => ['required', 'numeric', 'min:0'],
         ];
     }
 
@@ -89,6 +98,9 @@ class StoreEmployeeRequest extends FormRequest
             'termination_date.after' => 'Ngày chấm dứt hợp đồng phải sau ngày tuyển dụng',
             'probation_end_date.date' => 'Ngày kết thúc thử việc không đúng định dạng',
             'probation_end_date.after' => 'Ngày kết thúc thử việc phải sau ngày tuyển dụng',
+            'agreed_salary.required' => 'Lương cơ bản không được để trống',
+            'agreed_salary.numeric' => 'Lương cơ bản phải là số',
+            'agreed_salary.min' => 'Lương cơ bản không được nhỏ hơn 0',
         ];
     }
 }

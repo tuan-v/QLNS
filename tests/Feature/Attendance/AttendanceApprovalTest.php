@@ -148,11 +148,27 @@ class AttendanceApprovalTest extends TestCase
             ->assertJsonValidationErrors('status');
     }
 
-    public function test_cannot_decide_an_attendance_without_check_out(): void
+    // 2026-09-23 (sửa theo yêu cầu người dùng): duyệt được NGAY LÚC CHẤM
+    // CÔNG VÀO, không cần chờ chấm công ra — mục đích là xác nhận lượt chấm
+    // công vào có thật hay không (đi sớm/trễ, thiết bị/vị trí), không phải
+    // xác nhận giờ công cuối ngày.
+    public function test_can_decide_an_attendance_that_has_not_checked_out_yet(): void
     {
-        // Còn đang trong ca (hoặc quên chấm công ra) — giờ ra/giờ công chưa
-        // chốt nên chưa duyệt được; quên chấm ra thì phải "Xin điều chỉnh công".
         $attendance = $this->makeAttendance(['last_check_out_at' => null, 'status' => 'pending']);
+
+        $this->putJson($this->approvalUrl($attendance), ['status' => 'approved'], $this->hrHeaders())
+            ->assertStatus(200)
+            ->assertJsonPath('approval_status', 'approved');
+
+        $this->assertSame('approved', $attendance->fresh()->approval_status);
+    }
+
+    public function test_cannot_decide_an_attendance_that_has_not_checked_in(): void
+    {
+        // Phòng vệ — trên thực tế bản ghi attendances luôn có first_check_in_at
+        // ngay khi tạo (xem AttendanceRepository::findOrCreateForShift()),
+        // nhưng vẫn kiểm tra rõ ràng để không lỡ duyệt 1 bản ghi "khống".
+        $attendance = $this->makeAttendance(['first_check_in_at' => null, 'last_check_out_at' => null, 'status' => 'pending']);
 
         $this->putJson($this->approvalUrl($attendance), ['status' => 'approved'], $this->hrHeaders())
             ->assertStatus(422)

@@ -42,7 +42,9 @@ class LeaveApprovalTest extends TestCase
         return Employee::create(array_merge([
             'full_name' => 'Nhan vien '.uniqid(),
             'company_email' => uniqid().'@qlns.local',
-            'hire_date' => now(),
+            // Cùng lý do ở LeaveRequestTest::makeEmployee() — đã qua năm đầu
+            // nên được cấp ĐỦ quỹ phép ngay, không ảnh hưởng bởi tích lũy.
+            'hire_date' => now()->subYears(3),
             'code' => 'NV-'.uniqid(),
             'department_id' => $department->id,
         ], $overrides));

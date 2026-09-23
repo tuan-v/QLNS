@@ -154,18 +154,15 @@
                             formatDate(detailContract?.end_date) ?? "—"
                         }}</strong>
                     </div>
+                    <!-- Lương đóng BHXH LUÔN bằng lương thỏa thuận (2026-09-24,
+                    theo yêu cầu người dùng — xem EmployeeContractsTab.vue) —
+                    chỉ hiện 1 dòng. -->
                     <div class="d-flex justify-space-between">
                         <span class="text-medium-emphasis"
-                            >Lương thỏa thuận</span
+                            >Lương thỏa thuận (= lương đóng BHXH)</span
                         >
                         <strong>{{
                             formatCurrency(detailContract?.agreed_salary)
-                        }}</strong>
-                    </div>
-                    <div class="d-flex justify-space-between">
-                        <span class="text-medium-emphasis">Lương đóng BH</span>
-                        <strong>{{
-                            formatCurrency(detailContract?.insurance_salary)
                         }}</strong>
                     </div>
                     <div class="d-flex justify-space-between align-center">

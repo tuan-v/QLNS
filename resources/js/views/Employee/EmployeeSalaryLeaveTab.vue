@@ -51,12 +51,12 @@
                             <td class="text-center">{{ b.used_days }}</td>
                             <td class="text-center">{{ b.pending_days }}</td>
                             <td class="text-center">
-                                <!-- Loại phép không có hạn mức năm (vd Nghỉ ốm,
-                                     Thai sản — tính theo chế độ riêng, không
-                                     trừ vào quỹ phép năm, xem LeaveRequests.vue)
-                                     thì "0 khả dụng" không phải cảnh báo, chỉ
-                                     tô đậm cảnh báo đỏ khi THẬT SỰ có hạn mức
-                                     mà đã dùng hết. -->
+                                <!-- Loại phép không có hạn mức năm (vd "Nghỉ
+                                     khác theo chế độ/luật" — tính theo chế độ
+                                     riêng, không trừ vào quỹ phép năm, xem
+                                     LeaveRequests.vue) thì "0 khả dụng" không
+                                     phải cảnh báo, chỉ tô đậm cảnh báo đỏ khi
+                                     THẬT SỰ có hạn mức mà đã dùng hết. -->
                                 <strong
                                     v-if="allocatedTotal(b) > 0"
                                     :class="

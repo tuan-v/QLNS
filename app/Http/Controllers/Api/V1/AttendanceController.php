@@ -89,6 +89,25 @@ class AttendanceController extends Controller
         return response()->json($attendance);
     }
 
+    // "Tổng hợp chấm công trong ngày" (2026-09-23, theo yêu cầu người dùng) —
+    // màn cho HR/Manager xem TOÀN CÔNG TY vào 1 ngày, kể cả ai chưa chấm công
+    // (mục 16, quyền attendance.view_all). Mặc định hôm nay, không validate
+    // chặt định dạng ngày — cùng mức tin dữ liệu client như buildHistory() ở
+    // dưới (input luôn do InputDate.vue trên FE gửi lên, không phải form tự
+    // do cho người dùng gõ tay).
+    public function overview(Request $request): JsonResponse
+    {
+        $date = $request->input('date') ?: now()->toDateString();
+        $departmentId = $request->filled('department_id') ? (int) $request->input('department_id') : null;
+        $workShiftId = $request->filled('work_shift_id') ? (int) $request->input('work_shift_id') : null;
+        $status = $request->input('status') ?: null;
+        $approvalStatus = $request->input('approval_status') ?: null;
+
+        return response()->json([
+            'data' => $this->attendanceService->dailyOverview($date, $departmentId, $workShiftId, $status, $approvalStatus),
+        ]);
+    }
+
     // Báo cáo "Lịch sử chấm công" (mục 18) CHÍNH MÌNH — chỉ hiển thị, không
     // sửa được gì. Cùng khuôn "chính mình" như mine()/today() ở trên.
     public function historyMine(Request $request): JsonResponse

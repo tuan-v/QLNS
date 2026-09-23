@@ -181,6 +181,36 @@ class AttendanceHistoryTest extends TestCase
         $this->assertSame(1, $data['summary']['early_leave_count']);
     }
 
+    // 2026-09-24, sửa lỗi thật — cùng loại lỗi đã sửa ở
+    // AttendanceOverviewTest::test_overview_ignores_orphaned_assignment_pointing_to_a_deleted_work_shift()
+    // (xem comment ở đó): bản gán ca "mồ côi" (Ca đã xóa mềm) từng làm SẬP
+    // trang Lịch sử chấm công với lỗi "Attempt to read property id on
+    // null" ở history(), không chỉ riêng dailyOverview().
+    public function test_history_ignores_orphaned_assignment_pointing_to_a_deleted_work_shift(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $goodShift = $this->makeWorkShift('CA-H9');
+        $this->assignShift($employee, $goodShift);
+        $this->makeAttendance($employee, $goodShift, '2026-01-05', [
+            'first_check_in_at' => '2026-01-05 08:00:00', 'last_check_out_at' => '2026-01-05 17:00:00',
+        ]);
+
+        $deletedShift = $this->makeWorkShift('CA-H10');
+        $this->assignShift($employee, $deletedShift);
+        $deletedShift->delete(); // Xóa mềm thẳng, không qua WorkShiftService::delete().
+
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $response = $this->getJson('/api/v1/attendances/history/me?date_from=2026-01-05&date_to=2026-01-05', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $data = $response->json('data');
+        // Chỉ 1 dòng (Ca còn tồn tại) — bản gán mồ côi bị bỏ qua, không sập.
+        $this->assertCount(1, $data['rows']);
+        $this->assertSame($goodShift->id, $data['rows'][0]['work_shift']['id']);
+    }
+
     // Duyệt chấm công (2026-09-21): chỉ bản ghi HR đã duyệt mới cộng vào Tổng
     // ngày công/giờ làm (cùng luật với bảng lương); chờ duyệt/bị từ chối đếm
     // riêng ở unapproved_count và vẫn hiện trong danh sách để nhân viên thấy.
@@ -424,5 +454,38 @@ class AttendanceHistoryTest extends TestCase
         $response->assertStatus(200);
         $dates = array_column($response->json('data.rows'), 'date');
         $this->assertContains(now()->toDateString(), $dates);
+    }
+
+    // 2026-09-24, sửa lỗi thật (người dùng phát hiện qua trình duyệt): mở
+    // tab "Chấm công" hôm nay nhưng bộ lọc mặc định "Tháng hiện tại"
+    // (AttendanceHistoryPanel.vue) kéo `date_to` tới HẾT THÁNG — các ngày
+    // SAU hôm nay chưa từng xảy ra vẫn bị dựng thành dòng "Vắng" rồi xếp
+    // LÊN TRÊN ngày vừa chấm công thật (sortBy ngày giảm dần không phân
+    // biệt "chưa tới" với "đã qua mà vắng"). history() giờ tự ép `date_to`
+    // không vượt quá hôm nay.
+    public function test_history_excludes_future_dates_even_when_requested(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA-H11');
+        $this->assignShift($employee, $workShift, now()->subMonth()->toDateString());
+        $this->makeAttendance($employee, $workShift, now()->toDateString(), [
+            'first_check_in_at' => now()->setTime(8, 0),
+            'last_check_out_at' => now()->setTime(17, 0),
+        ]);
+
+        $token = $this->loginAs($user->email, 'Secret@123');
+        // Xin y hệt bộ lọc mặc định "Tháng hiện tại": từ đầu tháng tới HẾT
+        // THÁNG (bao gồm cả ngày sau hôm nay).
+        $response = $this->getJson('/api/v1/attendances/history/me?date_from='
+            .now()->startOfMonth()->toDateString().'&date_to='.now()->endOfMonth()->toDateString(), [
+                'Authorization' => 'Bearer '.$token,
+            ]);
+
+        $response->assertStatus(200);
+        $dates = array_column($response->json('data.rows'), 'date');
+        $this->assertSame(now()->toDateString(), $dates[0], 'Ngày vừa chấm công (hôm nay) phải nằm ở ĐẦU danh sách.');
+        foreach ($dates as $date) {
+            $this->assertLessThanOrEqual(now()->toDateString(), $date, "Không được có ngày tương lai ({$date}) trong lịch sử.");
+        }
     }
 }

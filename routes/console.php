@@ -15,3 +15,10 @@ Artisan::command('inspire', function () {
 // 00:05 — lùi 5 phút sau nửa đêm để chắc chắn ngày "hôm qua" đã thực sự qua.
 Schedule::command('contracts:activate-pending')->dailyAt('00:05');
 Schedule::command('contracts:expire')->dailyAt('00:06');
+// 2026-09-24, theo yêu cầu người dùng — lưới an toàn hằng ngày, xem comment
+// đầu file AssignMissingDefaultShift.php.
+Schedule::command('shifts:assign-missing-default')->dailyAt('00:07');
+// "Tích lũy phép năm" (2026-09-24, theo yêu cầu người dùng) — chạy HẰNG
+// NGÀY (không phải hằng tháng) vì mốc thưởng thâm niên cần đúng ngày, xem
+// comment đầu LeaveAccrualService.php.
+Schedule::command('leave:sync-accrual')->dailyAt('00:20');

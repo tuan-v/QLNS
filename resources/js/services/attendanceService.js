@@ -32,9 +32,10 @@ export default {
     decideAdjustment(id, payload) {
         return axios.put(`${API_BASE}/adjustments/${id}`, payload);
     },
-    // Duyệt chấm công (HR): danh sách bản ghi kèm logs (lọc theo approval_status) và duyệt/từ chối 1 bản ghi.
-    listForApproval(params = {}) {
-        return axios.get(API_BASE, { params });
+    // Tổng hợp chấm công trong ngày (mục 16) — toàn công ty theo 1 ngày, kèm cả
+    // ai chưa chấm công/đang nghỉ phép; và duyệt/từ chối 1 bản ghi ngay tại đó.
+    dailyOverview(params = {}) {
+        return axios.get(`${API_BASE}/overview`, { params });
     },
     decideApproval(id, payload) {
         return axios.put(`${API_BASE}/${id}/approval`, payload);

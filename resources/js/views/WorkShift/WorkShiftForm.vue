@@ -81,18 +81,38 @@
             <v-row dense>
                 <v-col cols="12" sm="6">
                     <div class="text-body-2 font-weight-medium mb-1">
-                        Số phút nghỉ giữa ca
+                        Nghỉ trưa từ
                     </div>
                     <v-text-field
-                        v-model.number="form.break_minutes"
-                        type="number"
-                        min="0"
+                        v-model="form.break_start_time"
+                        type="time"
                         variant="outlined"
                         density="comfortable"
                         rounded="lg"
-                        :error-messages="errors.break_minutes"
+                        :error-messages="errors.break_start_time"
                     />
                 </v-col>
+                <v-col cols="12" sm="6">
+                    <div class="text-body-2 font-weight-medium mb-1">
+                        đến
+                    </div>
+                    <v-text-field
+                        v-model="form.break_end_time"
+                        type="time"
+                        variant="outlined"
+                        density="comfortable"
+                        rounded="lg"
+                        :error-messages="errors.break_end_time"
+                    />
+                    <!-- Để trống cả 2 ô = ca này không có nghỉ trưa (ca ngắn/
+                    part-time) — có nghỉ trưa thì phải điền đủ cả 2, xem
+                    StoreWorkShiftRequest.php. Khoảng này được TRỪ THẬT vào
+                    giờ công thực tế nếu nhân viên chấm công trùng giờ nghỉ
+                    trưa (xem AttendanceService::calculateActualWorkMinutes()). -->
+                </v-col>
+            </v-row>
+
+            <v-row dense>
                 <v-col cols="12" sm="6">
                     <div class="text-body-2 font-weight-medium mb-1">
                         Số phút công chuẩn <span class="text-error">*</span>
@@ -175,6 +195,28 @@
                     hide-details
                     inset
                     class="flex-grow-0 ms-4"
+                    :disabled="isCurrentDefault"
+                />
+            </div>
+
+            <div class="d-flex align-center justify-space-between mt-4">
+                <div>
+                    <div class="text-body-2 font-weight-medium">
+                        Ca mặc định
+                    </div>
+                    <div class="text-caption" style="opacity: 0.65">
+                        Nhân viên mới tạo tự động được gán ca này. Chỉ 1 ca
+                        được là mặc định — bật ở đây sẽ tự tắt ở ca đang mặc
+                        định trước đó.
+                    </div>
+                </div>
+                <v-switch
+                    v-model="form.is_default"
+                    color="primary"
+                    density="compact"
+                    hide-details
+                    inset
+                    class="flex-grow-0 ms-4"
                 />
             </div>
         </FormSection>
@@ -220,19 +262,27 @@ const form = reactive({
     name: "",
     start_time: "",
     end_time: "",
-    break_minutes: 0,
+    break_start_time: "",
+    break_end_time: "",
     standard_work_minutes: null,
     late_grace_minutes: 0,
     early_leave_grace_minutes: 0,
     work_coefficient: 1,
     is_active: true,
+    is_default: false,
 });
+
+// Ca mặc định thì không cho tự tắt "Trạng thái hoạt động" ngay trên switch —
+// Backend cũng chặn (WorkShiftService::update()), khóa ở đây để người dùng
+// không bấm xong mới thấy lỗi.
+const isCurrentDefault = computed(() => Boolean(props.workShift?.is_default));
 
 function fillForm() {
     form.name = props.workShift?.name ?? "";
     form.start_time = props.workShift?.start_time?.slice(0, 5) ?? "";
     form.end_time = props.workShift?.end_time?.slice(0, 5) ?? "";
-    form.break_minutes = props.workShift?.break_minutes ?? 0;
+    form.break_start_time = props.workShift?.break_start_time?.slice(0, 5) ?? "";
+    form.break_end_time = props.workShift?.break_end_time?.slice(0, 5) ?? "";
     form.standard_work_minutes = props.workShift?.standard_work_minutes ?? null;
     form.late_grace_minutes = props.workShift?.late_grace_minutes ?? 0;
     form.early_leave_grace_minutes =
@@ -240,6 +290,7 @@ function fillForm() {
     form.work_coefficient = props.workShift?.work_coefficient ?? 1;
     // DB trả về 1/0, ép về boolean cho v-switch
     form.is_active = Boolean(props.workShift?.is_active ?? true);
+    form.is_default = Boolean(props.workShift?.is_default ?? false);
 }
 
 // Mỗi lần mở modal: nạp lại dữ liệu và xóa lỗi của lần mở trước
@@ -263,9 +314,16 @@ async function submit() {
     loadError.value = "";
     loading.value = true;
     try {
+        // Ô trống ("") phải gửi thành null — "" không đúng định dạng H:i,
+        // Backend sẽ báo lỗi 422 dù ý người dùng là "không có nghỉ trưa".
+        const payload = {
+            ...form,
+            break_start_time: form.break_start_time || null,
+            break_end_time: form.break_end_time || null,
+        };
         const response = isEdit.value
-            ? await workShiftService.update(props.workShift.id, { ...form })
-            : await workShiftService.create({ ...form });
+            ? await workShiftService.update(props.workShift.id, payload)
+            : await workShiftService.create(payload);
         toast.success(
             isEdit.value ? "Đã cập nhật ca làm việc." : "Đã thêm ca làm việc mới.",
         );

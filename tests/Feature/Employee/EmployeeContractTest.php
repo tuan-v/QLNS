@@ -46,7 +46,10 @@ class EmployeeContractTest extends TestCase
             'contract_type' => 'thu_viec',
             'start_date' => '2024-01-01',
             'agreed_salary' => 10000000,
-            'insurance_salary' => 10000000,
+            // Không còn field insurance_salary (2026-09-24, theo yêu cầu
+            // người dùng) — EmployeeContractService::create() tự đặt
+            // insurance_salary = agreed_salary, xem
+            // test_insurance_salary_always_matches_agreed_salary().
             'contract_file' => UploadedFile::fake()->create('hop-dong.pdf', 100, 'application/pdf'),
         ], $overrides);
     }
@@ -91,6 +94,27 @@ class EmployeeContractTest extends TestCase
         ]);
         $contract = $employee->contracts()->first();
         Storage::disk('local')->assertExists($contract->contract_file_path);
+    }
+
+    // 2026-09-24, theo yêu cầu người dùng: "lương đóng bh sẽ tính là lương
+    // cb luôn không tách ra" — không còn ô nhập riêng, client gửi giá trị
+    // khác cũng bị ghi đè.
+    public function test_insurance_salary_always_matches_agreed_salary(): void
+    {
+        $employee = $this->makeEmployee();
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $response = $this->postJson('/api/v1/employees/'.$employee->id.'/contracts', $this->contractPayload([
+            'agreed_salary' => 12000000,
+            'insurance_salary' => 1, // Cố gửi khác đi vẫn bị ghi đè.
+        ]), ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('employee_contracts', [
+            'employee_id' => $employee->id,
+            'agreed_salary' => 12000000,
+            'insurance_salary' => 12000000,
+        ]);
     }
 
     public function test_contract_file_is_required(): void

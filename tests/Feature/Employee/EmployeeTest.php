@@ -5,9 +5,11 @@ namespace Tests\Feature\Employee;
 use App\Models\Commune;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeShiftAssignment;
 use App\Models\Position;
 use App\Models\Province;
 use App\Models\User;
+use App\Models\WorkShift;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -105,6 +107,9 @@ class EmployeeTest extends TestCase
             'commune_code' => $communeCode,
             'department_id' => $departmentId,
             'position_id' => $positionId,
+            // Hợp đồng ĐẦU TIÊN tự tạo cùng lúc (2026-09-24) — bắt buộc từ
+            // StoreEmployeeRequest, xem EmployeeService::create().
+            'agreed_salary' => 10000000,
         ], $overrides);
     }
 
@@ -290,6 +295,73 @@ class EmployeeTest extends TestCase
             'province_code',
             'commune_code',
             'department_id',
+            // Hợp đồng ĐẦU TIÊN tự tạo cùng lúc (2026-09-24) — bắt buộc.
+            'agreed_salary',
+        ]);
+    }
+
+    /* --------- Hợp đồng ĐẦU TIÊN tự tạo cùng lúc tạo nhân viên (2026-09-24) --------- */
+
+    public function test_creating_employee_auto_creates_first_contract(): void
+    {
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $response = $this->postJson('/api/v1/employees', $this->validPayload([
+            'hire_date' => now()->toDateString(),
+            'agreed_salary' => 8000000,
+        ]), ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(201);
+        $employeeId = $response->json('data.id');
+        $this->assertDatabaseHas('employee_contracts', [
+            'employee_id' => $employeeId,
+            'agreed_salary' => 8000000,
+            // Lương đóng BHXH LUÔN bằng lương cơ bản (2026-09-24, theo yêu
+            // cầu người dùng) — không còn là ô nhập riêng.
+            'insurance_salary' => 8000000,
+            'start_date' => now()->toDateString(),
+            // Không truyền employment_status -> mặc định 'probation' -> thử việc.
+            'contract_type' => 'thu_viec',
+            'status' => 'active',
+            'contract_file_path' => null,
+        ]);
+    }
+
+    public function test_active_employment_status_creates_official_contract(): void
+    {
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        // Client cố gửi insurance_salary riêng vẫn bị ghi đè — không còn
+        // field này ở StoreEmployeeRequest nên bị bỏ qua hoàn toàn.
+        $response = $this->postJson('/api/v1/employees', $this->validPayload([
+            'employment_status' => 'active',
+            'agreed_salary' => 9000000,
+            'insurance_salary' => 1,
+        ]), ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('employee_contracts', [
+            'employee_id' => $response->json('data.id'),
+            'contract_type' => 'chinh_thuc',
+            'agreed_salary' => 9000000,
+            'insurance_salary' => 9000000,
+        ]);
+    }
+
+    public function test_contract_start_date_matches_hire_date_and_is_pending_when_hire_date_is_in_the_future(): void
+    {
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+        $futureHireDate = now()->addMonth()->toDateString();
+
+        $response = $this->postJson('/api/v1/employees', $this->validPayload([
+            'hire_date' => $futureHireDate,
+        ]), ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('employee_contracts', [
+            'employee_id' => $response->json('data.id'),
+            'start_date' => $futureHireDate,
+            'status' => 'pending',
         ]);
     }
 
@@ -408,6 +480,33 @@ class EmployeeTest extends TestCase
 
         $response->assertStatus(204);
         $this->assertSoftDeleted('employees', ['id' => $employee->id]);
+    }
+
+    // 2026-09-24, sửa lỗi thật: xóa nhân viên trước đây không gỡ bản gán ca
+    // (EmployeeShiftAssignment) — để lại bản gán "mồ côi" (employee_id trỏ
+    // tới nhân viên đã xóa mềm), sập trang chấm công (xem
+    // WorkShiftTest::test_deleting_work_shift_removes_it_from_all_employees()
+    // — cùng loại lỗi, chiều ngược lại).
+    public function test_deleting_employee_removes_their_shift_assignments(): void
+    {
+        $employee = $this->makeEmployee();
+        $workShift = WorkShift::create([
+            'code' => 'CA-'.uniqid(), 'name' => 'Ca hanh chinh', 'start_time' => '08:00', 'end_time' => '17:00',
+            'standard_work_minutes' => 480,
+        ]);
+        $assignment = EmployeeShiftAssignment::create([
+            'employee_id' => $employee->id, 'work_shift_id' => $workShift->id,
+            'effective_from' => '2026-01-01', 'work_days' => [1, 2, 3, 4, 5], 'status' => 'active',
+        ]);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $response = $this->deleteJson('/api/v1/employees/'.$employee->id, [], [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(204);
+        $this->assertSoftDeleted('employees', ['id' => $employee->id]);
+        $this->assertSoftDeleted('employee_shift_assignments', ['id' => $assignment->id]);
     }
 
     // --- Ẩn field nhạy cảm theo cấp bậc ---

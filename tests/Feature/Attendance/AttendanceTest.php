@@ -658,6 +658,62 @@ class AttendanceTest extends TestCase
         ]);
     }
 
+    // Giờ nghỉ trưa (2026-09-23, theo yêu cầu người dùng) — TRỪ THẬT vào
+    // actual_work_minutes nếu khoảng chấm công VÀO-RA trùng vào giờ nghỉ
+    // trưa của Ca: 8h-17h (540 phút) có nghỉ trưa 12h-13h (60 phút, nằm
+    // trọn trong khoảng đã chấm) -> actual_work_minutes = 540 - 60 = 480.
+    public function test_check_out_subtracts_lunch_break_overlap_from_actual_minutes(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA001', '08:00', '17:00', [
+            'standard_work_minutes' => 480, 'break_start_time' => '12:00', 'break_end_time' => '13:00',
+        ]);
+        $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
+        AttendanceLocation::create([
+            'code' => 'DD001', 'name' => 'VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
+        ]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $this->travelToMonday('08:00');
+        $this->postJson('/api/v1/attendances/check-in', [
+            'work_shift_id' => $workShift->id,
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(201);
+
+        $this->travelToMonday('17:00');
+        $this->postJson('/api/v1/attendances/check-out', [
+            'work_shift_id' => $workShift->id,
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(201);
+
+        $this->assertDatabaseHas('attendances', ['employee_id' => $employee->id, 'actual_work_minutes' => 480]);
+    }
+
+    // Ra về SỚM, trước cả giờ nghỉ trưa bắt đầu -> không giao với giờ nghỉ
+    // trưa, không trừ gì (vd 8h-11h30 = 210 phút, không đụng 12h-13h).
+    public function test_lunch_break_not_subtracted_when_shift_ends_before_it_starts(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA001', '08:00', '17:00', [
+            'standard_work_minutes' => 480, 'break_start_time' => '12:00', 'break_end_time' => '13:00',
+        ]);
+        $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
+        AttendanceLocation::create([
+            'code' => 'DD001', 'name' => 'VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
+        ]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $this->travelToMonday('08:00');
+        $this->postJson('/api/v1/attendances/check-in', [
+            'work_shift_id' => $workShift->id,
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(201);
+
+        $this->travelToMonday('11:30');
+        $this->postJson('/api/v1/attendances/check-out', [
+            'work_shift_id' => $workShift->id,
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(201);
+
+        $this->assertDatabaseHas('attendances', ['employee_id' => $employee->id, 'actual_work_minutes' => 210]);
+    }
+
     // OT tính từ lúc HẾT CA (end_time), không phải tổng giờ làm trừ giờ
     // chuẩn — ca 8h-17h (540 phút, dài hơn standard_work_minutes=480 do có
     // break_minutes/lệch giờ chuẩn), check-out ĐÚNG giờ tan ca (17:00) thì

@@ -21,11 +21,25 @@ class EmployeeContractService
         return $this->employeeContractRepository->listByEmployee($employee);
     }
 
-    public function create(Employee $employee, array $data, UploadedFile $file): EmployeeContract
+    // $file nullable (2026-09-24, theo yêu cầu người dùng) — Hợp đồng ĐẦU
+    // TIÊN giờ tự tạo luôn lúc tạo nhân viên (xem EmployeeService::create()),
+    // lúc đó CHƯA có file bản giấy đã ký để đính kèm; HR upload file thật sau
+    // ở tab "Hợp đồng" (route riêng, chưa làm — vẫn phải qua form đầy đủ có
+    // `contract_file` bắt buộc như cũ khi ký hợp đồng MỚI/tiếp theo, xem
+    // StoreEmployeeContractRequest — chỉ lần tạo TỰ ĐỘNG này mới được bỏ qua).
+    public function create(Employee $employee, array $data, ?UploadedFile $file = null): EmployeeContract
     {
         $data['employee_id'] = $employee->id;
         $data['contract_number'] = $this->generateContractNumber($data['contract_type']);
-        $data['contract_file_path'] = $file->store('contracts', 'local');
+        $data['contract_file_path'] = $file?->store('contracts', 'local');
+        // Lương đóng BHXH = LUÔN bằng lương thỏa thuận (2026-09-24, theo yêu
+        // cầu người dùng: "lương đóng bh sẽ tính là lương cb luôn không tách
+        // ra") — không còn là ô nhập riêng, ghi đè bất kể client gửi gì lên
+        // (cùng cách contract_number/status tự quyết định, không tin dữ liệu
+        // client). Áp dụng CHUNG cho mọi hợp đồng — tự tạo lúc tạo nhân viên
+        // (EmployeeService::create()) lẫn tạo tay ở tab "Hợp đồng"
+        // (EmployeeContractController::store()).
+        $data['insurance_salary'] = $data['agreed_salary'];
 
         // Ký TRƯỚC ngày bắt đầu (vd renew hợp đồng sớm cho nhân viên) thì hợp
         // đồng mới CHƯA được coi là hiệu lực ngay — status "pending", không

@@ -18,18 +18,28 @@ class AttendanceAdjustmentService
     public function __construct(
         private readonly AttendanceAdjustmentRepository $attendanceAdjustmentRepository,
         private readonly AttendanceService $attendanceService,
+        private readonly EmployeeShiftAssignmentService $employeeShiftAssignmentService,
+        private readonly WorkShiftService $workShiftService,
     ) {
     }
 
-    // 4 loại: 'correction' (sửa 1 bản ghi attendances ĐÃ TỒN TẠI — hành vi
+    // 5 loại: 'correction' (sửa 1 bản ghi attendances ĐÃ TỒN TẠI — hành vi
     // cũ), 'supplement' (bổ sung chấm công cho 1 ca+ngày CHƯA từng có bản
     // ghi nào, vd nhân viên quên chấm công cả ngày), 'excuse' (Ngày 42 —
-    // xin miễn trừ đi muộn, chỉ hợp lệ khi bản ghi ĐANG bị tính trễ), và
-    // 'overtime' (2026-09-21 — xin duyệt OT, chỉ hợp lệ khi bản ghi có
-    // overtime_minutes > 0 và CHƯA được duyệt; PayrollService chỉ trả lương
-    // OT cho bản ghi đã overtime_approved=true, xem calculateWorkedMetrics()).
+    // xin miễn trừ đi muộn, chỉ hợp lệ khi bản ghi ĐANG bị tính trễ),
+    // 'overtime' (2026-09-21 — xin duyệt OT; ban đầu chỉ hợp lệ SAU khi đã
+    // chấm công ra và overtime_minutes>0, 2026-09-23 nới thêm cho phép xin
+    // TRƯỚC ngay khi còn đang trong ca — xem nhánh riêng bên dưới;
+    // PayrollService chỉ trả lương OT cho bản ghi đã overtime_approved=true,
+    // xem calculateWorkedMetrics()), và 'extra_shift' (2026-09-23, theo yêu
+    // cầu người dùng — "xin làm OT/làm thêm ngày/làm bù T7-CN không có
+    // trong lịch", ĐĂNG KÝ TRƯỚC cho 1 ngày/ca KHÔNG có trong lịch gán —
+    // chọn 1 Ca có sẵn HOẶC tự gõ giờ vào/ra (tự tạo 1 Ca mới đúng khung giờ
+    // đó, xem WorkShiftService::createCustomOneOff()) — khác 'supplement'
+    // vốn dành cho ca ĐÃ được gán mà quên chấm công — xem nhánh riêng bên
+    // dưới và decide()/EmployeeShiftAssignmentService::createOneOffAssignment()).
     // employee_id/work_shift_id/attendance_date luôn được set trên
-    // adjustment cho CẢ 4 loại (copy từ attendance nếu correction/excuse/
+    // adjustment cho MỌI loại (copy từ attendance nếu correction/excuse/
     // overtime) để nơi đọc (HR review, listForEmployee) không cần phân
     // nhánh theo type.
     public function requestForEmployee(Employee $employee, array $data, int $requestedBy): AttendanceAdjustment
@@ -38,7 +48,19 @@ class AttendanceAdjustmentService
         $data['type'] = $type;
         $data['employee_id'] = $employee->id;
 
-        if ($type === 'supplement') {
+        if ($type === 'extra_shift') {
+            // "Tự chọn giờ" (2026-09-23, theo yêu cầu người dùng) — không
+            // chọn 1 Ca có sẵn mà tự gõ giờ vào/ra, nên tạo NGAY 1 Ca MỚI
+            // đúng khung giờ đó rồi xử lý TIẾP HỆT như đã chọn Ca có sẵn
+            // (validate + sau này duyệt) — không viết đường riêng.
+            if (empty($data['work_shift_id']) && ! empty($data['custom_start_time']) && ! empty($data['custom_end_time'])) {
+                $data['work_shift_id'] = $this->workShiftService
+                    ->createCustomOneOff($data['custom_start_time'], $data['custom_end_time'])
+                    ->id;
+            }
+
+            $this->assertExtraShiftRequestIsValid($employee, $data);
+        } elseif ($type === 'supplement') {
             $workShift = WorkShift::find($data['work_shift_id']);
             $date = Carbon::parse($data['attendance_date']);
 
@@ -82,7 +104,23 @@ class AttendanceAdjustmentService
             }
 
             if ($type === 'overtime') {
-                if ($attendance->overtime_minutes <= 0) {
+                // 2026-09-23 (theo yêu cầu người dùng — tab "Xin OT"): cho
+                // phép xin TRƯỚC khi còn ĐANG trong ca, không chỉ SAU khi đã
+                // chấm công ra như trước — lúc đó overtime_minutes vẫn đang
+                // là 0 (chưa tính được), không thể bắt phải >0 nữa. Vẫn phải
+                // ĐÃ chấm công vào (mới có gì để "đang làm thêm giờ").
+                if (! $attendance->first_check_in_at) {
+                    throw ValidationException::withMessages([
+                        'attendance_id' => 'Bạn chưa chấm công vào ca này, chưa thể xin duyệt OT.',
+                    ]);
+                }
+
+                // ĐÃ chấm công RA mà không có phút OT nào thì mới chắc chắn
+                // không có gì để duyệt — còn ĐANG trong ca thì chưa biết
+                // trước, số phút OT thật sẽ tính đúng lúc chấm công ra (xem
+                // decide(): duyệt chỉ set cờ overtime_approved=true NGAY,
+                // không đụng số phút).
+                if ($attendance->last_check_out_at && $attendance->overtime_minutes <= 0) {
                     throw ValidationException::withMessages([
                         'attendance_id' => 'Bản ghi này không có giờ làm thêm, không thể xin duyệt OT.',
                     ]);
@@ -103,6 +141,51 @@ class AttendanceAdjustmentService
         $data['status'] = 'pending';
 
         return $this->attendanceAdjustmentRepository->create($data);
+    }
+
+    // 'extra_shift' (2026-09-23): ĐĂNG KÝ TRƯỚC cho 1 ngày/ca KHÔNG có
+    // trong lịch gán — chỉ hợp lệ khi (1) Ca còn hoạt động, (2) ngày đăng ký
+    // là HÔM NAY hoặc TƯƠNG LAI (quá khứ thì dùng "Bổ sung chấm công" —
+    // supplement — nếu đã lỡ làm rồi), (3) CHƯA có ca này vào đúng ngày đó
+    // (đã có thì cứ chấm công bình thường, không cần đăng ký), (4) chưa có
+    // yêu cầu extra_shift nào khác đang chờ duyệt cho đúng ca+ngày này
+    // (tránh duyệt trùng tạo 2 bản gán ca).
+    private function assertExtraShiftRequestIsValid(Employee $employee, array $data): void
+    {
+        $workShift = WorkShift::find($data['work_shift_id'] ?? null);
+
+        if (! $workShift || ! $workShift->is_active) {
+            throw ValidationException::withMessages([
+                'work_shift_id' => 'Ca làm việc không tồn tại hoặc đã ngừng hoạt động.',
+            ]);
+        }
+
+        $date = Carbon::parse($data['attendance_date']);
+
+        if ($date->lt(Carbon::today())) {
+            throw ValidationException::withMessages([
+                'attendance_date' => 'Chỉ đăng ký được cho hôm nay hoặc ngày trong tương lai — đã lỡ làm rồi thì dùng "Xin bổ sung chấm công".',
+            ]);
+        }
+
+        if ($this->attendanceService->resolveActiveAssignment($employee, $workShift, $date)) {
+            throw ValidationException::withMessages([
+                'work_shift_id' => 'Bạn đã có ca này trong lịch vào ngày đã chọn, không cần đăng ký thêm.',
+            ]);
+        }
+
+        $alreadyRequested = AttendanceAdjustment::where('employee_id', $employee->id)
+            ->where('work_shift_id', $workShift->id)
+            ->where('attendance_date', $date->toDateString())
+            ->where('type', 'extra_shift')
+            ->where('status', 'pending')
+            ->exists();
+
+        if ($alreadyRequested) {
+            throw ValidationException::withMessages([
+                'work_shift_id' => 'Bạn đã gửi yêu cầu làm ca này vào ngày đã chọn, đang chờ duyệt.',
+            ]);
+        }
     }
 
     public function listForEmployee(Employee $employee): Collection
@@ -147,6 +230,23 @@ class AttendanceAdjustmentService
 
                 if ($adjustment->type === 'overtime') {
                     $adjustment->attendance->forceFill(['overtime_approved' => true])->save();
+
+                    return $adjustment;
+                }
+
+                // Duyệt 'extra_shift' KHÔNG đụng gì tới Attendance (chưa có
+                // gì để chỉnh — nhân viên chưa làm) — chỉ MỞ KHÓA cho họ tự
+                // chấm công vào đúng ngày đã đăng ký, bằng cách tạo 1 bản
+                // gán ca CHỈ ÁP DỤNG ĐÚNG 1 NGÀY đó (effective_from=
+                // effective_to=ngày đăng ký). Từ lúc này, luồng Chấm công
+                // (AttendanceService::checkIn()/checkOut()) chạy HỆT như 1
+                // ca bình thường, không cần sửa gì thêm ở đó.
+                if ($adjustment->type === 'extra_shift') {
+                    $this->employeeShiftAssignmentService->createOneOffAssignment(
+                        $adjustment->employee,
+                        $adjustment->workShift,
+                        $adjustment->attendance_date,
+                    );
 
                     return $adjustment;
                 }

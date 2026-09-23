@@ -66,6 +66,16 @@ class AttendanceService
     // listTodayStatusForEmployee() (chỉ xét đúng hôm nay).
     public function history(Employee $employee, string $dateFrom, string $dateTo, ?int $workShiftId, ?string $status): array
     {
+        // Không dựng dòng nào cho ngày TRONG TƯƠNG LAI (2026-09-24, theo
+        // phản hồi người dùng: mở tab "Chấm công" hôm nay 23/9 nhưng bộ lọc
+        // mặc định "Tháng hiện tại" (AttendanceHistoryPanel.vue) kéo dài tới
+        // hết tháng 30/9 — các ngày 24-30 CHƯA XẢY RA vẫn bị coi là "Vắng"
+        // (chưa từng chấm công) rồi xếp LÊN TRÊN ngày 23/9 vừa chấm công
+        // thật vì sortBy ngày GIẢM DẦN ở dưới không phân biệt "chưa tới" với
+        // "đã qua mà vắng thật". Ép `$dateTo` không vượt quá HÔM NAY — nếu
+        // cả khoảng lọc đều ở tương lai thì trả về rỗng, không lỗi.
+        $dateTo = min($dateTo, now()->toDateString());
+
         $attendancesByKey = $this->attendanceRepository
             ->listForEmployeeInRange($employee, $dateFrom, $dateTo)
             ->keyBy(fn (Attendance $a) => $a->attendance_date->toDateString() . '|' . $a->work_shift_id);
@@ -76,6 +86,9 @@ class AttendanceService
         foreach (CarbonPeriod::create($dateFrom, $dateTo) as $date) {
             $dateStr = $date->toDateString();
 
+            // listActiveAssignmentsForDate() đã tự lọc bỏ bản gán "mồ côi"
+            // (Ca đã xóa mềm) — xem comment ngay trong hàm đó — nên vòng lặp
+            // dưới đây không cần tự kiểm tra lại $assignment->workShift.
             foreach ($this->listActiveAssignmentsForDate($employee, $date) as $assignment) {
                 if ($workShiftId && $assignment->work_shift_id !== $workShiftId) {
                     continue;
@@ -209,23 +222,158 @@ class AttendanceService
         return $this->attendanceRepository->paginate(perPage: $perPage, filters: $filters);
     }
 
+    // "Tổng hợp chấm công trong ngày" (2026-09-23, theo yêu cầu người dùng —
+    // thay cho màn "Duyệt chấm công" cũ chỉ liệt kê bản ghi ĐÃ CÓ trong
+    // attendances): liệt kê MỌI ca được gán cho MỌI nhân viên vào đúng 1
+    // ngày, kể cả ca CHƯA AI chấm công (status suy ra 'absent') — quản lý
+    // nhìn được bức tranh toàn cảnh thay vì chỉ 1 hàng chờ duyệt. Không phân
+    // trang: quy mô "1 ngày x toàn công ty" chỉ vài chục-vài trăm dòng, khác
+    // history()/list() vốn trải dài nhiều tháng.
+    //
+    // $status ở đây là 5 giá trị suy ra cho MÀN HÌNH NÀY — 'pending'/
+    // 'completed'/'needs_review' lấy thẳng từ attendances.status khi ĐÃ có
+    // bản ghi, 'on_leave'/'absent' suy ra khi CHƯA có bản ghi — khác
+    // deriveHistoryStatus() (mục 18, 'full'/'late'/'insufficient') vốn không
+    // hợp cho màn "hôm nay": 1 người đang trong ca, đúng giờ, chưa chấm công
+    // ra sẽ bị deriveHistoryStatus() tính nhầm thành "insufficient" (thiếu
+    // công) dù họ chỉ đơn giản là ĐANG LÀM VIỆC.
+    public function dailyOverview(string $date, ?int $departmentId, ?int $workShiftId, ?string $status, ?string $approvalStatus): array
+    {
+        $dayIso = Carbon::parse($date)->dayOfWeekIso;
+
+        $assignments = $this->attendanceRepository
+            ->listAssignmentsForDate($date, $departmentId, $workShiftId)
+            ->filter(fn (EmployeeShiftAssignment $a) => in_array($dayIso, $a->work_days, true));
+
+        $attendancesByKey = $this->attendanceRepository->listAttendancesForDate($date);
+        $onLeaveEmployeeIds = $this->approvedLeaveEmployeeIdsForDate($date);
+
+        $rows = $assignments
+            // Bản gán "mồ côi" — employee/workShift đã bị xóa mềm nhưng bản
+            // gán còn sót (lỗi dữ liệu, không nên xảy ra sau khi
+            // WorkShiftService::delete()/EmployeeService::delete() đã gỡ
+            // bản gán trước khi xóa — 2026-09-24, xem comment ở đó) — bỏ qua
+            // thay vì để `$row['employee']->id`/`$row['work_shift']->id` bên
+            // dưới sập nguyên trang với lỗi "Attempt to read property id on
+            // null".
+            ->filter(fn (EmployeeShiftAssignment $a) => $a->employee !== null && $a->workShift !== null)
+            ->map(function (EmployeeShiftAssignment $assignment) use ($attendancesByKey, $onLeaveEmployeeIds) {
+                $attendance = $attendancesByKey->get($assignment->employee_id.'|'.$assignment->work_shift_id);
+
+                $rowStatus = match (true) {
+                    $attendance !== null => $attendance->status,
+                    $onLeaveEmployeeIds->contains($assignment->employee_id) => 'on_leave',
+                    default => 'absent',
+                };
+
+                return [
+                    'employee' => $assignment->employee,
+                    'work_shift' => $assignment->workShift,
+                    'attendance' => $attendance,
+                    'status' => $rowStatus,
+                ];
+            })
+            // Cùng lý do dedupe ở history(): 1 ca có thể bị lặp qua 2 lượt gán
+            // khác nhau phủ lên cùng ngày cho cùng 1 nhân viên.
+            ->unique(fn (array $row) => $row['employee']->id.'|'.$row['work_shift']->id)
+            ->when($status, fn (Collection $rows) => $rows->filter(fn (array $row) => $row['status'] === $status))
+            ->when($approvalStatus, fn (Collection $rows) => $rows->filter(fn (array $row) => $row['attendance']?->approval_status === $approvalStatus))
+            ->sortBy([
+                ['work_shift.start_time', 'asc'],
+                ['employee.full_name', 'asc'],
+            ])
+            ->values();
+
+        return [
+            'summary' => $this->summarizeDailyOverview($rows),
+            'rows' => $rows,
+        ];
+    }
+
+    private function approvedLeaveEmployeeIdsForDate(string $date): Collection
+    {
+        return LeaveRequest::where('status', 'approved')
+            ->where('start_session', '!=', 'hourly')
+            ->where('from_date', '<=', $date)
+            ->where('to_date', '>=', $date)
+            ->pluck('employee_id');
+    }
+
+    // Đếm theo NHÂN VIÊN, KHÔNG theo ca (2026-09-23, theo phản hồi người
+    // dùng): 1 người có 2 ca cùng ngày (mục 14) trước đó bị đếm 2 lần ở thẻ
+    // tổng quan (vd "Vắng: 5 ca" dù chỉ 3 người thật sự vắng, mỗi người có
+    // 2 ca không ai chấm). $rows vẫn giữ nguyên 1 dòng/ca cho bảng danh sách
+    // (còn dùng để duyệt riêng từng ca) — chỉ phần TỔNG HỢP này gộp lại.
+    //
+    // 1 người có nhiều ca mà mỗi ca 1 trạng thái khác nhau (vd ca sáng đã
+    // hoàn tất, ca chiều còn vắng) thì rơi vào ĐÚNG 1 nhóm theo thứ tự ưu
+    // tiên dưới đây. "Đang trong ca" đứng NGAY SAU "cần xem lại" — đây là
+    // trạng thái ĐANG DIỄN RA (2026-09-23, sửa theo phản hồi người dùng: 1
+    // người rõ ràng đang trong ca sáng vẫn bị tính "Vắng" ở thẻ tổng quan vì
+    // ca chiều của họ chưa tới giờ/chưa có bản ghi — "đang trong ca" phải
+    // thắng "vắng" vì là sự thật NGAY LÚC NÀY, còn "vắng" chỉ là suy ra từ 1
+    // ca KHÁC chưa ai đụng tới). Sau đó mới tới vắng (không phép, đáng lo
+    // hơn hoàn tất) > hoàn tất > nghỉ phép (chỉ khi TẤT CẢ ca trong ngày của
+    // người đó đều là nghỉ phép). Giả định tạm thời — người dùng cho biết sẽ
+    // chỉnh lại cách gán ca để 1 người không bị chồng nhiều ca kiểu này nữa.
+    private const EMPLOYEE_STATUS_PRIORITY = ['needs_review', 'pending', 'absent', 'completed', 'on_leave'];
+
+    private function summarizeDailyOverview(Collection $rows): array
+    {
+        $statusesByEmployee = $rows
+            ->groupBy(fn (array $row) => $row['employee']->id)
+            ->map(fn (Collection $employeeRows) => $employeeRows->pluck('status'));
+
+        $employeeStatus = $statusesByEmployee->map(
+            fn (Collection $statuses) => collect(self::EMPLOYEE_STATUS_PRIORITY)->first(fn ($p) => $statuses->contains($p)),
+        );
+
+        // Đã chấm công VÀO (duyệt được từ lúc này, xem decideApproval()) mà
+        // HR chưa quyết định — cũng gộp theo nhân viên, cùng lý do trên.
+        $awaitingApprovalEmployees = $rows
+            ->filter(fn (array $row) => $row['attendance']?->first_check_in_at
+                && $row['attendance']->approval_status === Attendance::APPROVAL_PENDING)
+            ->pluck('employee.id')
+            ->unique();
+
+        return [
+            'total' => $employeeStatus->count(),
+            'completed' => $employeeStatus->filter(fn ($s) => $s === 'completed')->count(),
+            'pending' => $employeeStatus->filter(fn ($s) => $s === 'pending')->count(),
+            'needs_review' => $employeeStatus->filter(fn ($s) => $s === 'needs_review')->count(),
+            'absent' => $employeeStatus->filter(fn ($s) => $s === 'absent')->count(),
+            'on_leave' => $employeeStatus->filter(fn ($s) => $s === 'on_leave')->count(),
+            'awaiting_approval' => $awaitingApprovalEmployees->count(),
+        ];
+    }
+
     // HR duyệt / từ chối 1 bản ghi chấm công (2026-09-21, theo yêu cầu người
     // dùng: mọi lượt chấm công phải được duyệt, chưa duyệt thì không tính
-    // công/lương). $status: 'approved' | 'rejected'. Chỉ duyệt được bản ghi
-    // ĐÃ chấm công ra (còn đang trong ca thì giờ ra/giờ công còn thay đổi,
-    // duyệt sớm vô nghĩa) — quên chấm công ra thì nhân viên dùng "Xin điều
-    // chỉnh công", HR duyệt yêu cầu đó là duyệt luôn bản ghi (xem
-    // AttendanceAdjustmentService::decide()). Cho phép ĐỔI quyết định
-    // (duyệt <-> từ chối) vì HR có thể bấm nhầm; chỉ chặn quyết định trùng
-    // trạng thái hiện tại. LƯU Ý: bảng lương chỉ được tính MỘT LẦN lúc tạo
-    // kỳ lương (PayrollService::generateForPeriod()), không tự tính lại khi
-    // quyết định duyệt đổi sau đó — nên generateForPeriod() chặn tạo bảng
-    // lương khi kỳ đó còn bản ghi đã chấm công ra mà chưa được duyệt/từ chối.
+    // công/lương). $status: 'approved' | 'rejected'.
+    //
+    // Duyệt được NGAY TỪ LÚC CHẤM CÔNG VÀO (2026-09-23, sửa lại theo đúng ý
+    // người dùng — trước đó bắt phải chấm công RA mới cho duyệt, nhưng mục
+    // đích thật của việc duyệt là XÁC NHẬN LƯỢT CHẤM CÔNG VÀO này có thật hay
+    // không — HR nhìn giờ vào/thiết bị/vị trí ngay khi nhân viên vừa vào ca
+    // để biết họ đi sớm hay trễ, có thật sự tới nơi làm việc hay không, KHÔNG
+    // cần chờ tới lúc họ chấm công ra). Chỉ đòi hỏi ĐÃ chấm công VÀO — bản
+    // ghi thật sự không tồn tại nếu chưa chấm công vào (xem
+    // AttendanceRepository::findOrCreateForShift(), luôn set
+    // first_check_in_at ngay khi tạo), kiểm tra ở đây chỉ để phòng vệ. Quên
+    // chấm công RA thì nhân viên dùng "Xin điều chỉnh công", HR duyệt yêu
+    // cầu đó là duyệt luôn bản ghi (xem AttendanceAdjustmentService::decide()).
+    // Cho phép ĐỔI quyết định (duyệt <-> từ chối) vì HR có thể bấm nhầm; chỉ
+    // chặn quyết định trùng trạng thái hiện tại. LƯU Ý: bảng lương chỉ được
+    // tính MỘT LẦN lúc tạo kỳ lương (PayrollService::generateForPeriod()),
+    // không tự tính lại khi quyết định duyệt đổi sau đó — nên
+    // generateForPeriod() chặn tạo bảng lương khi kỳ đó còn bản ghi đã chấm
+    // công ra mà chưa được duyệt/từ chối (duyệt SỚM lúc chấm công vào rồi thì
+    // tới lúc chấm công ra không cần duyệt lại — quyết định cũ vẫn giữ nguyên).
     public function decideApproval(Attendance $attendance, string $status, ?string $note, int $decidedBy): Attendance
     {
-        if (! $attendance->first_check_in_at || ! $attendance->last_check_out_at) {
+        if (! $attendance->first_check_in_at) {
             throw ValidationException::withMessages([
-                'status' => 'Bản ghi này chưa chấm công ra nên chưa thể duyệt.',
+                'status' => 'Bản ghi này chưa chấm công vào nên chưa thể duyệt.',
             ]);
         }
 
@@ -270,7 +418,7 @@ class AttendanceService
         $effectiveIn = $checkIn ?? $attendance->first_check_in_at;
         $effectiveOut = $checkOut ?? $attendance->last_check_out_at;
         if ($effectiveIn && $effectiveOut) {
-            $data['actual_work_minutes'] = max(0, $effectiveIn->diffInMinutes($effectiveOut));
+            $data['actual_work_minutes'] = $this->calculateActualWorkMinutes($effectiveIn, $effectiveOut, $workShift);
             $data['overtime_minutes'] = $this->calculateOvertimeMinutes($workShift, $effectiveOut);
         }
 
@@ -370,7 +518,7 @@ class AttendanceService
 
         return DB::transaction(function () use ($employee, $attendance, $workShift, $matchedLocation, $device, $data, $now) {
             $earlyLeaveMinutes = $this->calculateEarlyLeaveMinutes($workShift, $now);
-            $actualMinutes = max(0, $attendance->first_check_in_at->diffInMinutes($now));
+            $actualMinutes = $this->calculateActualWorkMinutes($attendance->first_check_in_at, $now, $workShift);
 
             $attendance->forceFill([
                 'last_check_out_at' => $now,
@@ -460,6 +608,11 @@ class AttendanceService
             ->with('workShift')
             ->get()
             ->filter(fn (EmployeeShiftAssignment $assignment) => in_array($dayIso, $assignment->work_days, true))
+            // Bản gán "mồ côi" (Ca đã bị xóa mềm nhưng bản gán còn sót —
+            // 2026-09-24, xem comment ở dailyOverview()) — bỏ qua trước khi
+            // sortBy() đụng vào workShift->start_time, tránh sập TOÀN BỘ các
+            // hàm dùng chung phương thức này (checkIn/checkOut/history/...).
+            ->filter(fn (EmployeeShiftAssignment $assignment) => $assignment->workShift !== null)
             ->sortBy(fn (EmployeeShiftAssignment $assignment) => $assignment->workShift->start_time)
             ->values();
     }
@@ -560,6 +713,32 @@ class AttendanceService
     private function shiftTimeToday(string $time, Carbon $referenceDate): Carbon
     {
         return Carbon::parse($referenceDate->toDateString() . ' ' . $time);
+    }
+
+    // Giờ công THỰC TẾ = khoảng chấm công VÀO-RA, TRỪ phần trùng với giờ
+    // nghỉ trưa của Ca (2026-09-23, theo yêu cầu người dùng — trước đó
+    // break_minutes chỉ là số phút hiển thị, không trừ vào đâu cả).
+    // $workShift chưa khai báo break_start_time/break_end_time (ca cũ, hoặc
+    // ca ngắn không nghỉ trưa) → không trừ gì, giữ nguyên hành vi cũ. Chỉ
+    // trừ đúng PHẦN GIAO giữa [checkIn, checkOut] và [nghỉ trưa] — checkIn
+    // sau giờ nghỉ trưa (vd vào ca muộn buổi chiều) hoặc checkOut trước giờ
+    // nghỉ trưa (vd ra sớm buổi sáng) thì không giao nhau, không trừ gì.
+    private function calculateActualWorkMinutes(Carbon $checkIn, Carbon $checkOut, WorkShift $workShift): int
+    {
+        $grossMinutes = max(0, $checkIn->diffInMinutes($checkOut));
+
+        if (! $workShift->break_start_time || ! $workShift->break_end_time) {
+            return $grossMinutes;
+        }
+
+        $breakStart = $this->shiftTimeToday($workShift->break_start_time, $checkIn);
+        $breakEnd = $this->shiftTimeToday($workShift->break_end_time, $checkIn);
+
+        $overlapStart = $checkIn->greaterThan($breakStart) ? $checkIn : $breakStart;
+        $overlapEnd = $checkOut->lessThan($breakEnd) ? $checkOut : $breakEnd;
+        $overlapMinutes = $overlapEnd->greaterThan($overlapStart) ? $overlapStart->diffInMinutes($overlapEnd) : 0;
+
+        return max(0, $grossMinutes - $overlapMinutes);
     }
 
     // Chặn chấm công VÀO quá xa giờ ca thật (Ngày 44 — xem CHECK_IN_EARLY_MINUTES

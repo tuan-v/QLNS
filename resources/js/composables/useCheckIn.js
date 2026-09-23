@@ -4,9 +4,10 @@
 // (danh sách thẻ, phù hợp màn hình hẹp), CÙNG GỌI 1 hàm này thay vì mỗi bên
 // tự viết lại toàn bộ gọi API/validate — tránh rủi ro lệch logic giữa 2 nơi
 // khi sau này sửa 1 tính năng (đã bàn với người dùng trước khi làm).
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import attendanceService from "../services/attendanceService";
 import employeeService from "../services/employeeService";
+import workShiftService from "../services/workShiftService";
 import { todayIso } from "../components/common/InputDate.vue";
 import { useToastStore } from "../stores/useToastStore";
 
@@ -412,9 +413,210 @@ export function useCheckIn() {
         }
     }
 
+    /* --------------------- Xin làm ngoài lịch / Xin OT (2026-09-23) ------------ */
+    // 1 dialog, 2 tab (theo yêu cầu người dùng):
+    // - Tab "extra_shift" — ĐĂNG KÝ TRƯỚC cho 1 ngày/ca KHÔNG có trong lịch
+    //   gán (gộp "làm thêm ngày"/"làm bù T7-CN"), chọn 1 Ca công ty ĐÃ có
+    //   HOẶC "Tự chọn giờ" (Backend tự tạo 1 Ca tạm đúng khung giờ đó — xem
+    //   AttendanceAdjustmentService::requestForEmployee()). Duyệt xong tự
+    //   chấm công vào/ra bình thường khi tới ngày đó, không có giờ vào/ra đề
+    //   xuất ở bước này (khác "Bổ sung chấm công").
+    // - Tab "overtime" — ĐĂNG KÝ TRƯỚC cho OT của 1 ca đang làm HÔM NAY (đã
+    //   chấm công vào, có thể CHƯA chấm công ra) — tái dùng type 'overtime'
+    //   đã có (trước đó chỉ xin ĐƯỢC SAU khi chấm công ra và có
+    //   overtime_minutes>0; giờ nới thêm cho phép xin TRƯỚC — xem
+    //   AttendanceAdjustmentService, nhánh 'overtime'). Duyệt chỉ set
+    //   overtime_approved=true NGAY (không đụng giờ), số phút OT thật sự vẫn
+    //   tính khi nhân viên chấm công ra như bình thường — PayrollService chỉ
+    //   cần cờ này = true lúc đó là đủ điều kiện trả lương (không cần xin lại
+    //   lần 2 sau khi đã chấm công ra).
+    const extraShiftDialog = ref(false);
+    const extraShiftTab = ref("extra_shift");
+
+    // -- Tab "Làm ngoài lịch" --
+    const extraShiftForm = ref({
+        attendanceDate: "",
+        mode: "existing", // "existing" = chọn Ca có sẵn | "custom" = tự chọn giờ
+        workShiftId: null,
+        customStartTime: "",
+        customEndTime: "",
+        reason: "",
+    });
+    const extraShiftErrors = ref({});
+    const extraShiftGeneralError = ref("");
+    const extraShiftSubmitting = ref(false);
+    const allShiftOptions = ref([]);
+    const myExtraShiftRequests = ref([]);
+    const loadingMyExtraShiftRequests = ref(false);
+
+    async function loadAllShiftOptions() {
+        try {
+            const response = await workShiftService.list({ per_page: 1000 });
+            allShiftOptions.value = response.data.data
+                .filter((shift) => shift.is_active)
+                .map((shift) => ({ title: shift.name, value: shift.id }));
+        } catch {
+            allShiftOptions.value = [];
+        }
+    }
+
+    async function loadMyExtraShiftRequests() {
+        loadingMyExtraShiftRequests.value = true;
+        try {
+            const response = await attendanceService.myAdjustments();
+            // Gộp cả 2 tab vào CHUNG 1 danh sách "của tôi" — 'overtime' loại
+            // này khác 'overtime' xin từ dòng lịch sử cụ thể (đã chấm công
+            // ra) ở chỗ target là ca ĐANG làm hôm nay, nhưng cùng type nên
+            // không cần lọc phân biệt, HR/nhân viên đều xem chung 1 nơi.
+            myExtraShiftRequests.value = response.data.filter(
+                (item) => item.type === "extra_shift" || item.type === "overtime",
+            );
+        } catch {
+            myExtraShiftRequests.value = [];
+        } finally {
+            loadingMyExtraShiftRequests.value = false;
+        }
+    }
+
+    // -- Tab "Xin OT" -- ca hôm nay ĐÃ chấm công vào, CHƯA được duyệt OT, và
+    // (chưa chấm công ra HOẶC đã có overtime_minutes) — loại bỏ ca chưa vào
+    // ca (không có gì để xin) và ca đã ra mà 0 phút OT (không có gì để duyệt).
+    const otTodayOptions = computed(() =>
+        todayShifts.value
+            .filter(
+                (entry) =>
+                    entry.attendance?.first_check_in_at &&
+                    !entry.attendance?.overtime_approved &&
+                    (!entry.attendance?.last_check_out_at || entry.attendance?.overtime_minutes > 0),
+            )
+            .map((entry) => ({
+                title: entry.attendance.last_check_out_at
+                    ? `${entry.work_shift.name} (kết thúc ${entry.work_shift.end_time?.slice(0, 5)}, đã có ${entry.attendance.overtime_minutes} phút OT)`
+                    : `${entry.work_shift.name} (kết thúc lúc ${entry.work_shift.end_time?.slice(0, 5)})`,
+                value: entry.attendance.id,
+            })),
+    );
+    const otRequestForm = ref({ attendanceId: null, reason: "" });
+    const otRequestErrors = ref({});
+    const otRequestGeneralError = ref("");
+    const otRequestSubmitting = ref(false);
+
+    function openExtraShiftDialog(tab = "extra_shift") {
+        extraShiftTab.value = tab;
+        extraShiftForm.value = {
+            attendanceDate: "",
+            mode: "existing",
+            workShiftId: null,
+            customStartTime: "",
+            customEndTime: "",
+            reason: "",
+        };
+        extraShiftErrors.value = {};
+        extraShiftGeneralError.value = "";
+        otRequestForm.value = { attendanceId: null, reason: "" };
+        otRequestErrors.value = {};
+        otRequestGeneralError.value = "";
+        extraShiftDialog.value = true;
+        loadAllShiftOptions();
+    }
+
+    function closeExtraShiftDialog() {
+        extraShiftDialog.value = false;
+    }
+
+    async function submitExtraShiftRequest() {
+        extraShiftErrors.value = {};
+        extraShiftGeneralError.value = "";
+
+        const usingCustomTime = extraShiftForm.value.mode === "custom";
+        if (
+            !extraShiftForm.value.attendanceDate ||
+            !extraShiftForm.value.reason ||
+            (usingCustomTime
+                ? !extraShiftForm.value.customStartTime || !extraShiftForm.value.customEndTime
+                : !extraShiftForm.value.workShiftId)
+        ) {
+            extraShiftGeneralError.value = "Vui lòng chọn ngày, ca làm việc (hoặc giờ tự chọn) và nhập lý do.";
+            return;
+        }
+
+        extraShiftSubmitting.value = true;
+        try {
+            await attendanceService.requestAdjustment({
+                type: "extra_shift",
+                attendance_date: extraShiftForm.value.attendanceDate,
+                reason: extraShiftForm.value.reason,
+                ...(usingCustomTime
+                    ? {
+                          custom_start_time: extraShiftForm.value.customStartTime,
+                          custom_end_time: extraShiftForm.value.customEndTime,
+                      }
+                    : { work_shift_id: extraShiftForm.value.workShiftId }),
+            });
+            toast.success("Đã gửi yêu cầu làm ngoài lịch, chờ duyệt.");
+            closeExtraShiftDialog();
+            await loadMyExtraShiftRequests();
+        } catch (e) {
+            const status = e.response?.status;
+            const data = e.response?.data;
+            if (status === 422 && data?.errors) {
+                extraShiftErrors.value = {
+                    attendance_date: data.errors.attendance_date?.[0],
+                    work_shift_id: data.errors.work_shift_id?.[0],
+                    custom_start_time: data.errors.custom_start_time?.[0],
+                    custom_end_time: data.errors.custom_end_time?.[0],
+                    reason: data.errors.reason?.[0],
+                };
+                extraShiftGeneralError.value =
+                    extraShiftErrors.value.work_shift_id ??
+                    extraShiftErrors.value.custom_start_time ??
+                    extraShiftErrors.value.custom_end_time ??
+                    "";
+            } else {
+                extraShiftGeneralError.value = data?.message ?? "Không thể gửi yêu cầu, vui lòng thử lại.";
+            }
+        } finally {
+            extraShiftSubmitting.value = false;
+        }
+    }
+
+    async function submitOtRequestFromToday() {
+        otRequestErrors.value = {};
+        otRequestGeneralError.value = "";
+
+        if (!otRequestForm.value.attendanceId || !otRequestForm.value.reason) {
+            otRequestGeneralError.value = "Vui lòng chọn ca đang làm và nhập lý do.";
+            return;
+        }
+
+        otRequestSubmitting.value = true;
+        try {
+            await attendanceService.requestAdjustment({
+                type: "overtime",
+                attendance_id: otRequestForm.value.attendanceId,
+                reason: otRequestForm.value.reason,
+            });
+            toast.success("Đã gửi yêu cầu xin OT, chờ duyệt.");
+            closeExtraShiftDialog();
+            await loadMyExtraShiftRequests();
+        } catch (e) {
+            const status = e.response?.status;
+            const data = e.response?.data;
+            if (status === 422 && data?.errors) {
+                otRequestErrors.value = { reason: data.errors.reason?.[0] };
+                otRequestGeneralError.value = data.errors.attendance_id?.[0] ?? "";
+            } else {
+                otRequestGeneralError.value = data?.message ?? "Không thể gửi yêu cầu, vui lòng thử lại.";
+            }
+        } finally {
+            otRequestSubmitting.value = false;
+        }
+    }
+
     onMounted(() => {
         loadToday();
         loadHistory();
+        loadMyExtraShiftRequests();
     });
 
     return {
@@ -465,5 +667,23 @@ export function useCheckIn() {
         openOtApprovalDialog,
         closeOtApprovalDialog,
         submitOtApprovalRequest,
+        extraShiftDialog,
+        extraShiftTab,
+        extraShiftForm,
+        extraShiftErrors,
+        extraShiftGeneralError,
+        extraShiftSubmitting,
+        allShiftOptions,
+        myExtraShiftRequests,
+        loadingMyExtraShiftRequests,
+        openExtraShiftDialog,
+        closeExtraShiftDialog,
+        submitExtraShiftRequest,
+        otTodayOptions,
+        otRequestForm,
+        otRequestErrors,
+        otRequestGeneralError,
+        otRequestSubmitting,
+        submitOtRequestFromToday,
     };
 }
