@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Leave;
 
-use App\Mail\LeaveDecisionMail;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
@@ -265,11 +264,15 @@ class LeaveApprovalTest extends TestCase
         $response->assertStatus(403);
     }
 
-    public function test_mail_is_sent_to_employee_when_hr_gives_final_approval(): void
+    // Thông báo cho nhân viên khi có kết quả (2026-09-24: đã bỏ hẳn email,
+    // chỉ còn thông báo trong-app — xem LeaveNotificationTest.php cho case
+    // chi tiết; ở đây chỉ giữ 2 test làm lưới chặn hồi quy "không được lỡ
+    // gửi lại mail" ngay tại chỗ luồng duyệt/từ chối chính).
+    public function test_no_mail_sent_when_hr_gives_final_approval(): void
     {
         Mail::fake();
         [$manager] = $this->makeEmployeeWithLogin('Manager');
-        [$subordinate] = $this->makeEmployeeWithLogin('Employee', ['manager_id' => $manager->id]);
+        [$subordinate, $subordinateUser] = $this->makeEmployeeWithLogin('Employee', ['manager_id' => $manager->id]);
         $leaveType = $this->makeLeaveType();
         $leaveRequest = $this->makeLeaveRequest($subordinate, $leaveType, ['status' => 'manager_approved']);
         LeaveBalance::create([
@@ -287,18 +290,18 @@ class LeaveApprovalTest extends TestCase
             'comment' => 'Chuc nghi phep vui ve',
         ], ['Authorization' => 'Bearer '.$token])->assertStatus(200);
 
-        Mail::assertQueued(LeaveDecisionMail::class, function (LeaveDecisionMail $mail) use ($subordinate) {
-            return $mail->hasTo($subordinate->company_email)
-                && $mail->leaveRequest->status === 'approved'
-                && $mail->comment === 'Chuc nghi phep vui ve';
-        });
+        Mail::assertNothingSent();
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $subordinateUser->id,
+            'type' => 'leave.decided',
+        ]);
     }
 
-    public function test_mail_is_sent_to_employee_when_rejected(): void
+    public function test_no_mail_sent_when_rejected(): void
     {
         Mail::fake();
         [$manager, $managerUser] = $this->makeEmployeeWithLogin('Manager');
-        [$subordinate] = $this->makeEmployeeWithLogin('Employee', ['manager_id' => $manager->id]);
+        [$subordinate, $subordinateUser] = $this->makeEmployeeWithLogin('Employee', ['manager_id' => $manager->id]);
         $leaveType = $this->makeLeaveType();
         $leaveRequest = $this->makeLeaveRequest($subordinate, $leaveType);
         $token = $this->loginAs($managerUser->email, 'Secret@123');
@@ -308,9 +311,10 @@ class LeaveApprovalTest extends TestCase
             'comment' => 'Trung lich cong tac',
         ], ['Authorization' => 'Bearer '.$token])->assertStatus(200);
 
-        Mail::assertQueued(LeaveDecisionMail::class, function (LeaveDecisionMail $mail) use ($subordinate) {
-            return $mail->hasTo($subordinate->company_email)
-                && $mail->leaveRequest->status === 'rejected';
-        });
+        Mail::assertNothingSent();
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $subordinateUser->id,
+            'type' => 'leave.decided',
+        ]);
     }
 }

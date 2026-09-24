@@ -65,6 +65,12 @@
                 to="/my-profile"
                 rounded="lg"
             />
+            <v-list-item
+                prepend-icon="mdi-bell-outline"
+                title="Thông báo"
+                to="/notifications"
+                rounded="lg"
+            />
 
             <v-list-subheader
                 v-if="
@@ -175,10 +181,11 @@
                 rounded="lg"
             />
             <v-list-item
+                v-if="can('rbac.manage')"
                 prepend-icon="mdi-shield-account-outline"
                 title="Vai trò &amp; Phân quyền"
+                to="/roles"
                 rounded="lg"
-                disabled
             />
             <v-list-item
                 prepend-icon="mdi-history"

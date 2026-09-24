@@ -112,14 +112,13 @@
                             v-if="entry.attendance"
                             class="d-flex flex-column align-end ga-1"
                         >
+                            <!-- Gộp trạng thái ca + duyệt công vào 1 chip
+                            (2026-09-24, theo yêu cầu người dùng: "khi được
+                            duyệt mới được đang trong ca") — xem
+                            mergedAttendanceStatus() ở useCheckIn.js. -->
                             <StatusChip
-                                :status="entry.attendance.status"
-                                :map="ATTENDANCE_STATUS_MAP"
-                            />
-                            <StatusChip
-                                v-if="entry.attendance.last_check_out_at"
-                                :status="entry.attendance.approval_status"
-                                :map="APPROVAL_STATUS_MAP"
+                                :status="mergedAttendanceStatus(entry.attendance)"
+                                :map="MERGED_ATTENDANCE_STATUS_MAP"
                             />
                         </div>
                     </div>
@@ -263,7 +262,6 @@
                         <th>Về sớm</th>
                         <th>OT</th>
                         <th>Trạng thái</th>
-                        <th>Duyệt công</th>
                         <th class="text-center">Thao tác</th>
                     </tr>
                 </thead>
@@ -311,19 +309,14 @@
                             </span>
                         </td>
                         <td>
+                            <!-- Gộp trạng thái ca + duyệt công vào 1 chip
+                            (2026-09-24, theo yêu cầu người dùng: "khi được
+                            duyệt mới được đang trong ca") — chưa duyệt/bị từ
+                            chối thì chưa được tính công/lương. -->
                             <StatusChip
-                                :status="a.status"
-                                :map="ATTENDANCE_STATUS_MAP"
+                                :status="mergedAttendanceStatus(a)"
+                                :map="MERGED_ATTENDANCE_STATUS_MAP"
                             />
-                        </td>
-                        <td>
-                            <!-- Chưa duyệt / bị từ chối thì chưa được tính công/lương. -->
-                            <StatusChip
-                                v-if="a.last_check_out_at"
-                                :status="a.approval_status"
-                                :map="APPROVAL_STATUS_MAP"
-                            />
-                            <span v-else style="opacity: 0.5">—</span>
                             <div
                                 v-if="
                                     a.approval_status === 'rejected' &&
@@ -994,10 +987,11 @@
 // composables/useCheckIn.js.
 import {
     APPROVAL_STATUS_MAP,
-    ATTENDANCE_STATUS_MAP,
+    MERGED_ATTENDANCE_STATUS_MAP,
     formatDate,
     formatMinutesAsHours,
     formatTime,
+    mergedAttendanceStatus,
     useCheckIn,
 } from "../../composables/useCheckIn";
 import PageHeader from "../../components/common/PageHeader.vue";

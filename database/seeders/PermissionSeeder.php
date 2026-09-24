@@ -54,6 +54,9 @@ class PermissionSeeder extends Seeder
             // RBAC & System
             ['code' => 'rbac.manage', 'name' => 'Quản lý vai trò & phân quyền'],
             ['code' => 'system.audit_log', 'name' => 'Xem nhật ký hệ thống (audit log)'],
+
+            // Notification
+            ['code' => 'notification.view_all', 'name' => 'Xem toàn bộ thông báo trong công ty'],
         ];
 
         foreach ($permissions as $permission) {

@@ -2,12 +2,11 @@
 
 namespace App\Services;
 
-use App\Mail\LeaveDecisionMail;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
+use App\Models\User;
 use App\Repositories\LeaveApprovalRepository;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class LeaveApprovalService
@@ -15,6 +14,7 @@ class LeaveApprovalService
     public function __construct(
         private readonly LeaveApprovalRepository $leaveApprovalRepository,
         private readonly LeaveRequestService $leaveRequestService,
+        private readonly NotificationService $notificationService,
     ) {
     }
 
@@ -78,16 +78,59 @@ class LeaveApprovalService
             return $leaveRequest;
         });
 
-        // Gửi mail SAU KHI transaction đã commit xong — tránh trường hợp
-        // transaction rollback (lỗi phát sinh) mà mail đã queue báo tin
-        // không đúng sự thật. Chỉ gửi khi status CUỐI là approved/rejected
-        // (2 trạng thái terminal) — không gửi ở manager_approved (còn chờ HR).
-        if (in_array($decidedLeaveRequest->status, ['approved', 'rejected'], true)) {
-            $decidedLeaveRequest->loadMissing(['employee', 'leaveType']);
-            Mail::to($decidedLeaveRequest->employee->company_email)
-                ->send(new LeaveDecisionMail($decidedLeaveRequest, $comment));
+        // Thông báo/mail SAU KHI transaction đã commit xong — tránh trường
+        // hợp transaction rollback (lỗi phát sinh) mà đã báo tin không đúng
+        // sự thật. 2 nhánh: vừa qua cấp 1 (còn chờ HR) báo HR biết tới lượt
+        // mình; xong CUỐI (approved/rejected) báo nhân viên.
+        if ($decidedLeaveRequest->status === 'manager_approved') {
+            $this->notifyHrTurn($decidedLeaveRequest, $decidingEmployee);
+        } elseif (in_array($decidedLeaveRequest->status, ['approved', 'rejected'], true)) {
+            $this->notifyEmployeeDecision($decidedLeaveRequest);
         }
 
         return $decidedLeaveRequest;
+    }
+
+    // Quản lý vừa duyệt (cấp 1) -> tới lượt HR (cấp 2). Loại trừ chính người
+    // vừa duyệt khỏi danh sách nhận báo (tránh tự thông báo cho mình trong
+    // trường hợp họ vừa là Manager vừa có quyền leave.approve_hr).
+    private function notifyHrTurn(LeaveRequest $leaveRequest, Employee $decidingEmployee): void
+    {
+        $leaveRequest->loadMissing(['employee', 'leaveType']);
+        $title = 'Đơn nghỉ phép chờ HR duyệt';
+        $message = "Đơn xin {$leaveRequest->leaveType->name} của {$leaveRequest->employee->full_name} đã qua duyệt cấp quản lý, đang chờ HR.";
+        $data = ['leave_request_id' => $leaveRequest->id];
+
+        foreach (User::withPermission('leave.approve_hr')->get() as $hrUser) {
+            if ($hrUser->id === $decidingEmployee->user?->id) {
+                continue;
+            }
+            $this->notificationService->send($hrUser, 'leave.pending_hr', $title, $message, $data);
+        }
+    }
+
+    // Có kết quả CUỐI (approved/rejected) -> báo nhân viên qua web (2026-09-24,
+    // theo yêu cầu người dùng: bỏ hẳn email, chỉ còn thông báo trong-app —
+    // trước đó gửi kèm LeaveDecisionMail, đã xóa). Nhân viên luôn có tài
+    // khoản đăng nhập tới đây (StoreLeaveRequest chỉ nhận đơn từ
+    // $request->user()->employee, xem LeaveRequestController::store()), nên
+    // không cần nhánh dự phòng "chưa có tài khoản" như code cũ.
+    private function notifyEmployeeDecision(LeaveRequest $leaveRequest): void
+    {
+        $leaveRequest->loadMissing(['employee', 'leaveType']);
+        $employee = $leaveRequest->employee;
+
+        $title = $leaveRequest->status === 'approved'
+            ? 'Đơn xin nghỉ phép của bạn đã được duyệt'
+            : 'Đơn xin nghỉ phép của bạn đã bị từ chối';
+        $message = "Đơn xin {$leaveRequest->leaveType->name} ({$leaveRequest->total_days} ngày) của bạn đã có kết quả.";
+
+        $this->notificationService->send(
+            $employee->user,
+            'leave.decided',
+            $title,
+            $message,
+            ['leave_request_id' => $leaveRequest->id],
+        );
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
+use App\Models\User;
 use App\Repositories\LeaveBalanceRepository;
 use App\Repositories\LeaveRequestRepository;
 use Carbon\Carbon;
@@ -27,6 +28,7 @@ class LeaveRequestService
         private readonly LeaveRequestRepository $leaveRequestRepository,
         private readonly LeaveBalanceRepository $leaveBalanceRepository,
         private readonly LeaveAccrualService $leaveAccrualService,
+        private readonly NotificationService $notificationService,
     ) {
     }
 
@@ -115,7 +117,7 @@ class LeaveRequestService
         // "Nghỉ khác theo chế độ/luật", các loại khác thì tùy chọn.
         $evidencePath = $evidenceFile?->store('leave-evidence', 'local');
 
-        return $this->leaveRequestRepository->create([
+        $leaveRequest = $this->leaveRequestRepository->create([
             'employee_id' => $employee->id,
             'leave_type_id' => $leaveType->id,
             'from_date' => $fromDate->toDateString(),
@@ -130,6 +132,31 @@ class LeaveRequestService
             'status' => 'pending',
             'submitted_at' => now(),
         ]);
+
+        $this->notifySubmission($employee, $leaveRequest, $leaveType);
+
+        return $leaveRequest;
+    }
+
+    // Đơn mới nộp -> báo người cần duyệt TRƯỚC (cấp 1). Không có quản lý trực
+    // tiếp, hoặc có nhưng chưa có tài khoản đăng nhập, thì bỏ qua thẳng cấp 1
+    // và báo HR luôn — khớp đúng luồng bỏ qua cấp 1 đã có ở LeaveApprovalService.
+    private function notifySubmission(Employee $employee, LeaveRequest $leaveRequest, LeaveType $leaveType): void
+    {
+        $manager = $employee->manager;
+        $title = 'Đơn nghỉ phép mới cần duyệt';
+        $message = "{$employee->full_name} vừa gửi đơn xin {$leaveType->name} ({$leaveRequest->total_days} ngày).";
+        $data = ['leave_request_id' => $leaveRequest->id];
+
+        if ($manager?->user !== null) {
+            $this->notificationService->send($manager->user, 'leave.pending_manager', $title, $message, $data);
+
+            return;
+        }
+
+        foreach (User::withPermission('leave.approve_hr')->get() as $hrUser) {
+            $this->notificationService->send($hrUser, 'leave.pending_hr', $title, $message, $data);
+        }
     }
 
     public function listForEmployee(Employee $employee): Collection

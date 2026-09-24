@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Cache;
 
 class User extends Model implements AuthenticatableContract
 {
@@ -64,8 +66,24 @@ class User extends Model implements AuthenticatableContract
             ->all();
     }
 
+    /**
+     * Bản có cache (60s) của permissionCodes() — dùng ở mọi nơi cần kiểm tra
+     * quyền ngoài request thường (vd closure xác thực kênh WebSocket), tránh
+     * mỗi nơi tự viết Cache::remember riêng rồi lệch key/TTL với nhau.
+     */
+    public function cachedPermissionCodes(): array
+    {
+        return Cache::remember("permission:{$this->id}", 60, fn () => $this->permissionCodes());
+    }
+
     public function hasPermission(string $code): bool
     {
-        return in_array($code, $this->permissionCodes(), true);
+        return in_array($code, $this->cachedPermissionCodes(), true);
+    }
+
+    /** Chỉ lấy user đang có 1 permission cụ thể (qua Role đang giữ). */
+    public function scopeWithPermission(Builder $query, string $code): Builder
+    {
+        return $query->whereHas('roles.permissions', fn ($q) => $q->where('code', $code));
     }
 }

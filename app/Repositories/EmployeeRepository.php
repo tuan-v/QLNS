@@ -9,7 +9,11 @@ class EmployeeRepository
 {
     public function paginate(int $perPage = 15, array $filters = []): LengthAwarePaginator
     {
-        return Employee::with(['department', 'position', 'manager'])
+        // 'activeContract'/'currentYearLeaveBalance' (2026-09-24) — cột
+        // "Lương"/"Nghỉ phép" ở danh sách nhân viên, nạp cùng lượt tránh N+1
+        // (mỗi trang tối đa perPage dòng, mỗi quan hệ chỉ 1 query riêng, không
+        // lặp theo từng dòng).
+        return Employee::with(['department', 'position', 'manager', 'activeContract', 'currentYearLeaveBalance'])
             ->when($filters['search'] ?? null, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('full_name', 'like', "%{$search}%")

@@ -6,6 +6,8 @@ use App\Models\Commune;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeShiftAssignment;
+use App\Models\LeaveBalance;
+use App\Models\LeaveType;
 use App\Models\Position;
 use App\Models\Province;
 use App\Models\User;
@@ -590,6 +592,158 @@ class EmployeeTest extends TestCase
 
         $response->assertStatus(200);
         $this->assertNull($response->json('data.manager.cccd'));
+    }
+
+    /* ------- Cột "Lương" ở danh sách nhân viên (2026-09-24) ------- */
+
+    public function test_employee_data_includes_current_agreed_salary_from_active_contract(): void
+    {
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $created = $this->postJson('/api/v1/employees', $this->validPayload([
+            'agreed_salary' => 15000000,
+        ]), ['Authorization' => 'Bearer '.$token])->json('data');
+
+        $response = $this->getJson('/api/v1/employees/'.$created['id'], [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertEquals(15000000, $response->json('data.agreed_salary'));
+    }
+
+    // Coi lương nhạy cảm y hệt CCCD/SĐT (test_subordinate_cannot_see_superior_sensitive_fields
+    // ở trên) — cùng cơ chế ẩn theo quan hệ cấp trên/cấp dưới, không thêm quyền riêng mới.
+    public function test_subordinate_cannot_see_superior_agreed_salary(): void
+    {
+        $subUser = User::create([
+            'email' => 'sub-salary@qlns.local',
+            'user_name' => 'Sub Salary',
+            'password' => bcrypt('Secret@123'),
+            'status' => 'active',
+        ]);
+        $adminToken = $this->loginAs('admin@qlns.local', 'Admin@123');
+        $boss = $this->postJson('/api/v1/employees', $this->validPayload([
+            'agreed_salary' => 20000000,
+        ]), ['Authorization' => 'Bearer '.$adminToken])->json('data');
+        $this->makeEmployee(['manager_id' => $boss['id'], 'user_id' => $subUser->id]);
+
+        \App\Models\Role::where('name', 'Manager')->first()
+            ->users()->attach($subUser->id);
+
+        $token = $this->loginAs('sub-salary@qlns.local', 'Secret@123');
+
+        $response = $this->getJson('/api/v1/employees/'.$boss['id'], [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertNull($response->json('data.agreed_salary'));
+    }
+
+    /* ------- Cột "Nghỉ phép" ở danh sách nhân viên (2026-09-24) ------- */
+
+    private function makeEntitledLeaveType(array $overrides = []): LeaveType
+    {
+        return LeaveType::create(array_merge([
+            'code' => 'annual-'.uniqid(),
+            'name' => 'Nghi phep nam',
+            'annual_entitlement_days' => 12,
+            'is_paid' => true,
+            'is_active' => true,
+        ], $overrides));
+    }
+
+    public function test_employee_data_includes_current_year_leave_remaining_days(): void
+    {
+        $employee = $this->makeEmployee();
+        $leaveType = $this->makeEntitledLeaveType();
+        LeaveBalance::create([
+            'employee_id' => $employee->id, 'leave_type_id' => $leaveType->id, 'year' => now()->year,
+            'allocated_days' => 12, 'carried_forward_days' => 2, 'adjusted_days' => 1, 'used_days' => 5,
+        ]);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $response = $this->getJson('/api/v1/employees/'.$employee->id, [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertEquals(12, $response->json('data.leave_allocated_days'));
+        // remaining = 12 + 2 + 1 - 5 = 10
+        $this->assertEquals(10, $response->json('data.leave_remaining_days'));
+    }
+
+    // Loại phép KHÔNG có quỹ theo năm (annual_entitlement_days = 0, vd "Nghỉ
+    // không lương"/"Nghỉ khác theo chế độ/luật" — mục 30 CODE_MAP) không phải
+    // là "Nghỉ phép năm" thật, không được tính vào cột này dù có bản ghi
+    // LeaveBalance của năm nay.
+    public function test_leave_balance_ignores_non_entitled_leave_types(): void
+    {
+        $employee = $this->makeEmployee();
+        $unpaidType = LeaveType::create([
+            'code' => 'unpaid-'.uniqid(), 'name' => 'Nghi khong luong',
+            'annual_entitlement_days' => 0, 'is_paid' => false, 'is_active' => true,
+        ]);
+        LeaveBalance::create([
+            'employee_id' => $employee->id, 'leave_type_id' => $unpaidType->id, 'year' => now()->year,
+            'allocated_days' => 0, 'used_days' => 3,
+        ]);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $response = $this->getJson('/api/v1/employees/'.$employee->id, [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertNull($response->json('data.leave_allocated_days'));
+        $this->assertNull($response->json('data.leave_remaining_days'));
+    }
+
+    public function test_employee_without_leave_balance_shows_null_leave_days(): void
+    {
+        $employee = $this->makeEmployee();
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $response = $this->getJson('/api/v1/employees/'.$employee->id, [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertNull($response->json('data.leave_allocated_days'));
+        $this->assertNull($response->json('data.leave_remaining_days'));
+    }
+
+    // Coi số ngày nghỉ phép nhạy cảm y hệt lương — cùng cơ chế ẩn theo quan hệ
+    // cấp trên/cấp dưới (xem test_subordinate_cannot_see_superior_agreed_salary).
+    public function test_subordinate_cannot_see_superior_leave_balance(): void
+    {
+        $subUser = User::create([
+            'email' => 'sub-leave@qlns.local',
+            'user_name' => 'Sub Leave',
+            'password' => bcrypt('Secret@123'),
+            'status' => 'active',
+        ]);
+        $boss = $this->makeEmployee();
+        $leaveType = $this->makeEntitledLeaveType();
+        LeaveBalance::create([
+            'employee_id' => $boss->id, 'leave_type_id' => $leaveType->id, 'year' => now()->year,
+            'allocated_days' => 12, 'used_days' => 0,
+        ]);
+        $this->makeEmployee(['manager_id' => $boss->id, 'user_id' => $subUser->id]);
+
+        \App\Models\Role::where('name', 'Manager')->first()
+            ->users()->attach($subUser->id);
+
+        $token = $this->loginAs('sub-leave@qlns.local', 'Secret@123');
+
+        $response = $this->getJson('/api/v1/employees/'.$boss->id, [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertNull($response->json('data.leave_allocated_days'));
+        $this->assertNull($response->json('data.leave_remaining_days'));
     }
 
     // --- Avatar ---

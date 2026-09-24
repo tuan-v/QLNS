@@ -68,26 +68,62 @@
             v-model:page="page"
             v-model:items-per-page="perPage"
         >
+            <!-- Gộp Mã/Họ tên/Phòng ban/Chức vụ/Email vào 1 cột "Nhân viên" cho
+                 gọn bảng (2026-09-24, theo yêu cầu người dùng), tách "Lương"/
+                 "Ngày vào làm" ra thành cột riêng bên cạnh "Trạng thái". -->
             <template #item.full_name="{ item }">
-                <div class="d-flex align-center ga-2">
-                    <v-avatar
-                        :color="avatarColor(item.full_name)"
-                        variant="tonal"
-                        size="32"
+                <div class="d-flex align-center ga-3 py-1">
+                    <v-badge
+                        :model-value="presence.isOnline(item.id)"
+                        dot
+                        color="success"
+                        location="bottom end"
+                        offset-x="3"
+                        offset-y="3"
                     >
-                        <span class="text-caption font-weight-bold">{{
-                            initials(item.full_name)
-                        }}</span>
-                    </v-avatar>
-                    <span>{{ item.full_name }}</span>
+                        <v-avatar
+                            :color="avatarColor(item.full_name)"
+                            variant="tonal"
+                            size="36"
+                        >
+                            <span class="text-caption font-weight-bold">{{
+                                initials(item.full_name)
+                            }}</span>
+                        </v-avatar>
+                    </v-badge>
+                    <div>
+                        <div class="d-flex align-center ga-2">
+                            <span class="font-weight-medium">{{
+                                item.full_name
+                            }}</span>
+                            <span class="text-caption" style="opacity: 0.55">{{
+                                item.code
+                            }}</span>
+                        </div>
+                        <div class="text-caption" style="opacity: 0.7">
+                            {{ item.company_email }}
+                        </div>
+                        <div class="text-caption" style="opacity: 0.55">
+                            {{ item.department?.name ?? "—"
+                            }}<template v-if="item.position">
+                                · {{ item.position.name }}</template
+                            >
+                        </div>
+                    </div>
                 </div>
-                <div class=""></div>
             </template>
-            <template #item.department="{ item }">{{
-                item.department?.name ?? "—"
+            <template #item.agreed_salary="{ item }">{{
+                formatCurrency(item.agreed_salary)
             }}</template>
-            <template #item.position="{ item }">{{
-                item.position?.name ?? "—"
+            <template #item.hire_date="{ item }">{{
+                formatDate(item.hire_date)
+            }}</template>
+            <!-- Cột "Nghỉ phép" (2026-09-24, theo yêu cầu người dùng) — còn
+                 lại/tổng được cấp của "Nghỉ phép năm" NĂM NAY. null (chưa có
+                 bản ghi LeaveBalance nào, hoặc bị ẩn vì người xem là cấp
+                 dưới — EmployeeResource) hiện "—", giống cột "Lương". -->
+            <template #item.leave_remaining_days="{ item }">{{
+                formatLeaveDays(item)
             }}</template>
             <template #item.employment_status="{ item }">
                 <StatusChip
@@ -112,6 +148,7 @@ import { useRouter } from "vue-router";
 import { useEmployeeStore } from "../../stores/useEmployeeStore";
 import { useDepartmentStore } from "../../stores/useDepartmentStore";
 import { useAuthStore } from "../../stores/authStore";
+import { usePresenceStore } from "../../stores/usePresenceStore";
 import employeeService from "../../services/employeeService";
 import DataTable from "../../components/common/DataTable.vue";
 import SearchField from "../../components/common/SearchField.vue";
@@ -123,6 +160,7 @@ import EmployeeFormDialog from "./EmployeeForm.vue";
 const store = useEmployeeStore();
 const departmentStore = useDepartmentStore();
 const auth = useAuthStore();
+const presence = usePresenceStore();
 const router = useRouter();
 
 const formDialog = ref(false);
@@ -232,14 +270,49 @@ function avatarColor(fullName) {
     return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
+// Gộp Mã/Họ tên/Phòng ban/Chức vụ/Email vào 1 cột "Nhân viên" cho gọn bảng
+// (2026-09-24, theo yêu cầu người dùng — xem slot #item.full_name), thêm
+// riêng "Lương" (agreed_salary — hợp đồng đang hiệu lực, mục 8 CODE_MAP,
+// EmployeeResource tự ẩn nếu người xem là cấp dưới), "Ngày vào làm" và
+// "Nghỉ phép" (leave_remaining_days/leave_allocated_days — quỹ "Nghỉ phép
+// năm" của năm nay, cùng cơ chế ẩn với cấp dưới như "Lương").
 const headers = [
-    { title: "Mã", key: "code" },
-    { title: "Họ tên", key: "full_name" },
-    { title: "Phòng ban", key: "department" },
-    { title: "Chức vụ", key: "position" },
-    { title: "Email", key: "company_email" },
+    { title: "Nhân viên", key: "full_name" },
+    { title: "Lương", key: "agreed_salary" },
+    { title: "Ngày vào làm", key: "hire_date" },
+    { title: "Nghỉ phép", key: "leave_remaining_days" },
     { title: "Trạng thái", key: "employment_status" },
 ];
+
+function formatDate(value) {
+    if (!value) {
+        return "—";
+    }
+    return new Date(value).toLocaleDateString("vi-VN");
+}
+
+// Lương ẩn (null) với người xem là cấp dưới (EmployeeResource) — hiện gạch
+// ngang thay vì "0 ₫" để không hiểu nhầm là lương thật bằng 0.
+function formatCurrency(value) {
+    if (value === null || value === undefined) {
+        return "—";
+    }
+    return new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
+    }).format(value);
+}
+
+// "còn lại/tổng được cấp" — cùng cách trình bày "X/Y ngày" đã dùng ở thẻ
+// "Quỹ phép còn lại" của LeaveRequests.vue, cho nhất quán trong cả app.
+// null (chưa có bản ghi LeaveBalance nào, hoặc bị ẩn vì người xem là cấp
+// dưới — EmployeeResource) hiện "—", giống cột "Lương".
+function formatLeaveDays(item) {
+    if (item.leave_allocated_days === null || item.leave_allocated_days === undefined) {
+        return "—";
+    }
+    return `${item.leave_remaining_days}/${item.leave_allocated_days} ngày`;
+}
 
 // Xóa để sau — chưa nằm trong phạm vi Ngày 28 (chỉ Thêm/Sửa).
 const actions = computed(() => [
@@ -313,6 +386,14 @@ watch([search, departmentId, positionId, employmentStatus, perPage], () => {
     fetchData();
 });
 watch(page, fetchData);
+
+// Trạng thái online/offline (2026-09-24, theo yêu cầu người dùng) — kết nối
+// presence dùng CHUNG cho toàn app, mở ngay khi đăng nhập (App.vue +
+// usePresenceStore, xem CODE_MAP mục 32), trang này CHỈ đọc lại (presence.isOnline
+// dùng thẳng trong template), không tự join/leave — nếu gắn theo vòng đời
+// riêng trang này, nhân viên đang ở trang khác (vd "Hồ sơ của tôi") sẽ không
+// được tính là online, dù thật sự đang mở app (lỗi thật đã gặp, chỉ hiện
+// đúng người đang đứng ở trang Nhân viên).
 
 onMounted(() => {
     fetchData();

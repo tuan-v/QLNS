@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\AttendanceChecked;
 use App\Models\Attendance;
 use App\Models\AttendanceLocation;
 use App\Models\AttendanceLog;
@@ -472,7 +473,7 @@ class AttendanceService
         $matchedLocation = $this->matchLocation($data);
         $device = $this->captureDeviceContext($data);
 
-        return DB::transaction(function () use ($employee, $workShift, $matchedLocation, $device, $data, $now, $today) {
+        $log = DB::transaction(function () use ($employee, $workShift, $matchedLocation, $device, $data, $now, $today) {
             $attendance = $this->attendanceRepository->findOrCreateForShift($employee, $workShift, $today);
 
             $lateMinutes = $this->calculateLateMinutes($workShift, $now);
@@ -493,6 +494,12 @@ class AttendanceService
                 $device,
             ));
         });
+
+        // Bắn SAU KHI transaction đã commit (giống quy ước mail/thông báo ở
+        // LeaveApprovalService) — live-feed cho HR xem trực tiếp, KHÔNG lưu DB.
+        AttendanceChecked::dispatch($employee, 'in', $now);
+
+        return $log;
     }
 
     public function checkOut(Employee $employee, array $data): AttendanceLog
@@ -516,7 +523,7 @@ class AttendanceService
         $matchedLocation = $this->matchLocation($data);
         $device = $this->captureDeviceContext($data);
 
-        return DB::transaction(function () use ($employee, $attendance, $workShift, $matchedLocation, $device, $data, $now) {
+        $log = DB::transaction(function () use ($employee, $attendance, $workShift, $matchedLocation, $device, $data, $now) {
             $earlyLeaveMinutes = $this->calculateEarlyLeaveMinutes($workShift, $now);
             $actualMinutes = $this->calculateActualWorkMinutes($attendance->first_check_in_at, $now, $workShift);
 
@@ -543,6 +550,10 @@ class AttendanceService
                 $device,
             ));
         });
+
+        AttendanceChecked::dispatch($employee, 'out', $now);
+
+        return $log;
     }
 
     // Thông tin của CHÍNH THIẾT BỊ đang bấm chấm công (2026-09-21, theo yêu cầu

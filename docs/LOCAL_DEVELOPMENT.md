@@ -8,6 +8,7 @@
 | PHP-FPM | 8.3 Bookworm | Nội bộ `9000` |
 | MySQL | 8.4 | `3306` |
 | Redis | 7.4 Alpine | `6379` |
+| Reverb (WebSocket) | laravel/reverb ^1.12 | `6001` |
 
 PHP image có Composer và các extension cần thiết cho Laravel: `bcmath`, `exif`, `gd`, `intl`, `opcache`, `pcntl`, `pdo_mysql`, `redis` và `zip`.
 
@@ -51,8 +52,13 @@ Trong mạng Compose, Laravel sử dụng hostname theo tên service:
 
 - MySQL: `mysql:3306`
 - Redis: `redis:6379`
+- Reverb (từ container `app`/`queue` khi backend chủ động broadcast sự kiện): `reverb:6001`
 
 Các giá trị mẫu đã được cấu hình trong `.env.example`. Mật khẩu mặc định chỉ dành cho local; môi trường staging/production phải dùng secret riêng.
+
+### Realtime (Laravel Reverb)
+
+Container `reverb` chạy `php artisan reverb:start --host=0.0.0.0 --port=6001`, khởi động cùng `docker compose up -d`. Trình duyệt (Echo/Pusher-js ở frontend) kết nối trực tiếp tới `localhost:6001` (cấu hình qua `VITE_REVERB_*` trong `.env`) — khác với backend, vốn dùng hostname `reverb` theo mạng Docker (`REVERB_HOST`). Nếu đổi `FORWARD_REVERB_PORT` để tránh xung đột cổng, phải đổi `VITE_REVERB_PORT` tương ứng rồi `npm run build` lại. Xem `routes/channels.php` (định nghĩa kênh) và `resources/js/echo.js` (kết nối phía frontend, tự đính JWT Bearer token qua axios interceptor sẵn có thay vì cơ chế auth mặc định của Echo).
 
 ## Tiêu chí hoàn thành Ngày 01
 

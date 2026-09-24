@@ -26,6 +26,35 @@ export const APPROVAL_STATUS_MAP = {
     rejected: { label: "Bị từ chối", color: "error" },
 };
 
+// Gộp trạng thái ca + duyệt công vào ĐÚNG 1 chip (2026-09-24, theo yêu cầu
+// người dùng: "khi được duyệt mới được đang trong ca" — cùng quy tắc đã áp
+// dụng ở AttendanceOverview.vue/mergedStatusFor()). Viết CHUNG 1 chỗ ở đây
+// (không lặp lại ở CheckInDesktop.vue/CheckInMobile.vue) — đúng lý do file
+// này tồn tại, xem comment đầu file: tránh lệch logic giữa 2 giao diện.
+export const MERGED_ATTENDANCE_STATUS_MAP = {
+    pending_approval: { label: "Chờ duyệt", color: "warning" },
+    rejected: { label: "Bị từ chối", color: "error" },
+    ...ATTENDANCE_STATUS_MAP,
+};
+
+// Chưa duyệt (kể cả đang needs_review) -> "Chờ duyệt", che trạng thái ca bên
+// dưới. Bị từ chối -> hiện rõ, không rơi vào "Chờ duyệt". Đã duyệt -> hiện
+// đúng trạng thái ca (pending/completed/needs_review). `attendance` null (ca
+// chưa ai chấm công) -> trả null, nơi gọi tự lo hiện gì (không thuộc phạm vi
+// hàm này).
+export function mergedAttendanceStatus(attendance) {
+    if (!attendance) {
+        return null;
+    }
+    if (attendance.approval_status === "rejected") {
+        return "rejected";
+    }
+    if (attendance.approval_status !== "approved") {
+        return "pending_approval";
+    }
+    return attendance.status;
+}
+
 export function formatDate(value) {
     if (!value) {
         return "—";

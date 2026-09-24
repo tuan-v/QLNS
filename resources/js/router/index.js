@@ -34,6 +34,15 @@ const routes = [
         component: () => import("../views/Me/MyProfile.vue"),
     },
     {
+        path: "/notifications",
+        name: "notifications",
+        // Không cần permission riêng — ai đăng nhập cũng xem được thông báo
+        // của mình. Tab "Toàn công ty" tự ẩn/hiện trong trang theo
+        // notification.view_all (xem Notifications.vue).
+        meta: { title: "Thông báo" },
+        component: () => import("../views/Notification/Notifications.vue"),
+    },
+    {
         path: "/departments",
         name: "departments",
         // permission: mã quyền bắt buộc để vào route này — thiếu thì router
@@ -48,6 +57,12 @@ const routes = [
         // không tách quyền riêng, guard route cũng theo đúng quy ước đó.
         meta: { title: "Chức vụ", permission: "department.view" },
         component: () => import("../views/Position/Positions.vue"),
+    },
+    {
+        path: "/roles",
+        name: "roles",
+        meta: { title: "Vai trò & Phân quyền", permission: "rbac.manage" },
+        component: () => import("../views/Role/Roles.vue"),
     },
     {
         path: "/payrolls",

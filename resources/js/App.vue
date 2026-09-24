@@ -1,19 +1,68 @@
 <script setup>
-import { onMounted } from 'vue';
+import { onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AppLayout from './components/layout/AppLayout.vue';
 import AppLoadingBar from './components/common/AppLoadingBar.vue';
 import AppToast from './components/common/AppToast.vue';
 import { useAuthStore } from './stores/authStore';
+import { usePresenceStore } from './stores/usePresenceStore';
+import { useNotificationStore } from './stores/useNotificationStore';
+import { useAttendanceFeedStore } from './stores/useAttendanceFeedStore';
+import { disconnectEcho } from './echo';
 
 const route = useRoute();
 const auth = useAuthStore();
+const presence = usePresenceStore();
+const notifications = useNotificationStore();
+const attendanceFeed = useAttendanceFeedStore();
 
 onMounted(() => {
     if (auth.accessToken && !auth.user) {
         auth.fetchMe();
     }
 });
+
+// Trạng thái online/offline (mục 32 CODE_MAP) đi theo TOÀN APP, không theo
+// riêng trang Nhân viên — kết nối presence ngay khi đã đăng nhập (kể cả lúc
+// mở app đã sẵn có token), ngắt khi đăng xuất. `immediate: true` để bắt đúng
+// case app vừa mount mà token đã có sẵn trong localStorage.
+//
+// App.vue là nơi DUY NHẤT được gọi disconnectEcho() (đóng hẳn kết nối
+// WebSocket dùng chung) — luôn gọi SAU KHI mọi store realtime đã tự rời
+// kênh của mình (mỗi store.disconnect() chỉ rời kênh của nó, không đóng kết
+// nối). Store realtime mới thêm sau này phải disconnect() ở đây TRƯỚC dòng
+// disconnectEcho(), không được tự gọi disconnectEcho() bên trong store.
+watch(
+    () => auth.isAuthenticated,
+    (loggedIn) => {
+        if (loggedIn) {
+            // Không cần thông tin gì thêm ngoài đã đăng nhập — kết nối ngay,
+            // không đợi fetchMe() (khác notifications/attendanceFeed bên dưới).
+            presence.connect();
+        } else {
+            presence.disconnect();
+            notifications.disconnect();
+            attendanceFeed.disconnect();
+            disconnectEcho();
+        }
+    },
+    { immediate: true },
+);
+
+// notifications/attendanceFeed cần user_id/quyền — dữ liệu này chỉ có SAU
+// KHI fetchMe() (onMounted ở trên) tải xong, nên phải theo dõi auth.user
+// riêng (đợi tải xong mới join, không join hụt lúc user còn null — vd sau
+// khi F5 lại trang mà token đã có sẵn trong localStorage).
+watch(
+    () => auth.user,
+    (user) => {
+        if (user) {
+            notifications.connect(user.id);
+            attendanceFeed.connect(auth.permissions);
+        }
+    },
+    { immediate: true },
+);
 </script>
 
 <template>

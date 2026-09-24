@@ -2,6 +2,7 @@
 import { useTheme } from "vuetify";
 import { useAuthStore } from "../../stores/authStore";
 import { useRouter } from "vue-router";
+import NotificationCenter from "./NotificationCenter.vue";
 
 const theme = useTheme();
 const auth = useAuthStore();
@@ -34,9 +35,7 @@ async function handleLogout() {
             }}</v-icon>
         </v-btn>
 
-        <v-btn icon variant="text">
-            <v-icon size="20">mdi-bell-outline</v-icon>
-        </v-btn>
+        <NotificationCenter />
 
         <v-menu>
             <template #activator="{ props }">

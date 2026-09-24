@@ -16,6 +16,28 @@
             {{ loadError }}
         </v-alert>
 
+        <!-- Live-feed chấm công (mục "Thông báo" CODE_MAP) — chỉ hiện khi có
+             dữ liệu (rỗng lúc mới vào trang, chưa ai chấm công realtime nào).
+             Không lưu DB, chỉ tham khảo tức thời — xem useAttendanceFeedStore.js. -->
+        <v-sheet
+            v-if="attendanceFeed.entries.length > 0"
+            class="border rounded-lg pa-3 mb-4 glass-panel d-flex flex-wrap align-center ga-2"
+            color="transparent"
+        >
+            <span class="text-caption font-weight-bold text-medium-emphasis mr-1">
+                <v-icon size="14" class="mr-1">mdi-access-point</v-icon>Vừa chấm công:
+            </span>
+            <v-chip
+                v-for="(entry, index) in attendanceFeed.entries"
+                :key="index"
+                size="small"
+                :color="entry.type === 'in' ? 'success' : 'default'"
+                variant="tonal"
+            >
+                {{ entry.full_name }} — {{ entry.type === "in" ? "Vào" : "Ra" }} lúc {{ formatTime(entry.at) }}
+            </v-chip>
+        </v-sheet>
+
         <v-sheet class="border rounded-lg pa-4 mb-4 glass-panel" color="transparent">
             <v-row dense>
                 <v-col cols="6" sm="4" md="3">
@@ -90,15 +112,7 @@
                     <span v-else style="opacity: 0.5">—</span>
                 </template>
                 <template #item.status="{ item }">
-                    <StatusChip :status="item.status" :map="OVERVIEW_STATUS_MAP" />
-                </template>
-                <template #item.approval_status="{ item }">
-                    <StatusChip
-                        v-if="item.attendance"
-                        :status="item.attendance.approval_status"
-                        :map="APPROVAL_STATUS_MAP"
-                    />
-                    <span v-else style="opacity: 0.5">—</span>
+                    <StatusChip :status="mergedStatusFor(item)" :map="OVERVIEW_STATUS_MAP" />
                     <div
                         v-if="item.attendance?.approval_status === 'rejected' && item.attendance.approval_note"
                         class="text-caption mt-1"
@@ -152,6 +166,7 @@ import attendanceService from "../../services/attendanceService";
 import workShiftService from "../../services/workShiftService";
 import { useAuthStore } from "../../stores/authStore";
 import { useDepartmentStore } from "../../stores/useDepartmentStore";
+import { useAttendanceFeedStore } from "../../stores/useAttendanceFeedStore";
 import DataTable from "../../components/common/DataTable.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
@@ -165,19 +180,48 @@ import { useToastStore } from "../../stores/useToastStore";
 const toast = useToastStore();
 const auth = useAuthStore();
 const departmentStore = useDepartmentStore();
+const attendanceFeed = useAttendanceFeedStore();
 
 // Trạng thái CA riêng cho màn "hôm nay" — pending/completed/needs_review lấy
 // thẳng từ attendances.status (bản ghi ĐÃ có), absent/on_leave suy ra khi
 // CHƯA có bản ghi. Khác HISTORY_STATUS_MAP ở AttendanceHistoryPanel.vue (đó
 // là full/late/insufficient — hợp cho nhìn lại quá khứ, không hợp cho "đang
 // trong ca thì tính sao" — xem AttendanceService::dailyOverview()).
+//
+// Gộp CHUNG với trạng thái duyệt công vào ĐÚNG 1 cột "Trạng thái" (2026-09-24,
+// theo yêu cầu người dùng: "chưa được duyệt thì là chờ duyệt, khi duyệt rồi
+// mới là đang trong ca") — trước đó tách 2 cột riêng ("Trạng thái ca" +
+// "Duyệt công"), giờ mergedStatusFor() bên dưới quyết định hiện gì, map này
+// chỉ cần gộp thêm 2 khóa `pending_approval`/`rejected` (mượn nhãn từ
+// APPROVAL_STATUS_MAP cho khớp, xem useCheckIn.js) vào chung 1 map để
+// StatusChip tra được cả 2 loại trạng thái qua cùng 1 map.
 const OVERVIEW_STATUS_MAP = {
+    pending_approval: { label: "Chờ duyệt", color: "warning" },
+    rejected: { label: "Từ chối", color: "error" },
     pending: { label: "Đang trong ca", color: "info" },
     completed: { label: "Hoàn tất", color: "success" },
     needs_review: { label: "Cần xem lại", color: "warning" },
     absent: { label: "Vắng", color: "default" },
     on_leave: { label: "Nghỉ phép", color: "purple" },
 };
+
+// Chưa có bản ghi chấm công (Vắng/Nghỉ phép) -> không có khái niệm duyệt,
+// hiện thẳng trạng thái ca. Có bản ghi mà bị Từ chối -> hiện rõ "Từ chối",
+// không rơi vào "Chờ duyệt" hay trạng thái ca. Có bản ghi mà CHƯA duyệt (kể
+// cả đang needs_review) -> hiện "Chờ duyệt". Đã duyệt -> hiện đúng trạng
+// thái ca (Đang trong ca/Hoàn tất/Cần xem lại).
+function mergedStatusFor(item) {
+    if (!item.attendance) {
+        return item.status;
+    }
+    if (item.attendance.approval_status === "rejected") {
+        return "rejected";
+    }
+    if (item.attendance.approval_status !== "approved") {
+        return "pending_approval";
+    }
+    return item.status;
+}
 
 const statusOptions = [
     { title: "Tất cả", value: null },
@@ -215,8 +259,8 @@ const headers = [
     { title: "Ca", key: "work_shift", width: 140 },
     { title: "Giờ vào - ra", key: "times", width: 130 },
     { title: "Thiết bị / Điểm chấm công", key: "device" },
-    { title: "Trạng thái ca", key: "status", width: 130 },
-    { title: "Duyệt công", key: "approval_status", width: 160 },
+    // Gộp trạng thái ca + duyệt công vào 1 cột (2026-09-24, xem mergedStatusFor()).
+    { title: "Trạng thái", key: "status", width: 180 },
 ];
 
 function firstLog(item) {
