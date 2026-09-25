@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Attendance\BulkDecideAttendanceApprovalRequest;
 use App\Http\Requests\Attendance\CheckInRequest;
 use App\Http\Requests\Attendance\CheckOutRequest;
 use App\Http\Requests\Attendance\DecideAttendanceApprovalRequest;
@@ -87,6 +88,18 @@ class AttendanceController extends Controller
         $attendance->load(['employee', 'workShift', 'logs.attendanceLocation', 'approvedBy']);
 
         return response()->json($attendance);
+    }
+
+    public function bulkDecideApproval(BulkDecideAttendanceApprovalRequest $request): JsonResponse
+    {
+        $result = $this->attendanceService->bulkDecideApproval(
+            $request->validated('attendance_ids'),
+            $request->validated('status'),
+            $request->validated('decision_note'),
+            $request->user()->id,
+        );
+
+        return response()->json($result);
     }
 
     // "Tổng hợp chấm công trong ngày" (2026-09-23, theo yêu cầu người dùng) —

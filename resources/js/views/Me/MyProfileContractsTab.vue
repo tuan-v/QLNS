@@ -11,7 +11,80 @@
             {{ contractsError }}
         </v-alert>
 
-        <v-sheet class="border rounded-lg glass-panel" color="transparent">
+        <!-- Danh sách thẻ trên di động thay vì bảng 7 cột (2026-09-25, theo
+             yêu cầu người dùng — cùng cách đã làm ở trang Chấm công/Nghỉ
+             phép/Phiếu lương/Ca làm việc). -->
+        <div v-if="mobile" class="d-flex flex-column ga-3">
+            <div v-if="contractsLoading" class="d-flex justify-center py-6">
+                <v-progress-circular indeterminate size="24" />
+            </div>
+            <v-sheet
+                v-else-if="!contracts.length"
+                class="border rounded-lg pa-5 glass-panel text-center"
+                color="transparent"
+                style="opacity: 0.6"
+            >
+                Chưa có hợp đồng nào.
+            </v-sheet>
+            <v-sheet
+                v-for="contract in contracts"
+                v-else
+                :key="contract.id"
+                class="border rounded-lg pa-4 glass-panel"
+                color="transparent"
+            >
+                <div class="d-flex justify-space-between align-start mb-2">
+                    <div>
+                        <div class="font-weight-bold">{{ contract.contract_number }}</div>
+                        <div class="text-body-2" style="opacity: 0.7">
+                            {{ CONTRACT_TYPE_MAP[contract.contract_type] ?? contract.contract_type }}
+                        </div>
+                    </div>
+                    <StatusChip :status="contract.status" :map="CONTRACT_STATUS_MAP" />
+                </div>
+                <div class="text-body-2" style="opacity: 0.75">
+                    {{ formatDate(contract.start_date) }} - {{ formatDate(contract.end_date) ?? "Không thời hạn" }}
+                </div>
+                <div class="text-body-2 mb-3" style="opacity: 0.75">
+                    {{ formatCurrency(contract.agreed_salary) }}
+                </div>
+                <div class="d-flex ga-2">
+                    <v-btn
+                        icon="mdi-information-outline"
+                        variant="tonal"
+                        size="small"
+                        rounded="lg"
+                        @click="openDetailDialog(contract)"
+                    >
+                        <v-icon icon="mdi-information-outline" />
+                        <v-tooltip activator="parent" location="top">Xem chi tiết</v-tooltip>
+                    </v-btn>
+                    <v-btn
+                        icon="mdi-eye-outline"
+                        variant="tonal"
+                        size="small"
+                        rounded="lg"
+                        @click="$emit('preview', contract.download_url, contract.contract_number + '.pdf')"
+                    >
+                        <v-icon icon="mdi-eye-outline" />
+                        <v-tooltip activator="parent" location="top">Xem trước</v-tooltip>
+                    </v-btn>
+                    <v-btn
+                        icon="mdi-download-outline"
+                        variant="tonal"
+                        size="small"
+                        rounded="lg"
+                        :loading="downloadingId === contract.id"
+                        @click="downloadContract(contract)"
+                    >
+                        <v-icon icon="mdi-download-outline" />
+                        <v-tooltip activator="parent" location="top">Tải file</v-tooltip>
+                    </v-btn>
+                </div>
+            </v-sheet>
+        </div>
+
+        <v-sheet v-else class="border rounded-lg glass-panel" color="transparent">
             <v-table density="comfortable">
                 <thead>
                     <tr>
@@ -190,10 +263,13 @@
 // tiết/Tải file như HR xem, chỉ khác là API .../me/contracts chỉ trả về
 // đúng hợp đồng của CHÍNH người đang đăng nhập.
 import { onMounted, ref } from "vue";
+import { useDisplay } from "vuetify";
 import employeeService from "../../services/employeeService";
 import StatusChip from "../../components/common/StatusChip.vue";
 
 defineEmits(["preview"]);
+
+const { mobile } = useDisplay();
 
 const CONTRACT_STATUS_MAP = {
     active: { label: "Đang áp dụng", color: "success" },

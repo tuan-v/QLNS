@@ -210,6 +210,44 @@ class AttendanceOverviewTest extends TestCase
         $this->assertArrayNotHasKey($orphan->id, $byEmployee);
     }
 
+    // 2026-09-25 — bug thật người dùng phát hiện: nhân viên chấm công dưới 1
+    // ca, CÙNG NGÀY được HR đổi sang ca khác (assignment cũ + chính Ca làm
+    // việc cũ đều bị xóa mềm, vd gộp/dọn Ca). Bản ghi chấm công/chờ duyệt đó
+    // KHÔNG được biến mất khỏi màn Tổng hợp — dù cả assignment lẫn work_shift
+    // gốc đã không còn "hiện hành" tại thời điểm xem lại.
+    public function test_overview_still_shows_attendance_after_same_day_reassignment_and_shift_deletion(): void
+    {
+        $employee = $this->makeEmployee();
+        $oldShift = $this->makeWorkShift(['name' => 'Ca chieu']);
+        $this->assignShift($employee, $oldShift, '2026-01-01');
+        $attendance = $this->makeAttendance($employee, $oldShift, '2026-01-05', [
+            'first_check_in_at' => '2026-01-05 13:33:00', 'last_check_out_at' => null,
+            'actual_work_minutes' => 0, 'status' => 'pending', 'approval_status' => 'pending',
+        ]);
+
+        // HR đổi ca: gán ca MỚI hiệu lực CÙNG NGÀY, xóa mềm assignment cũ,
+        // rồi xóa mềm luôn Ca làm việc cũ (kịch bản thật đã gặp, không phải
+        // giả định).
+        EmployeeShiftAssignment::where('employee_id', $employee->id)->delete();
+        $newShift = $this->makeWorkShift(['name' => 'Ca moi']);
+        $this->assignShift($employee, $newShift, '2026-01-05');
+        $oldShift->delete();
+
+        $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
+        $response = $this->getJson($this->overviewUrl(['date' => '2026-01-05']), ['Authorization' => 'Bearer '.$hrToken]);
+
+        $response->assertStatus(200);
+        $data = $response->json('data');
+        $rowsForEmployee = collect($data['rows'])->where('employee.id', $employee->id);
+        // Đúng 2 dòng: 1 "Vắng" (ca mới, chưa ai chấm) + 1 "Chờ duyệt" (ca cũ
+        // đã xóa mềm, vẫn phải hiện ra để HR duyệt được).
+        $this->assertCount(2, $rowsForEmployee);
+        $pendingRow = $rowsForEmployee->firstWhere('attendance.id', $attendance->id);
+        $this->assertNotNull($pendingRow, 'Bản ghi chấm công chờ duyệt phải còn hiện ra dù ca/assignment gốc đã bị xóa mềm.');
+        $this->assertSame('pending', $pendingRow['attendance']['approval_status']);
+        $this->assertSame(1, $data['summary']['awaiting_approval']);
+    }
+
     // Đang trong ca, đúng giờ, CHƯA chấm công ra — status phải là 'pending'
     // ("Đang trong ca"), không được suy diễn nhầm thành thiếu công như
     // deriveHistoryStatus() (mục 18) vẫn dùng cho màn Lịch sử.

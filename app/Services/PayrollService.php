@@ -239,7 +239,11 @@ class PayrollService
 
     // Ngày công chuẩn = ngày thường (T2-T6) trong tháng, trừ đi ngày lễ RƠI
     // ĐÚNG vào ngày thường (lễ trùng T7/CN không trừ thêm vì vốn dĩ đã nghỉ).
-    private function standardWorkDaysFor(Carbon $start, Carbon $end): int
+    // public (trước đây private): Dashboard cá nhân (2026-09-25, theo yêu
+    // cầu người dùng) cần đúng công thức NÀY cho "Công tháng này" (mẫu số) —
+    // tái dùng thay vì viết lại 1 bản tính ngày công chuẩn khác dễ lệch số
+    // với bảng lương thật.
+    public function standardWorkDaysFor(Carbon $start, Carbon $end): int
     {
         $weekdayCount = 0;
 

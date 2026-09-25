@@ -85,7 +85,12 @@
                 :loading="loading"
                 :actions="actions"
                 :actions-width="150"
+                :selectable="canApprove"
+                :item-value="(item) => item.attendance?.id"
+                :item-selectable="itemSelectableForBulk"
+                :bulk-actions="bulkActions"
                 @action-error="loadData"
+                @bulk-action-error="loadData"
             >
                 <template #item.employee="{ item }">
                     <div class="font-weight-medium">{{ item.employee.full_name }}</div>
@@ -162,6 +167,7 @@
 // (quyền attendance.approve — chỉ HR/Admin, nút tự ẩn theo quyền, Backend
 // vẫn tự chặn ở API dù nút có lỡ hiện ra).
 import { computed, onMounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import attendanceService from "../../services/attendanceService";
 import workShiftService from "../../services/workShiftService";
 import { useAuthStore } from "../../stores/authStore";
@@ -179,6 +185,7 @@ import { useToastStore } from "../../stores/useToastStore";
 
 const toast = useToastStore();
 const auth = useAuthStore();
+const route = useRoute();
 const departmentStore = useDepartmentStore();
 const attendanceFeed = useAttendanceFeedStore();
 
@@ -232,7 +239,12 @@ const statusOptions = [
     { title: "Nghỉ phép", value: "on_leave" },
 ];
 
-const date = ref(todayIso());
+// Cho phép chỗ khác (vd khối "Cần bạn xử lý" ở Dashboard.vue) đưa thẳng tới
+// đúng ngày còn bản ghi chờ duyệt qua query ?date=... — mặc định hôm nay như
+// cũ nếu không có (2026-09-25, sửa bug thật: bấm vào mục "Chấm công chờ
+// duyệt" luôn rơi vào hôm nay, có thể KHÔNG thấy bản ghi cần xử lý nếu nó từ
+// ngày khác).
+const date = ref(typeof route.query.date === "string" ? route.query.date : todayIso());
 const departmentId = ref(null);
 const workShiftId = ref(null);
 const statusFilter = ref(null);
@@ -333,13 +345,21 @@ const actions = computed(() => [
     },
     {
         icon: "mdi-check",
-        tooltip: "Duyệt",
+        // "Đổi sang Duyệt" khi dòng ĐANG bị từ chối (2026-09-25, theo phản hồi
+        // người dùng: nút "Từ chối" vẫn hiện sau khi đã Duyệt gây hiểu lầm là
+        // bug) — 2 nút Duyệt/Từ chối CHO PHÉP đổi qua lại (HR bấm nhầm thì sửa
+        // lại được, xem AttendanceService::decideApproval()), chỉ là tên nút
+        // trước đây không nói rõ ý "đổi quyết định" này.
+        tooltip: (item) => (item.attendance?.approval_status === "rejected" ? "Đổi sang Duyệt" : "Duyệt"),
         color: "success",
         hidden: (item) => !canApprove.value || item.attendance?.approval_status === "approved" || !canDecide(item),
         confirm: {
-            title: "Duyệt chấm công",
+            title: (item) =>
+                item.attendance?.approval_status === "rejected" ? "Đổi quyết định sang Duyệt" : "Duyệt chấm công",
             message: (item) =>
-                `Duyệt chấm công của ${item.employee.full_name} ngày ${formatDate(date.value)}? Bản ghi được duyệt sẽ được tính công và lương.`,
+                item.attendance?.approval_status === "rejected"
+                    ? `Đơn này ĐANG bị Từ chối — đổi lại thành Duyệt cho ${item.employee.full_name} ngày ${formatDate(date.value)}? Bản ghi được duyệt sẽ được tính công và lương.`
+                    : `Duyệt chấm công của ${item.employee.full_name} ngày ${formatDate(date.value)}? Bản ghi được duyệt sẽ được tính công và lương.`,
             confirmText: "Duyệt",
             input: { required: false, label: "Ghi chú (tùy chọn)" },
         },
@@ -354,13 +374,18 @@ const actions = computed(() => [
     },
     {
         icon: "mdi-close",
-        tooltip: "Từ chối",
+        // "Đổi sang Từ chối" khi dòng ĐANG được duyệt — cùng lý do ở nút Duyệt
+        // phía trên (đây là đổi quyết định, không phải "từ chối lần đầu").
+        tooltip: (item) => (item.attendance?.approval_status === "approved" ? "Đổi sang Từ chối" : "Từ chối"),
         color: "error",
         hidden: (item) => !canApprove.value || item.attendance?.approval_status === "rejected" || !canDecide(item),
         confirm: {
-            title: "Từ chối chấm công",
+            title: (item) =>
+                item.attendance?.approval_status === "approved" ? "Đổi quyết định sang Từ chối" : "Từ chối chấm công",
             message: (item) =>
-                `Từ chối chấm công của ${item.employee.full_name} ngày ${formatDate(date.value)}? Bản ghi bị từ chối sẽ không được tính công và lương.`,
+                item.attendance?.approval_status === "approved"
+                    ? `Đơn này ĐANG được Duyệt — đổi lại thành Từ chối cho ${item.employee.full_name} ngày ${formatDate(date.value)}? Bản ghi bị từ chối sẽ không được tính công và lương.`
+                    : `Từ chối chấm công của ${item.employee.full_name} ngày ${formatDate(date.value)}? Bản ghi bị từ chối sẽ không được tính công và lương.`,
             confirmText: "Từ chối",
             input: { required: true, label: "Lý do từ chối" },
         },
@@ -374,6 +399,89 @@ const actions = computed(() => [
         },
     },
 ]);
+
+// Chọn nhiều dòng chỉ để DUYỆT/TỪ CHỐI hàng loạt (2026-09-25, theo yêu cầu
+// người dùng, kèm ảnh tham khảo "Bulk Actions") — dòng nào không có bản ghi
+// chấm công (Vắng/Nghỉ phép) hoặc người xem không có quyền duyệt thì không
+// cho chọn, cùng điều kiện với canDecide() ở nút duyệt từng dòng.
+function itemSelectableForBulk(item) {
+    return canApprove.value && canDecide(item);
+}
+
+// Cho phép chọn CHUNG cả dòng đã duyệt/đã từ chối vào cùng 1 lượt tick (đỡ
+// phải bỏ chọn lại nếu lỡ tick nhầm), nhưng MỖI nút hàng loạt chỉ áp dụng lên
+// đúng tập con dòng NÓ còn xử lý được — dòng đã ở đúng trạng thái đó rồi thì
+// bỏ qua êm, không báo "lỗi" vô nghĩa (khác 1 dòng lỗi THẬT SỰ, vd bị người
+// khác duyệt ngay trước đó — vẫn báo qua "failed" như cũ).
+function isApprovable(item) {
+    return canDecide(item) && item.attendance?.approval_status !== "approved";
+}
+function isRejectable(item) {
+    return canDecide(item) && item.attendance?.approval_status !== "rejected";
+}
+
+const bulkActions = computed(() => {
+    if (!canApprove.value) {
+        return [];
+    }
+
+    return [
+        {
+            icon: "mdi-check-all",
+            label: "Duyệt tất cả",
+            tooltip: "Duyệt tất cả",
+            color: "success",
+            // Không có dòng nào TRONG SỐ đã chọn còn cần duyệt (vd đã chọn
+            // toàn dòng đã duyệt rồi) — khóa nút thay vì để bấm ra vô nghĩa
+            // (2026-09-25, theo phản hồi người dùng).
+            disabled: (selectedItems) => !selectedItems.some(isApprovable),
+            confirm: {
+                title: "Duyệt chấm công hàng loạt",
+                message: "Duyệt TẤT CẢ bản ghi đã chọn (bỏ qua dòng đã duyệt sẵn)? Các bản ghi được duyệt sẽ được tính công và lương.",
+                confirmText: "Duyệt tất cả",
+                input: { required: false, label: "Ghi chú (tùy chọn)" },
+            },
+            onClick: (selectedItems, { input }) =>
+                runBulkDecide(selectedItems.filter(isApprovable), "approved", input || null),
+        },
+        {
+            icon: "mdi-close-box-multiple-outline",
+            label: "Từ chối tất cả",
+            tooltip: "Từ chối tất cả",
+            color: "error",
+            disabled: (selectedItems) => !selectedItems.some(isRejectable),
+            confirm: {
+                title: "Từ chối chấm công hàng loạt",
+                message: "Từ chối TẤT CẢ bản ghi đã chọn (bỏ qua dòng đã từ chối sẵn)? Các bản ghi bị từ chối sẽ không được tính công và lương.",
+                confirmText: "Từ chối tất cả",
+                input: { required: true, label: "Lý do từ chối (áp dụng cho tất cả)" },
+            },
+            onClick: (selectedItems, { input }) =>
+                runBulkDecide(selectedItems.filter(isRejectable), "rejected", input),
+        },
+    ];
+});
+
+// KHÔNG throw khi có bản ghi lỗi — bulk-approval API luôn trả 200 kèm
+// succeeded/failed (xem AttendanceService::bulkDecideApproval()), tự báo kết
+// quả qua toast thay vì coi thất bại 1 phần là lỗi cả thao tác.
+async function runBulkDecide(selectedItems, status, note) {
+    const response = await attendanceService.bulkDecideApproval({
+        attendance_ids: selectedItems.map((item) => item.attendance.id),
+        status,
+        decision_note: note,
+    });
+    const { succeeded, failed } = response.data;
+
+    if (failed.length === 0) {
+        toast.success(`Đã ${status === "approved" ? "duyệt" : "từ chối"} ${succeeded.length} bản ghi.`);
+    } else {
+        toast.warning(
+            `${succeeded.length} bản ghi thành công, ${failed.length} bản ghi lỗi: ${failed[0].message}`,
+        );
+    }
+    await loadData();
+}
 
 watch([date, departmentId, workShiftId, statusFilter], loadData);
 

@@ -11,7 +11,51 @@
             {{ shiftsError }}
         </v-alert>
 
-        <v-sheet class="border rounded-lg glass-panel" color="transparent">
+        <!-- Danh sách thẻ trên di động thay vì bảng 5 cột (2026-09-25, theo
+             yêu cầu người dùng — cùng cách đã làm ở trang Chấm công/Nghỉ phép). -->
+        <div v-if="mobile" class="d-flex flex-column ga-3">
+            <div v-if="shiftsLoading" class="d-flex justify-center py-6">
+                <v-progress-circular indeterminate size="24" />
+            </div>
+            <v-sheet
+                v-else-if="!shifts.length"
+                class="border rounded-lg pa-5 glass-panel text-center"
+                color="transparent"
+                style="opacity: 0.6"
+            >
+                Chưa được gán ca làm việc nào.
+            </v-sheet>
+            <v-sheet
+                v-for="a in shifts"
+                v-else
+                :key="a.id"
+                class="border rounded-lg pa-4 glass-panel"
+                color="transparent"
+            >
+                <div class="d-flex justify-space-between align-start mb-2">
+                    <div class="font-weight-bold">
+                        {{ a.work_shift?.name ?? "—" }}
+                        <span style="opacity: 0.5">({{ a.work_shift?.code }})</span>
+                    </div>
+                    <v-chip
+                        size="small"
+                        variant="tonal"
+                        :color="a.status === 'active' ? 'success' : 'default'"
+                    >
+                        {{ a.status === "active" ? "Đang áp dụng" : "Đã kết thúc" }}
+                    </v-chip>
+                </div>
+                <div class="text-body-2" style="opacity: 0.75">
+                    {{ formatDate(a.effective_from) }} -
+                    {{ a.effective_to ? formatDate(a.effective_to) : "Không thời hạn" }}
+                </div>
+                <div class="text-body-2" style="opacity: 0.75">
+                    Ngày trong tuần: {{ formatWorkDays(a.work_days) }}
+                </div>
+            </v-sheet>
+        </div>
+
+        <v-sheet v-else class="border rounded-lg glass-panel" color="transparent">
             <v-table density="comfortable">
                 <thead>
                     <tr>
@@ -82,7 +126,10 @@
 // Chỉ đọc, không có thao tác nào (gán/sửa/xóa ca là việc của HR/Quản lý —
 // xem EmployeeShiftAssignmentsTab.vue ở EmployeeDetail.vue).
 import { onMounted, ref } from "vue";
+import { useDisplay } from "vuetify";
 import employeeService from "../../services/employeeService";
+
+const { mobile } = useDisplay();
 
 function formatDate(value) {
     if (!value) {

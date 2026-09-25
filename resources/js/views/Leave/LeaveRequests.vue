@@ -32,7 +32,45 @@
 
         <!-- Đơn của tôi -->
         <div class="text-subtitle-1 font-weight-bold mb-3 mt-4">Đơn của tôi</div>
-        <v-sheet class="border rounded-lg glass-panel" color="transparent">
+
+        <!-- Bảng nhiều cột không đọc được trên màn hình hẹp (đã xác nhận qua
+             Playwright ở trang Chấm công, mục 26 CODE_MAP) — mobile dùng danh
+             sách thẻ xếp dọc thay vì bảng, cùng cách CheckInMobile.vue đã làm
+             cho "Lịch sử gần đây" (2026-09-25, theo yêu cầu người dùng). -->
+        <div v-if="mobile" class="d-flex flex-column ga-3">
+            <div v-if="loadingList" class="d-flex justify-center py-6">
+                <v-progress-circular indeterminate size="24" />
+            </div>
+            <v-sheet
+                v-else-if="!myRequests.length"
+                class="border rounded-lg pa-5 glass-panel text-center"
+                color="transparent"
+                style="opacity: 0.6"
+            >
+                Bạn chưa có đơn xin nghỉ phép nào.
+            </v-sheet>
+            <v-sheet
+                v-for="lr in myRequests"
+                v-else
+                :key="lr.id"
+                class="border rounded-lg pa-4 glass-panel"
+                color="transparent"
+            >
+                <div class="d-flex justify-space-between align-start mb-2">
+                    <div>
+                        <div class="font-weight-bold">{{ lr.leave_type?.name ?? "—" }}</div>
+                        <div class="text-body-2" style="opacity: 0.7">
+                            {{ formatDate(lr.from_date) }} - {{ formatDate(lr.to_date) }}
+                            ({{ lr.total_days }} ngày)
+                        </div>
+                    </div>
+                    <StatusChip :status="lr.status" :map="LEAVE_STATUS_MAP" />
+                </div>
+                <div class="text-body-2" style="opacity: 0.75">{{ lr.reason }}</div>
+            </v-sheet>
+        </div>
+
+        <v-sheet v-else class="border rounded-lg glass-panel" color="transparent">
             <v-table density="comfortable">
                 <thead>
                     <tr>
@@ -254,6 +292,7 @@
 // dành cho CRUD admin như EmployeeForm.vue, không phù hợp cho luồng tự phục
 // vụ đơn giản này).
 import { computed, onMounted, ref } from "vue";
+import { useDisplay } from "vuetify";
 import leaveRequestService from "../../services/leaveRequestService";
 import leaveTypeService from "../../services/leaveTypeService";
 import PageHeader from "../../components/common/PageHeader.vue";
@@ -265,6 +304,7 @@ import StatCards from "../../components/dashboard/StatCards.vue";
 import { useToastStore } from "../../stores/useToastStore";
 
 const toast = useToastStore();
+const { mobile } = useDisplay();
 
 const LEAVE_STATUS_MAP = {
     pending: { label: "Chờ duyệt", color: "info" },

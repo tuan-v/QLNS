@@ -1,7 +1,7 @@
 import axios from "axios";
 
 export default {
-    get() {
-        return axios.get("/api/v1/dashboard");
+    get(date) {
+        return axios.get("/api/v1/dashboard", { params: date ? { date } : undefined });
     },
 };

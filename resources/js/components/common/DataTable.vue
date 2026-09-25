@@ -38,7 +38,8 @@ const props = defineProps({
     //
     // Mỗi phần tử:
     //   icon     String  bắt buộc — tên icon MDI, vd "mdi-pencil-outline"
-    //   tooltip  String  chữ hiện khi rê chuột; cũng là nhãn mặc định của hộp xác nhận
+    //   tooltip  String | (item) => String  chữ hiện khi rê chuột; cũng là nhãn mặc định của hộp xác nhận —
+    //            nhận Function khi Ý NGHĨA nút đổi theo trạng thái từng dòng (vd "Duyệt" -> "Đổi sang Duyệt")
     //   label    String  chữ hiện cạnh icon (bỏ trống -> nút chỉ có icon)
     //   color    String  màu Vuetify, mặc định "primary"
     //   hidden   Boolean | (item) => Boolean   ẩn hẳn nút ở dòng đó
@@ -63,12 +64,49 @@ const props = defineProps({
         type: [Number, String],
         default: 120,
     },
+
+    // Chọn nhiều dòng + thanh thao tác hàng loạt (2026-09-25, theo yêu cầu
+    // người dùng, kèm ảnh tham khảo) — TẮT mặc định, không ảnh hưởng các
+    // trang đang dùng DataTable sẵn có. Bật bằng `selectable`, khai
+    // `bulkActions` (CÙNG hình dạng với `actions` ở trên, khác 2 điểm:
+    // `onClick(selectedItems, { input })` nhận cả MẢNG item đã chọn thay vì 1
+    // item; `disabled`/`confirm.message`... nếu là hàm thì nhận
+    // (selectedItems) thay vì (item) — không có "1 item" nào để truyền vào.
+    // `disabled: (selectedItems) => Boolean` dùng để khóa nút khi KHÔNG có
+    // dòng nào trong số đã chọn thật sự hợp lệ cho ĐÚNG thao tác này (2026-
+    // 09-25, theo phản hồi người dùng — vd đã chọn cả dòng đã duyệt rồi thì
+    // nút "Duyệt tất cả" phải khóa lại, dù nút "Từ chối tất cả" vẫn dùng được
+    // bình thường vì dòng đó vẫn từ chối được).
+    selectable: {
+        type: Boolean,
+        default: false,
+    },
+    // String (tên field) HOẶC Function (item) => giá trị định danh — cùng
+    // kiểu Vuetify's `item-value`. Trang nào không có field `id` phẳng (vd
+    // AttendanceOverview.vue — mỗi dòng là {employee, work_shift, attendance,
+    // status}, không phải 1 model) PHẢI tự truyền hàm riêng.
+    itemValue: {
+        type: [String, Function],
+        default: "id",
+    },
+    // String|Function (item) => Boolean — dòng nào trả về false thì ẩn hẳn
+    // checkbox (vd dòng "Vắng" chưa có bản ghi chấm công, không có gì để
+    // duyệt hàng loạt). Không truyền thì MỌI dòng đều chọn được.
+    itemSelectable: {
+        type: [String, Function],
+        default: null,
+    },
+    bulkActions: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const emit = defineEmits([
     "update:page",
     "update:itemsPerPage",
     "action-error",
+    "bulk-action-error",
 ]);
 
 const slots = useSlots();
@@ -211,7 +249,10 @@ function buildConfirm(action, item) {
     }
 
     const config = typeof action.confirm === "object" ? action.confirm : {};
-    const label = action.tooltip || action.label || "thực hiện";
+    // tooltip cũng nhận Function (item) => String (2026-09-25 — cần thiết khi
+    // 1 nút đổi Ý NGHĨA theo trạng thái từng dòng, vd "Duyệt" biến thành "Đổi
+    // sang Duyệt" khi dòng đó đang bị Từ chối — xem AttendanceOverview.vue).
+    const label = resolve(action.tooltip, item) || action.label || "thực hiện";
 
     return {
         title: resolve(config.title, item) ?? `Xác nhận ${label.toLowerCase()}`,
@@ -276,18 +317,178 @@ async function submitConfirm() {
         pending.value = null;
     }
 }
+
+/* ------------------------- Chọn nhiều + Hàng loạt ------------------------ */
+
+const selected = ref([]);
+const selectedCount = computed(() => selected.value.length);
+
+function resolveItemValue(item) {
+    return typeof props.itemValue === "function"
+        ? props.itemValue(item)
+        : item[props.itemValue];
+}
+
+// Vuetify's v-model chỉ trả về MẢNG GIÁ TRỊ đã chọn (theo item-value), không
+// trả thẳng item — tự tra ngược lại item đầy đủ để bulkActions.onClick nhận
+// được dữ liệu thật (employee, attendance...), không phải chỉ 1 con số/chuỗi.
+const selectedItems = computed(() =>
+    props.items.filter((item) => selected.value.includes(resolveItemValue(item))),
+);
+
+function isBulkActionDisabled(action) {
+    return typeof action.disabled === "function"
+        ? Boolean(action.disabled(selectedItems.value))
+        : Boolean(action.disabled);
+}
+
+function clearSelection() {
+    selected.value = [];
+}
+
+// Xóa lựa chọn khi đổi trang/đổi bộ lọc (items thay đổi hẳn) — tránh giữ lại
+// selection "ma" trỏ tới dòng không còn hiển thị, dễ gây hiểu lầm đã chọn
+// nhầm dòng khác đang trùng giá trị item-value ở trang mới.
+watch(
+    () => props.items,
+    () => clearSelection(),
+);
+
+const bulkRunning = ref(null);
+const bulkPending = ref(null);
+const bulkInputValue = ref("");
+const bulkSubmitting = ref(false);
+const bulkActionError = ref("");
+
+const bulkConfirmOpen = computed({
+    get: () => bulkPending.value !== null,
+    set: (value) => {
+        if (!value) {
+            bulkPending.value = null;
+        }
+    },
+});
+
+const bulkInputInvalid = computed(() => {
+    const input = bulkPending.value?.config.input;
+    return Boolean(input?.required) && !bulkInputValue.value.trim();
+});
+
+function buildBulkConfirm(action) {
+    if (!action.confirm) {
+        return null;
+    }
+
+    const config = typeof action.confirm === "object" ? action.confirm : {};
+    const label = action.tooltip || action.label || "thực hiện";
+
+    return {
+        title: config.title ?? `Xác nhận ${label.toLowerCase()}`,
+        message: config.message ?? `Áp dụng "${label}" cho ${selectedCount.value} mục đã chọn?`,
+        confirmText: config.confirmText ?? label,
+        color: config.color ?? action.color ?? "primary",
+        warning: config.warning ?? null,
+        input: config.input ?? null,
+    };
+}
+
+async function executeBulk(action, extra = {}) {
+    bulkRunning.value = action;
+
+    try {
+        await action.onClick?.(selectedItems.value, extra);
+        clearSelection();
+        return true;
+    } catch (error) {
+        bulkActionError.value =
+            error?.response?.data?.message ??
+            error?.message ??
+            "Không thực hiện được thao tác.";
+        emit("bulk-action-error", { action, error });
+        return false;
+    } finally {
+        bulkRunning.value = null;
+    }
+}
+
+function onBulkActionClick(action) {
+    if (isBulkActionDisabled(action)) {
+        return;
+    }
+
+    const config = buildBulkConfirm(action);
+
+    if (!config) {
+        void executeBulk(action);
+        return;
+    }
+
+    bulkInputValue.value = "";
+    bulkActionError.value = "";
+    bulkPending.value = { action, config };
+}
+
+async function submitBulkConfirm() {
+    if (!bulkPending.value || bulkInputInvalid.value) {
+        return;
+    }
+
+    bulkActionError.value = "";
+    bulkSubmitting.value = true;
+    const succeeded = await executeBulk(bulkPending.value.action, {
+        input: bulkInputValue.value.trim(),
+    });
+    bulkSubmitting.value = false;
+
+    if (succeeded) {
+        bulkPending.value = null;
+    }
+}
 </script>
 
 <template>
     <div>
+        <!-- Thanh thao tác hàng loạt — chỉ hiện khi đã chọn ít nhất 1 dòng
+             (2026-09-25, theo yêu cầu người dùng, kèm ảnh tham khảo). -->
+        <v-sheet
+            v-if="selectable && selectedCount > 0"
+            class="d-flex align-center flex-wrap ga-3 pa-3 mb-3 rounded-lg border glass-panel"
+        >
+            <span class="text-body-2 font-weight-medium">
+                Đã chọn {{ selectedCount }} mục
+            </span>
+            <v-btn
+                v-for="(action, index) in bulkActions"
+                :key="index"
+                :color="action.color ?? 'primary'"
+                :loading="bulkRunning === action"
+                :disabled="bulkRunning !== null || isBulkActionDisabled(action)"
+                variant="tonal"
+                size="small"
+                rounded="lg"
+                @click="onBulkActionClick(action)"
+            >
+                <v-icon :icon="action.icon" size="18" class="mr-1" />
+                {{ action.label ?? action.tooltip }}
+            </v-btn>
+            <v-spacer />
+            <v-btn variant="text" size="small" @click="clearSelection">
+                Bỏ chọn
+            </v-btn>
+        </v-sheet>
+
         <component
             :is="tableComponent"
+            v-model="selected"
             v-model:items-per-page="perPage"
             v-model:page="internalPage"
             v-bind="modeProps"
             :headers="tableHeaders"
             :items="items"
             :loading="loading"
+            :show-select="selectable"
+            :item-value="itemValue"
+            :item-selectable="itemSelectable ?? undefined"
             density="comfortable"
             no-data-text="Không có dữ liệu phù hợp."
             class="border rounded-lg app-data-table"
@@ -318,7 +519,7 @@ async function submitConfirm() {
                                 activator="parent"
                                 location="top"
                             >
-                                {{ action.tooltip }}
+                                {{ resolve(action.tooltip, item) }}
                             </v-tooltip>
                         </v-btn>
                     </template>
@@ -423,6 +624,73 @@ async function submitConfirm() {
                         @click="submitConfirm"
                     >
                         {{ pending.config.confirmText }}
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <!-- Hộp xác nhận RIÊNG cho thao tác hàng loạt — tách khỏi dialog trên
+             (thao tác từng dòng) vì message/input không gắn với 1 item cụ thể
+             mà gắn với CẢ danh sách đã chọn. -->
+        <v-dialog v-model="bulkConfirmOpen" max-width="480" persistent>
+            <v-card v-if="bulkPending" rounded="xl" elevation="12" class="glass-panel">
+                <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
+                    {{ bulkPending.config.title }}
+                </v-card-title>
+
+                <v-card-text class="px-5">
+                    {{ bulkPending.config.message }}
+
+                    <v-alert
+                        v-if="bulkPending.config.warning"
+                        type="warning"
+                        variant="tonal"
+                        density="compact"
+                        class="mt-3"
+                        icon="mdi-alert-outline"
+                    >
+                        {{ bulkPending.config.warning }}
+                    </v-alert>
+
+                    <v-textarea
+                        v-if="bulkPending.config.input"
+                        v-model="bulkInputValue"
+                        :label="bulkPending.config.input.label ?? 'Lý do'"
+                        :rows="bulkPending.config.input.rows ?? 3"
+                        class="mt-4"
+                        auto-grow
+                        hide-details
+                    />
+
+                    <v-alert
+                        v-if="bulkActionError"
+                        type="error"
+                        variant="tonal"
+                        density="compact"
+                        class="mt-3"
+                        icon="mdi-alert-circle-outline"
+                    >
+                        {{ bulkActionError }}
+                    </v-alert>
+                </v-card-text>
+
+                <v-card-actions class="px-5 pb-5">
+                    <v-spacer />
+                    <v-btn
+                        variant="text"
+                        :disabled="bulkSubmitting"
+                        @click="bulkConfirmOpen = false"
+                    >
+                        Hủy
+                    </v-btn>
+                    <v-btn
+                        :color="bulkPending.config.color"
+                        variant="flat"
+                        :loading="bulkSubmitting"
+                        :disabled="bulkInputInvalid"
+                        @click="submitBulkConfirm"
+                    >
+                        {{ bulkPending.config.confirmText }}
                     </v-btn>
                 </v-card-actions>
             </v-card>

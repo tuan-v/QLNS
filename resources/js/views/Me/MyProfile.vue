@@ -135,6 +135,7 @@
 // khung v-tabs/v-window, và FilePreviewDialog dùng CHUNG cho tab Hợp đồng/
 // Tài liệu.
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import employeeService from "../../services/employeeService";
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
@@ -189,10 +190,15 @@ function formatTenure(hireDate) {
     return `${years} năm ${remMonths} tháng`;
 }
 
+const route = useRoute();
+const VALID_TABS = ["info", "contracts", "documents", "shifts", "transfers", "payslips"];
+
 const employee = ref(null);
 const loading = ref(true);
 const loadError = ref("");
-const tab = ref("info");
+// Cho phép chỗ khác (vd Dashboard.vue -> "Xem phiếu lương") đưa thẳng tới
+// đúng tab qua query ?tab=... — mặc định "info" như cũ nếu không có/không hợp lệ.
+const tab = ref(VALID_TABS.includes(route.query.tab) ? route.query.tab : "info");
 
 const quickStats = computed(() => {
     if (!employee.value) {

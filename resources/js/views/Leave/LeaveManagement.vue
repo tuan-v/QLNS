@@ -34,7 +34,11 @@
             :items="leaveRequests"
             :loading="loading"
             :actions="actions"
+            selectable
+            :item-selectable="itemSelectableForBulk"
+            :bulk-actions="bulkActions"
             @action-error="loadData"
+            @bulk-action-error="loadData"
         >
             <template #item.employee="{ item }">
                 {{ item.employee?.full_name ?? "—" }}
@@ -178,6 +182,64 @@ const actions = computed(() => [
         },
     },
 ]);
+
+// Chọn nhiều đơn để Duyệt/Từ chối hàng loạt (2026-09-25, theo yêu cầu người
+// dùng, kèm ảnh tham khảo "Bulk Actions") — CÙNG điều kiện với `hidden` của 2
+// nút duyệt từng dòng ở trên (đơn đã ở trạng thái cuối thì không cho chọn).
+function itemSelectableForBulk(item) {
+    return ["pending", "manager_approved"].includes(item.status);
+}
+
+const bulkActions = computed(() => [
+    {
+        icon: "mdi-check-all",
+        label: "Duyệt tất cả",
+        tooltip: "Duyệt tất cả",
+        color: "success",
+        confirm: {
+            title: "Duyệt đơn nghỉ phép hàng loạt",
+            message: "Duyệt TẤT CẢ đơn đã chọn?",
+            confirmText: "Duyệt tất cả",
+            input: { required: false, label: "Ghi chú (tùy chọn, áp dụng cho tất cả)" },
+        },
+        onClick: (selectedItems, { input }) => runBulkDecide(selectedItems, "approved", input || null),
+    },
+    {
+        icon: "mdi-close-box-multiple-outline",
+        label: "Từ chối tất cả",
+        tooltip: "Từ chối tất cả",
+        color: "error",
+        confirm: {
+            title: "Từ chối đơn nghỉ phép hàng loạt",
+            message: "Từ chối TẤT CẢ đơn đã chọn?",
+            confirmText: "Từ chối tất cả",
+            input: { required: false, label: "Lý do từ chối (tùy chọn, áp dụng cho tất cả)" },
+        },
+        onClick: (selectedItems, { input }) => runBulkDecide(selectedItems, "rejected", input || null),
+    },
+]);
+
+// KHÔNG throw khi có đơn lỗi — bulk-decide API luôn trả 200 kèm
+// succeeded/failed (xem LeaveApprovalService::bulkDecide() — vd 1 đơn không
+// phải cấp dưới của Manager đang bấm, hoặc đơn đã ở cấp khác), tự báo kết
+// quả qua toast thay vì coi thất bại 1 phần là lỗi cả thao tác.
+async function runBulkDecide(selectedItems, status, comment) {
+    const response = await leaveRequestService.bulkDecide({
+        leave_request_ids: selectedItems.map((item) => item.id),
+        status,
+        comment,
+    });
+    const { succeeded, failed } = response.data;
+
+    if (failed.length === 0) {
+        toast.success(`Đã ${status === "approved" ? "duyệt" : "từ chối"} ${succeeded.length} đơn.`);
+    } else {
+        toast.warning(
+            `${succeeded.length} đơn thành công, ${failed.length} đơn lỗi: ${failed[0].message}`,
+        );
+    }
+    await loadData();
+}
 
 watch(statusFilter, loadData);
 

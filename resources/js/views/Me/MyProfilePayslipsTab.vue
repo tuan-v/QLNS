@@ -11,7 +11,50 @@
             {{ loadError }}
         </v-alert>
 
-        <v-sheet class="border rounded-lg glass-panel" color="transparent">
+        <!-- Danh sách thẻ trên di động thay vì bảng 4 cột (2026-09-25, theo
+             yêu cầu người dùng — cùng cách đã làm ở trang Chấm công/Nghỉ phép). -->
+        <div v-if="mobile" class="d-flex flex-column ga-3">
+            <div v-if="loading" class="d-flex justify-center py-6">
+                <v-progress-circular indeterminate size="24" />
+            </div>
+            <v-sheet
+                v-else-if="!payslips.length"
+                class="border rounded-lg pa-5 glass-panel text-center"
+                color="transparent"
+                style="opacity: 0.6"
+            >
+                Chưa có phiếu lương nào.
+            </v-sheet>
+            <v-sheet
+                v-for="p in payslips"
+                v-else
+                :key="p.id"
+                class="border rounded-lg pa-4 glass-panel d-flex align-center justify-space-between ga-3"
+                color="transparent"
+            >
+                <div>
+                    <div class="font-weight-bold">
+                        Tháng {{ p.payroll.period_month }}/{{ p.payroll.period_year }}
+                    </div>
+                    <div class="text-body-2" style="opacity: 0.7">
+                        {{ formatMoney(p.net_salary) }}
+                    </div>
+                    <StatusChip :status="p.payroll.status" :map="PAYROLL_STATUS_MAP" class="mt-1" />
+                </div>
+                <v-btn
+                    icon="mdi-file-document-outline"
+                    variant="tonal"
+                    size="small"
+                    rounded="lg"
+                    @click="openPayslip(p)"
+                >
+                    <v-icon icon="mdi-file-document-outline" />
+                    <v-tooltip activator="parent" location="top">Xem phiếu lương</v-tooltip>
+                </v-btn>
+            </v-sheet>
+        </div>
+
+        <v-sheet v-else class="border rounded-lg glass-panel" color="transparent">
             <v-table density="comfortable">
                 <thead>
                     <tr>
@@ -84,9 +127,12 @@
 // thư mục ../Payroll/) thay vì viết lại — cùng 1 component cho cả HR xem phiếu
 // lương của nhân viên bất kỳ lẫn nhân viên tự xem của chính mình.
 import { onMounted, ref } from "vue";
+import { useDisplay } from "vuetify";
 import payrollService from "../../services/payrollService";
 import StatusChip from "../../components/common/StatusChip.vue";
 import PayrollPayslipDialog from "../Payroll/PayrollPayslipDialog.vue";
+
+const { mobile } = useDisplay();
 
 const PAYROLL_STATUS_MAP = {
     closed: { label: "Đã chốt", color: "info" },

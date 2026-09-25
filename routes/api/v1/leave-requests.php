@@ -13,6 +13,11 @@ Route::middleware('auth:api')->prefix('leave-requests')->group(function (): void
     // route mọi nơi khác, không thì "me" bị hiểu nhầm thành 1 employee id.
     Route::get('/balances/{employee}', [LeaveRequestController::class, 'balances'])->middleware('permission:leave.view_all');
     Route::get('/', [LeaveRequestController::class, 'index'])->middleware('permission:leave.view_all');
+    // Duyệt HÀNG LOẠT (2026-09-25) — khai TRƯỚC '/{leaveRequest}/decide', cùng
+    // quy ước "route cụ thể trước route tham số" xuyên suốt file này (2 route
+    // này không cùng số đoạn URL nên thật ra không tranh chấp, chỉ theo quy
+    // ước cho dễ đọc).
+    Route::put('/bulk-decide', [LeaveRequestController::class, 'bulkDecide'])->middleware('permission:leave.approve_manager,leave.approve_hr');
     Route::put('/{leaveRequest}/decide', [LeaveRequestController::class, 'decide'])->middleware('permission:leave.approve_manager,leave.approve_hr');
     // Không gắn permission riêng — download() tự kiểm tra "chính mình hoặc
     // leave.view_all" bên trong Controller, giống EmployeeDocumentController.

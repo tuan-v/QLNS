@@ -40,4 +40,8 @@ export default {
     decideApproval(id, payload) {
         return axios.put(`${API_BASE}/${id}/approval`, payload);
     },
+    // Duyệt/Từ chối hàng loạt (2026-09-25) — payload: { attendance_ids, status, decision_note }.
+    bulkDecideApproval(payload) {
+        return axios.put(`${API_BASE}/bulk-approval`, payload);
+    },
 };

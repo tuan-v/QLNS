@@ -84,8 +84,21 @@ class AttendanceRepository
     // thêm request khi xem chi tiết 1 dòng.
     public function listAttendancesForDate(string $date): Collection
     {
+        // Nạp thêm employee.department/workShift (trước đây không có) — cần
+        // để AttendanceService::dailyOverview() tự dựng thêm dòng cho bản
+        // ghi chấm công KHÔNG khớp assignment nào đang liệt kê (2026-09-25,
+        // xem comment ở dailyOverview()), không phải chỉ để tra cứu theo key.
+        // workShift PHẢI ->withTrashed(): bản ghi "lưới an toàn" đó thường
+        // xảy ra CHÍNH VÌ Ca làm việc cũ đã bị xóa mềm (HR gộp/xóa Ca sau khi
+        // nhân viên đã chấm công) — không withTrashed() thì quan hệ trả về
+        // NULL, bản ghi lại biến mất lần NỮA ở đúng bước lẽ ra để cứu nó.
         return Attendance::where('attendance_date', $date)
-            ->with(['logs.attendanceLocation', 'approvedBy'])
+            ->with([
+                'employee.department',
+                'workShift' => fn ($query) => $query->withTrashed(),
+                'logs.attendanceLocation',
+                'approvedBy',
+            ])
             ->get()
             ->keyBy(fn (Attendance $a) => $a->employee_id.'|'.$a->work_shift_id);
     }

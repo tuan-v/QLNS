@@ -98,6 +98,36 @@ class LeaveApprovalService
         return $decidedLeaveRequest;
     }
 
+    // Duyệt/Từ chối HÀNG LOẠT (2026-09-25, theo yêu cầu người dùng, kèm ảnh
+    // tham khảo) — lặp decide() cho TỪNG đơn, KHÔNG viết lại luật 2 cấp riêng
+    // ở đây. Không dừng cả loạt nếu 1 đơn lỗi (vd đơn đó đã ở cấp khác với
+    // người đang bấm, hoặc đã được người khác xử lý xong ngay trước đó) — trả
+    // đủ "succeeded"/"failed" để Frontend báo rõ.
+    public function bulkDecide(array $leaveRequestIds, Employee $decidingEmployee, bool $isHr, string $decision, ?string $comment): array
+    {
+        $succeeded = [];
+        $failed = [];
+
+        foreach ($leaveRequestIds as $leaveRequestId) {
+            $leaveRequest = LeaveRequest::find($leaveRequestId);
+
+            if ($leaveRequest === null) {
+                $failed[] = ['id' => $leaveRequestId, 'message' => 'Đơn không tồn tại.'];
+
+                continue;
+            }
+
+            try {
+                $this->decide($leaveRequest, $decidingEmployee, $isHr, $decision, $comment);
+                $succeeded[] = $leaveRequestId;
+            } catch (ValidationException $e) {
+                $failed[] = ['id' => $leaveRequestId, 'message' => collect($e->errors())->flatten()->first()];
+            }
+        }
+
+        return ['succeeded' => $succeeded, 'failed' => $failed];
+    }
+
     // Quản lý vừa duyệt (cấp 1) -> tới lượt HR (cấp 2). Loại trừ chính người
     // vừa duyệt khỏi danh sách nhận báo (tránh tự thông báo cho mình trong
     // trường hợp họ vừa là Manager vừa có quyền leave.approve_hr).

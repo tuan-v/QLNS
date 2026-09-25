@@ -280,6 +280,35 @@ class AttendanceService
             // Cùng lý do dedupe ở history(): 1 ca có thể bị lặp qua 2 lượt gán
             // khác nhau phủ lên cùng ngày cho cùng 1 nhân viên.
             ->unique(fn (array $row) => $row['employee']->id.'|'.$row['work_shift']->id)
+            ->values();
+
+        $coveredKeys = $rows->map(fn (array $row) => $row['employee']->id.'|'.$row['work_shift']->id)->flip();
+
+        // Lưới an toàn (2026-09-25, sửa lỗi thật): bản ghi chấm công đã tồn
+        // tại nhưng KHÔNG khớp assignment nào đang được liệt kê ở trên — vd
+        // nhân viên chấm công dưới 1 ca, RỒI CÙNG NGÀY được đổi sang ca khác
+        // (assignment cũ bị xóa mềm bởi EmployeeShiftAssignmentService).
+        // listAssignmentsForDate() chỉ thấy assignment CÒN HIỆU LỰC (xóa mềm
+        // là global scope loại khỏi MỌI truy vấn, kể cả xem lại NGÀY TRONG
+        // QUÁ KHỨ lúc nó còn hợp lệ) — không có bước này thì bản ghi chấm
+        // công/chờ duyệt đó BIẾN MẤT khỏi màn "Tổng hợp chấm công" dù vẫn
+        // còn nguyên trong DB, HR không bao giờ thấy để duyệt (đã xác nhận
+        // qua tinker: attendance work_shift_id=2 nhưng assignment hiện hành
+        // của nhân viên đó là work_shift_id=21, effective_from CÙNG ngày).
+        $orphanedRows = $attendancesByKey
+            ->reject(fn (Attendance $attendance, string $key) => $coveredKeys->has($key))
+            ->filter(fn (Attendance $attendance) => $attendance->employee !== null && $attendance->workShift !== null)
+            ->when($workShiftId, fn (Collection $c, int $id) => $c->filter(fn (Attendance $a) => $a->work_shift_id === $id))
+            ->when($departmentId, fn (Collection $c, int $id) => $c->filter(fn (Attendance $a) => $a->employee->department_id === $id))
+            ->map(fn (Attendance $attendance) => [
+                'employee' => $attendance->employee,
+                'work_shift' => $attendance->workShift,
+                'attendance' => $attendance,
+                'status' => $attendance->status,
+            ])
+            ->values();
+
+        $rows = $rows->concat($orphanedRows)
             ->when($status, fn (Collection $rows) => $rows->filter(fn (array $row) => $row['status'] === $status))
             ->when($approvalStatus, fn (Collection $rows) => $rows->filter(fn (array $row) => $row['attendance']?->approval_status === $approvalStatus))
             ->sortBy([
@@ -399,6 +428,38 @@ class AttendanceService
         AttendanceApprovalDecided::dispatch($attendance);
 
         return $attendance;
+    }
+
+    // Duyệt/Từ chối HÀNG LOẠT (2026-09-25, theo yêu cầu người dùng, kèm ảnh
+    // tham khảo) — lặp lại decideApproval() cho TỪNG bản ghi thay vì viết
+    // logic riêng, để không lệch quy tắc (đã chấm công vào chưa, đã duyệt
+    // rồi chưa...). KHÔNG dừng cả loạt nếu 1 bản ghi lỗi — trả về đủ cả
+    // "succeeded"/"failed" để Frontend báo rõ đúng bản ghi nào không duyệt
+    // được và vì sao, thay vì rollback tất cả chỉ vì 1 dòng có vấn đề (vd HR
+    // chọn nhầm 1 dòng đã được duyệt từ trước đó bởi người khác).
+    public function bulkDecideApproval(array $attendanceIds, string $status, ?string $note, int $decidedBy): array
+    {
+        $succeeded = [];
+        $failed = [];
+
+        foreach ($attendanceIds as $attendanceId) {
+            $attendance = Attendance::find($attendanceId);
+
+            if ($attendance === null) {
+                $failed[] = ['id' => $attendanceId, 'message' => 'Bản ghi không tồn tại.'];
+
+                continue;
+            }
+
+            try {
+                $this->decideApproval($attendance, $status, $note, $decidedBy);
+                $succeeded[] = $attendanceId;
+            } catch (ValidationException $e) {
+                $failed[] = ['id' => $attendanceId, 'message' => collect($e->errors())->flatten()->first()];
+            }
+        }
+
+        return ['succeeded' => $succeeded, 'failed' => $failed];
     }
 
     // Áp dụng giờ vào/ra đã được DUYỆT từ 1 yêu cầu điều chỉnh công (mục 17)

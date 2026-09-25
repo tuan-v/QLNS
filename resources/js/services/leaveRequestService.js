@@ -20,4 +20,8 @@ export default {
     decide(id, payload) {
         return axios.put(`${API_BASE}/${id}/decide`, payload);
     },
+    // Duyệt/Từ chối hàng loạt (2026-09-25) — payload: { leave_request_ids, status, comment }.
+    bulkDecide(payload) {
+        return axios.put(`${API_BASE}/bulk-decide`, payload);
+    },
 };

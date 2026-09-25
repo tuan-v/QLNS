@@ -22,7 +22,53 @@
             </v-btn>
         </div>
 
-        <v-sheet class="border rounded-lg glass-panel" color="transparent">
+        <!-- Danh sách thẻ trên di động thay vì bảng 6 cột (2026-09-25, theo
+             yêu cầu người dùng — cùng cách đã làm ở các tab khác trong trang
+             này). -->
+        <div v-if="mobile" class="d-flex flex-column ga-3">
+            <div v-if="documentsLoading" class="d-flex justify-center py-6">
+                <v-progress-circular indeterminate size="24" />
+            </div>
+            <v-sheet
+                v-else-if="!documents.length"
+                class="border rounded-lg pa-5 glass-panel text-center"
+                color="transparent"
+                style="opacity: 0.6"
+            >
+                Chưa có tài liệu nào.
+            </v-sheet>
+            <v-sheet
+                v-for="doc in documents"
+                v-else
+                :key="doc.id"
+                class="border rounded-lg pa-4 glass-panel d-flex align-center justify-space-between ga-3"
+                color="transparent"
+            >
+                <div style="min-width: 0">
+                    <div class="font-weight-bold text-truncate">{{ doc.document_name }}</div>
+                    <div class="text-body-2" style="opacity: 0.7">
+                        {{ DOCUMENT_TYPE_MAP[doc.document_type] ?? doc.document_type }} ·
+                        {{ formatFileSize(doc.file_size) }}
+                    </div>
+                    <div class="text-caption" style="opacity: 0.6">
+                        {{ doc.uploaded_by ?? "—" }} · {{ formatDate(doc.created_at) }}
+                    </div>
+                </div>
+                <v-btn
+                    icon="mdi-eye-outline"
+                    variant="tonal"
+                    size="small"
+                    rounded="lg"
+                    class="flex-shrink-0"
+                    @click="$emit('preview', doc.download_url, doc.file_name)"
+                >
+                    <v-icon icon="mdi-eye-outline" />
+                    <v-tooltip activator="parent" location="top">Xem trước</v-tooltip>
+                </v-btn>
+            </v-sheet>
+        </div>
+
+        <v-sheet v-else class="border rounded-lg glass-panel" color="transparent">
             <v-table density="comfortable">
                 <thead>
                     <tr>
@@ -154,6 +200,7 @@
 // Tab "Tài liệu" của MyProfile.vue — tách riêng theo yêu cầu dễ bảo trì.
 // Tự tải + tự nộp tài liệu cá nhân qua endpoint /employees/me/documents.
 import { onMounted, ref } from "vue";
+import { useDisplay } from "vuetify";
 import employeeService from "../../services/employeeService";
 import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import { useToastStore } from "../../stores/useToastStore";
@@ -161,6 +208,7 @@ import { useToastStore } from "../../stores/useToastStore";
 defineEmits(["preview"]);
 
 const toast = useToastStore();
+const { mobile } = useDisplay();
 
 const DOCUMENT_TYPE_MAP = {
     cccd: "CCCD/CMND",

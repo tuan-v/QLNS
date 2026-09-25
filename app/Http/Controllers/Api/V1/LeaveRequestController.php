@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Leave\BulkDecideLeaveRequest;
 use App\Http\Requests\Leave\DecideLeaveRequest;
 use App\Http\Requests\Leave\StoreLeaveRequest;
 use App\Models\Employee;
@@ -103,5 +104,22 @@ class LeaveRequestController extends Controller
         $leaveRequest->load('leaveType', 'employee', 'approvals.approverEmployee');
 
         return response()->json($leaveRequest);
+    }
+
+    public function bulkDecide(BulkDecideLeaveRequest $request): JsonResponse
+    {
+        $decidingEmployee = $request->user()->employee;
+        abort_if(! $decidingEmployee, 404, 'Tài khoản này chưa liên kết với hồ sơ nhân viên nào.');
+
+        $isHr = $request->user()->hasPermission('leave.approve_hr');
+        $result = $this->leaveApprovalService->bulkDecide(
+            $request->validated('leave_request_ids'),
+            $decidingEmployee,
+            $isHr,
+            $request->validated('status'),
+            $request->validated('comment'),
+        );
+
+        return response()->json($result);
     }
 }
