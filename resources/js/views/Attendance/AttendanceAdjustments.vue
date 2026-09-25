@@ -87,14 +87,16 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import attendanceService from "../../services/attendanceService";
+import { useResourceSyncStore } from "../../stores/useResourceSyncStore";
 import DataTable from "../../components/common/DataTable.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
 import { useToastStore } from "../../stores/useToastStore";
 
 const toast = useToastStore();
+const resourceSync = useResourceSyncStore();
 
 const ADJUSTMENT_STATUS_MAP = {
     pending: { label: "Chờ duyệt", color: "warning" },
@@ -226,7 +228,16 @@ const actions = computed(() => [
 
 watch(statusFilter, loadData);
 
+// Phiên KHÁC vừa nộp yêu cầu mới hoặc Duyệt/Từ chối — xem ResourceChanged
+// (mục 34 CODE_MAP).
+watch(() => resourceSync.signals.attendance_adjustments, loadData);
+
 onMounted(() => {
     loadData();
+    resourceSync.connect("attendance_adjustments");
+});
+
+onUnmounted(() => {
+    resourceSync.disconnect("attendance_adjustments");
 });
 </script>

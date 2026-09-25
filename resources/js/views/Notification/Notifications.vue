@@ -128,6 +128,7 @@ const TYPE_LABELS = {
     "leave.pending_manager": "Đơn phép chờ quản lý duyệt",
     "leave.pending_hr": "Đơn phép chờ HR duyệt",
     "leave.decided": "Kết quả duyệt phép",
+    "attendance.pending_approval": "Chấm công chờ duyệt",
 };
 const typeOptions = Object.entries(TYPE_LABELS).map(([value, title]) => ({ title, value }));
 

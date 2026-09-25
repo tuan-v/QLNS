@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\ResourceChanged;
 use App\Models\Department;
 use App\Models\Position;
 use App\Models\Role;
@@ -24,7 +25,11 @@ class PositionService
     {
         $data['code'] = $this->generateCode();
 
-        return DB::transaction(fn () => $this->positionRepository->create($data));
+        $position = DB::transaction(fn () => $this->positionRepository->create($data));
+
+        ResourceChanged::dispatch('positions');
+
+        return $position;
     }
 
     // Mã chức vụ do hệ thống tự sinh, không nhận từ client: "CV" + số thứ tự
@@ -49,12 +54,18 @@ class PositionService
 
     public function update(Position $position, array $data): Position
     {
-        return $this->positionRepository->update($position, $data);
+        $position = $this->positionRepository->update($position, $data);
+
+        ResourceChanged::dispatch('positions');
+
+        return $position;
     }
 
     public function delete(Position $position): void
     {
         $this->positionRepository->delete($position);
+
+        ResourceChanged::dispatch('positions');
     }
 
     // "Trưởng phòng" của 1 phòng ban — do hệ thống tự quản lý (type='head'),

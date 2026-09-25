@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\LeaveRequestChanged;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\User;
@@ -87,6 +88,12 @@ class LeaveApprovalService
         } elseif (in_array($decidedLeaveRequest->status, ['approved', 'rejected'], true)) {
             $this->notifyEmployeeDecision($decidedLeaveRequest);
         }
+
+        // Báo TẤT CẢ Manager/HR đang mở trang "Duyệt nghỉ phép" tự làm mới
+        // danh sách — khác 2 nhánh thông báo cá nhân ở trên (chỉ tới ĐÚNG
+        // người ở đúng cấp), sự kiện này tới CẢ những người không phải người
+        // nhận thông báo lần này (vd HR B khi HR A vừa duyệt xong cấp cuối).
+        LeaveRequestChanged::dispatch($decidedLeaveRequest);
 
         return $decidedLeaveRequest;
     }

@@ -57,8 +57,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useAuthStore } from "../../stores/authStore";
+import { useResourceSyncStore } from "../../stores/useResourceSyncStore";
 import payrollService from "../../services/payrollService";
 import DataTable from "../../components/common/DataTable.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
@@ -76,6 +77,7 @@ const PAYROLL_STATUS_MAP = {
 
 const auth = useAuthStore();
 const toast = useToastStore();
+const resourceSync = useResourceSyncStore();
 
 const payrolls = ref([]);
 const loading = ref(false);
@@ -156,5 +158,16 @@ const actions = computed(() => [
     },
 ]);
 
-onMounted(fetchData);
+// Phiên KHÁC vừa Tạo/Chốt/Đánh dấu đã trả bảng lương — xem ResourceChanged
+// (mục 34 CODE_MAP).
+watch(() => resourceSync.signals.payrolls, fetchData);
+
+onMounted(() => {
+    fetchData();
+    resourceSync.connect("payrolls");
+});
+
+onUnmounted(() => {
+    resourceSync.disconnect("payrolls");
+});
 </script>

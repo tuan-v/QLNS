@@ -47,9 +47,10 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoleStore } from "../../stores/useRoleStore";
 import { useToastStore } from "../../stores/useToastStore";
+import { useResourceSyncStore } from "../../stores/useResourceSyncStore";
 import DataTable from "../../components/common/DataTable.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
 import RoleForm from "./RoleForm.vue";
@@ -57,6 +58,7 @@ import RolePermissionsDialog from "./RolePermissionsDialog.vue";
 
 const store = useRoleStore();
 const toast = useToastStore();
+const resourceSync = useResourceSyncStore();
 
 const formDialog = ref(false);
 const editing = ref(null);
@@ -123,5 +125,17 @@ function fetchData() {
     store.fetchList();
 }
 
-onMounted(fetchData);
+// Phiên KHÁC vừa Thêm/Sửa/Xóa vai trò HOẶC quyền (RolePermissionsDialog.vue
+// dùng chung resource 'roles' — cùng trang) — xem ResourceChanged (mục 34
+// CODE_MAP).
+watch(() => resourceSync.signals.roles, fetchData);
+
+onMounted(() => {
+    fetchData();
+    resourceSync.connect("roles");
+});
+
+onUnmounted(() => {
+    resourceSync.disconnect("roles");
+});
 </script>

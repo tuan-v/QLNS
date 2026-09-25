@@ -68,8 +68,9 @@
     </div>
 </template>
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useAuthStore } from "../../stores/authStore";
+import { useResourceSyncStore } from "../../stores/useResourceSyncStore";
 import attendanceLocationService from "../../services/attendanceLocationService";
 import DataTable from "../../components/common/DataTable.vue";
 import SearchField from "../../components/common/SearchField.vue";
@@ -88,6 +89,7 @@ const METHOD_COLOR = { wifi: "info", gps: "success", qr: "purple" };
 
 const auth = useAuthStore();
 const toast = useToastStore();
+const resourceSync = useResourceSyncStore();
 
 const search = ref("");
 const locations = ref([]);
@@ -161,7 +163,16 @@ function openEdit(location) {
     formDialog.value = true;
 }
 
+// Phiên KHÁC vừa Thêm/Sửa/Xóa điểm chấm công — xem ResourceChanged (mục 34
+// CODE_MAP).
+watch(() => resourceSync.signals.attendance_locations, fetchData);
+
 onMounted(() => {
     fetchData();
+    resourceSync.connect("attendance_locations");
+});
+
+onUnmounted(() => {
+    resourceSync.disconnect("attendance_locations");
 });
 </script>

@@ -143,12 +143,13 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, onMounted } from "vue";
+import { ref, watch, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useEmployeeStore } from "../../stores/useEmployeeStore";
 import { useDepartmentStore } from "../../stores/useDepartmentStore";
 import { useAuthStore } from "../../stores/authStore";
 import { usePresenceStore } from "../../stores/usePresenceStore";
+import { useResourceSyncStore } from "../../stores/useResourceSyncStore";
 import employeeService from "../../services/employeeService";
 import DataTable from "../../components/common/DataTable.vue";
 import SearchField from "../../components/common/SearchField.vue";
@@ -161,6 +162,7 @@ const store = useEmployeeStore();
 const departmentStore = useDepartmentStore();
 const auth = useAuthStore();
 const presence = usePresenceStore();
+const resourceSync = useResourceSyncStore();
 const router = useRouter();
 
 const formDialog = ref(false);
@@ -395,9 +397,25 @@ watch(page, fetchData);
 // được tính là online, dù thật sự đang mở app (lỗi thật đã gặp, chỉ hiện
 // đúng người đang đứng ở trang Nhân viên).
 
+// Phiên KHÁC vừa Thêm/Sửa/Xóa nhân viên — xem ResourceChanged (mục 34
+// CODE_MAP). Kết nối THEO TRANG (khác presence ở trên — join/rời theo vòng
+// đời riêng trang này, không dùng chung App.vue).
+watch(
+    () => resourceSync.signals.employees,
+    () => {
+        fetchData();
+        fetchStats();
+    },
+);
+
 onMounted(() => {
     fetchData();
     fetchStats();
     departmentStore.fetchTree();
+    resourceSync.connect("employees");
+});
+
+onUnmounted(() => {
+    resourceSync.disconnect("employees");
 });
 </script>

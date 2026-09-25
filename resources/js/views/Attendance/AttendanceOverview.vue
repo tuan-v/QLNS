@@ -377,6 +377,14 @@ const actions = computed(() => [
 
 watch([date, departmentId, workShiftId, statusFilter], loadData);
 
+// Phiên HR/Manager KHÁC vừa Duyệt/Từ chối 1 bản ghi (nút "Duyệt"/"Từ chối" ở
+// dưới tự loadData() sau khi CHÍNH MÌNH bấm rồi, watch này lo phần còn lại:
+// những ai KHÁC đang mở sẵn trang này) — xem AttendanceApprovalDecided.
+watch(
+    () => attendanceFeed.approvalSignal,
+    () => loadData(),
+);
+
 onMounted(() => {
     departmentStore.fetchTree();
     loadShiftOptions();

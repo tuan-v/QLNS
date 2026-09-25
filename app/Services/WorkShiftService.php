@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\ResourceChanged;
 use App\Models\WorkShift;
 use App\Repositories\WorkShiftRepository;
 use Carbon\Carbon;
@@ -34,13 +35,17 @@ class WorkShiftService
     {
         $data['code'] = $this->generateCode();
 
-        return DB::transaction(function () use ($data) {
+        $workShift = DB::transaction(function () use ($data) {
             if ($data['is_default'] ?? false) {
                 $this->clearOtherDefaults(null);
             }
 
             return $this->workShiftRepository->create($data);
         });
+
+        ResourceChanged::dispatch('work_shifts');
+
+        return $workShift;
     }
 
     // "Tự chọn giờ" khi "Xin làm ngoài lịch" (2026-09-23, theo yêu cầu người
@@ -125,7 +130,7 @@ class WorkShiftService
             ]);
         }
 
-        return DB::transaction(function () use ($workShift, $data, $wasActive, $willBeActive, $willBeDefault) {
+        $updated = DB::transaction(function () use ($workShift, $data, $wasActive, $willBeActive, $willBeDefault) {
             if ($willBeDefault && ! $workShift->is_default) {
                 $this->clearOtherDefaults($workShift->id);
             }
@@ -147,6 +152,10 @@ class WorkShiftService
 
             return $updated;
         });
+
+        ResourceChanged::dispatch('work_shifts');
+
+        return $updated;
     }
 
     // 2026-09-24, sửa lỗi thật: xóa Ca làm việc TRƯỚC ĐÂY không gỡ các bản
@@ -168,5 +177,7 @@ class WorkShiftService
             $this->employeeShiftAssignmentService->removeAllForWorkShift($workShift->id);
             $this->workShiftRepository->delete($workShift);
         });
+
+        ResourceChanged::dispatch('work_shifts');
     }
 }

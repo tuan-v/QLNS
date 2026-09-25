@@ -90,9 +90,10 @@
     </div>
 </template>
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useDepartmentStore } from "../../stores/useDepartmentStore";
 import { useAuthStore } from "../../stores/authStore";
+import { useResourceSyncStore } from "../../stores/useResourceSyncStore";
 import DataTable from "../../components/common/DataTable.vue";
 import SearchField from "../../components/common/SearchField.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
@@ -108,6 +109,7 @@ const ACTIVE_STATUS_MAP = {
 const store = useDepartmentStore();
 const toast = useToastStore();
 const auth = useAuthStore();
+const resourceSync = useResourceSyncStore();
 const search = ref("");
 
 const formDialog = ref(false);
@@ -248,7 +250,21 @@ function openEdit(department) {
     formDialog.value = true;
 }
 
+// Phiên KHÁC vừa Thêm/Sửa/Xóa phòng ban — xem ResourceChanged (mục 34
+// CODE_MAP, 2026-09-25, theo yêu cầu người dùng "làm toàn bộ trang cũng có
+// realtime"). Kết nối THEO TRANG (không phải theo phiên đăng nhập như
+// thông báo/live-feed) — join lúc mounted, rời lúc unmounted.
+watch(
+    () => resourceSync.signals.departments,
+    () => store.fetchTree(),
+);
+
 onMounted(() => {
     store.fetchTree();
+    resourceSync.connect("departments");
+});
+
+onUnmounted(() => {
+    resourceSync.disconnect("departments");
 });
 </script>

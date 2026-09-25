@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\LeaveRequestChanged;
 use App\Models\Employee;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
@@ -134,6 +135,7 @@ class LeaveRequestService
         ]);
 
         $this->notifySubmission($employee, $leaveRequest, $leaveType);
+        LeaveRequestChanged::dispatch($leaveRequest);
 
         return $leaveRequest;
     }

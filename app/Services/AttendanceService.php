@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\AttendanceApprovalDecided;
 use App\Events\AttendanceChecked;
 use App\Models\Attendance;
 use App\Models\AttendanceLocation;
@@ -9,6 +10,7 @@ use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\EmployeeShiftAssignment;
 use App\Models\LeaveRequest;
+use App\Models\User;
 use App\Models\WorkShift;
 use App\Repositories\AttendanceLogRepository;
 use App\Repositories\AttendanceRepository;
@@ -42,6 +44,7 @@ class AttendanceService
         private readonly WorkTimeCalculationService $workTimeCalculationService,
         private readonly DeviceInfoParser $deviceInfoParser,
         private readonly ReverseGeocoder $reverseGeocoder,
+        private readonly NotificationService $notificationService,
     ) {
     }
 
@@ -393,6 +396,8 @@ class AttendanceService
             'approval_note' => $note,
         ])->save();
 
+        AttendanceApprovalDecided::dispatch($attendance);
+
         return $attendance;
     }
 
@@ -499,7 +504,27 @@ class AttendanceService
         // LeaveApprovalService) — live-feed cho HR xem trực tiếp, KHÔNG lưu DB.
         AttendanceChecked::dispatch($employee, 'in', $now);
 
+        // Thông báo THẬT (lưu bảng notifications, hiện ở chuông) cho người có
+        // quyền duyệt (2026-09-25, theo yêu cầu người dùng) — KHÁC hẳn
+        // AttendanceChecked ở trên (chỉ broadcast thuần, không lưu DB, phục
+        // vụ xem lướt qua). Chỉ báo lúc CHẤM CÔNG VÀO, không báo lúc chấm
+        // công RA — khớp đúng thiết kế "duyệt được ngay lúc chấm công vào,
+        // không cần chờ ra" (xem decideApproval()), chấm công RA không phát
+        // sinh thêm việc cần duyệt.
+        $this->notifyApprovers($employee, $log->attendance);
+
         return $log;
+    }
+
+    private function notifyApprovers(Employee $employee, Attendance $attendance): void
+    {
+        $title = 'Chấm công mới cần duyệt';
+        $message = "{$employee->full_name} vừa chấm công vào lúc {$attendance->first_check_in_at->format('H:i')}.";
+        $data = ['attendance_id' => $attendance->id];
+
+        foreach (User::withPermission('attendance.approve')->get() as $approver) {
+            $this->notificationService->send($approver, 'attendance.pending_approval', $title, $message, $data);
+        }
     }
 
     public function checkOut(Employee $employee, array $data): AttendanceLog

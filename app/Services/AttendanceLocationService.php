@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\ResourceChanged;
 use App\Models\AttendanceLocation;
 use App\Repositories\AttendanceLocationRepository;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -30,7 +31,11 @@ class AttendanceLocationService
             $data['qr_secret'] = Str::random(64);
         }
 
-        return DB::transaction(fn () => $this->attendanceLocationRepository->create($data));
+        $attendanceLocation = DB::transaction(fn () => $this->attendanceLocationRepository->create($data));
+
+        ResourceChanged::dispatch('attendance_locations');
+
+        return $attendanceLocation;
     }
 
     // Mã điểm chấm công do hệ thống tự sinh, không nhận từ client: "DD" + số
@@ -61,11 +66,17 @@ class AttendanceLocationService
             $data['qr_secret'] = Str::random(64);
         }
 
-        return $this->attendanceLocationRepository->update($attendanceLocation, $data);
+        $attendanceLocation = $this->attendanceLocationRepository->update($attendanceLocation, $data);
+
+        ResourceChanged::dispatch('attendance_locations');
+
+        return $attendanceLocation;
     }
 
     public function delete(AttendanceLocation $attendanceLocation): void
     {
         $this->attendanceLocationRepository->delete($attendanceLocation);
+
+        ResourceChanged::dispatch('attendance_locations');
     }
 }

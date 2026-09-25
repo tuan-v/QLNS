@@ -17,6 +17,7 @@ class Attendance extends Model
         'attendance_date',
         'first_check_in_at',
         'last_check_out_at',
+        'checkout_reminder_sent_at',
         'scheduled_work_minutes',
         'actual_work_minutes',
         'overtime_minutes',
@@ -45,6 +46,7 @@ class Attendance extends Model
         'attendance_date' => 'date:Y-m-d',
         'first_check_in_at' => 'datetime',
         'last_check_out_at' => 'datetime',
+        'checkout_reminder_sent_at' => 'datetime',
         'approved_at' => 'datetime',
         // An toàn ép boolean ở đây — khác bẫy đã vấp ở WorkShift/Position
         // (mục 19 CODE_MAP): late_excused/overtime_approved KHÔNG có

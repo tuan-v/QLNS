@@ -91,19 +91,21 @@ function onToggle(isOpen) {
 // leave.decided -> nhân viên xem đơn CỦA MÌNH; leave.pending_manager/
 // leave.pending_hr -> người NHẬN thông báo là người phải DUYỆT, đưa thẳng
 // sang trang duyệt đơn (2 trang khác nhau, gate quyền khác nhau — không
-// dùng chung 1 route cho mọi loại thông báo nghỉ phép).
-const LEAVE_TYPE_ROUTES = {
+// dùng chung 1 route cho mọi loại thông báo nghỉ phép). attendance.pending_approval
+// (2026-09-25) -> người có quyền duyệt chấm công, đưa sang "Tổng hợp chấm công".
+const TYPE_ROUTES = {
     "leave.decided": "leave-requests",
     "leave.pending_manager": "leave-management",
     "leave.pending_hr": "leave-management",
+    "attendance.pending_approval": "attendance-overview",
 };
 
 function onClickItem(item) {
     if (!item.read_at) {
         store.markRead(item.id);
     }
-    if (item.data?.leave_request_id && LEAVE_TYPE_ROUTES[item.type]) {
-        router.push({ name: LEAVE_TYPE_ROUTES[item.type] });
+    if (TYPE_ROUTES[item.type]) {
+        router.push({ name: TYPE_ROUTES[item.type] });
     }
 }
 

@@ -175,15 +175,17 @@
 // 12) sửa như 1 ca bình thường. Đổi work_days ở đây propagate NGAY cho mọi
 // nhân viên đang theo ca mặc định (kể cả người đã gán từ trước) — xem
 // WorkShiftService::update() -> EmployeeShiftAssignmentService::resyncOpenEndedWorkDays().
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import workShiftService from "../../services/workShiftService";
 import { useAuthStore } from "../../stores/authStore";
+import { useResourceSyncStore } from "../../stores/useResourceSyncStore";
 import PageHeader from "../../components/common/PageHeader.vue";
 import FormSection from "../../components/common/FormSection.vue";
 import { useToastStore } from "../../stores/useToastStore";
 
 const auth = useAuthStore();
 const toast = useToastStore();
+const resourceSync = useResourceSyncStore();
 const canManage = computed(() => auth.permissions.includes("shift.manage"));
 
 const loading = ref(true);
@@ -321,7 +323,17 @@ async function save() {
     }
 }
 
+// Phiên KHÁC vừa sửa Ca mặc định (kể cả sửa ở trang "Ca làm việc" —
+// WorkShifts.vue dùng chung resource 'work_shifts') — xem ResourceChanged
+// (mục 34 CODE_MAP).
+watch(() => resourceSync.signals.work_shifts, loadData);
+
 onMounted(() => {
     loadData();
+    resourceSync.connect("work_shifts");
+});
+
+onUnmounted(() => {
+    resourceSync.disconnect("work_shifts");
 });
 </script>

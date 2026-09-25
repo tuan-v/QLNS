@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Attendance;
 
+use App\Events\AttendanceApprovalDecided;
 use App\Events\AttendanceChecked;
+use App\Models\Attendance;
 use App\Models\AttendanceLocation;
 use App\Models\Department;
 use App\Models\Employee;
@@ -102,7 +104,14 @@ class AttendanceLiveFeedTest extends TestCase
         $response->assertStatus(403);
     }
 
-    public function test_check_in_dispatches_attendance_checked_event_and_does_not_persist_a_notification(): void
+    // 2026-09-25, theo yêu cầu người dùng: "nếu nhân viên chấm công sẽ gửi
+    // thông báo cho người có quyền duyệt để họ biết" — thêm thông báo THẬT
+    // (lưu bảng notifications) cho `attendance.approve`, coi CÙNG LÚC với
+    // live-feed broadcast thuần (AttendanceChecked) đã có — 2 cơ chế SONG
+    // SONG, không thay thế nhau (đổi từ khẳng định "không lưu DB" ban đầu ở
+    // mục 33 — quyết định cũ chỉ áp dụng cho live-feed, không cấm mọi hình
+    // thức thông báo về chấm công).
+    public function test_check_in_dispatches_attendance_checked_event_and_notifies_approvers(): void
     {
         Event::fake([AttendanceChecked::class]);
         [$employee, $user] = $this->makeEmployeeWithLogin('Employee');
@@ -134,8 +143,43 @@ class AttendanceLiveFeedTest extends TestCase
         Event::assertDispatched(AttendanceChecked::class, function (AttendanceChecked $event) use ($employee) {
             return $event->employee->id === $employee->id && $event->type === 'in';
         });
-        // Live-feed là broadcast thuần, KHÔNG được ghi vào bảng notifications
-        // (nếu không sẽ spam hộp thư mọi HR mỗi lần bất kỳ ai chấm công).
-        $this->assertDatabaseCount('notifications', 0);
+        // hr@qlns.local (seed mặc định) có quyền attendance.approve -> được
+        // báo thật (lưu DB), khác hẳn live-feed thuần ở trên.
+        $hr = User::where('email', 'hr@qlns.local')->firstOrFail();
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $hr->id, 'type' => 'attendance.pending_approval',
+        ]);
+    }
+
+    // 2026-09-25, theo yêu cầu người dùng: "duyệt chấm công ở admin nhưng bên
+    // tài khoản nhân sự phải F5 lại mới thấy" — HR/Manager KHÁC đang mở trang
+    // "Tổng hợp chấm công" phải tự thấy kết quả, không cần tải lại trang.
+    public function test_deciding_approval_dispatches_attendance_approval_decided_event(): void
+    {
+        Event::fake([AttendanceApprovalDecided::class]);
+        [, $hrUser] = $this->makeEmployeeWithLogin('HR');
+        $workShift = WorkShift::create([
+            'code' => 'CA-'.uniqid(), 'name' => 'Ca test',
+            'start_time' => '08:00', 'end_time' => '17:00', 'standard_work_minutes' => 480,
+        ]);
+        $attendance = Attendance::create([
+            'employee_id' => $this->makeEmployee()->id,
+            'work_shift_id' => $workShift->id,
+            'attendance_date' => now()->toDateString(),
+            'first_check_in_at' => now()->setTime(8, 0),
+            'last_check_out_at' => now()->setTime(17, 0),
+            'actual_work_minutes' => 540,
+            'status' => 'completed',
+        ]);
+        $token = $this->loginAs($hrUser->email, 'Secret@123');
+
+        $response = $this->putJson('/api/v1/attendances/'.$attendance->id.'/approval', [
+            'status' => 'approved',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(200);
+        Event::assertDispatched(AttendanceApprovalDecided::class, function (AttendanceApprovalDecided $event) use ($attendance) {
+            return $event->attendance->id === $attendance->id && $event->attendance->approval_status === 'approved';
+        });
     }
 }

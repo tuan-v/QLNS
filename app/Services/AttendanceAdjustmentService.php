@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\ResourceChanged;
 use App\Models\Attendance;
 use App\Models\AttendanceAdjustment;
 use App\Models\Employee;
@@ -140,7 +141,11 @@ class AttendanceAdjustmentService
         $data['requested_by'] = $requestedBy;
         $data['status'] = 'pending';
 
-        return $this->attendanceAdjustmentRepository->create($data);
+        $adjustment = $this->attendanceAdjustmentRepository->create($data);
+
+        ResourceChanged::dispatch('attendance_adjustments');
+
+        return $adjustment;
     }
 
     // 'extra_shift' (2026-09-23): ĐĂNG KÝ TRƯỚC cho 1 ngày/ca KHÔNG có
@@ -213,7 +218,7 @@ class AttendanceAdjustmentService
             ]);
         }
 
-        return DB::transaction(function () use ($adjustment, $status, $decisionNote, $approvedBy) {
+        $adjustment = DB::transaction(function () use ($adjustment, $status, $decisionNote, $approvedBy) {
             $adjustment->forceFill([
                 'status' => $status,
                 'decision_note' => $decisionNote,
@@ -287,5 +292,9 @@ class AttendanceAdjustmentService
 
             return $adjustment;
         });
+
+        ResourceChanged::dispatch('attendance_adjustments');
+
+        return $adjustment;
     }
 }

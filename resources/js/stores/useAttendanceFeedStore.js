@@ -9,6 +9,12 @@ const MAX_ENTRIES = 20;
 // (khác useNotificationStore.js, đây không phải hộp thư đọc/chưa đọc).
 export const useAttendanceFeedStore = defineStore("attendanceFeed", () => {
     const entries = ref([]);
+    // Không mang dữ liệu gì cả — chỉ là 1 "tiếng chuông" báo trang "Tổng hợp
+    // chấm công" tự loadData() lại (2026-09-25, theo yêu cầu người dùng: "duyệt
+    // chấm công ở admin nhưng bên tài khoản nhân sự phải F5 lại mới thấy").
+    // Tăng dần (không phải boolean/timestamp) để watch() ở trang LUÔN bắt
+    // được thay đổi, kể cả 2 lần bắn liên tiếp trong cùng 1 tick.
+    const approvalSignal = ref(0);
     let connected = false;
 
     // Nhận sẵn danh sách quyền thay vì tự đọc authStore — tránh mọi user
@@ -25,6 +31,9 @@ export const useAttendanceFeedStore = defineStore("attendanceFeed", () => {
             .listen(".attendance.checked", (payload) => {
                 entries.value = [payload, ...entries.value].slice(0, MAX_ENTRIES);
             })
+            .listen(".attendance.approval-decided", () => {
+                approvalSignal.value++;
+            })
             .error((error) => {
                 console.error("Không thể kết nối live-feed chấm công:", error);
             });
@@ -39,5 +48,5 @@ export const useAttendanceFeedStore = defineStore("attendanceFeed", () => {
         entries.value = [];
     }
 
-    return { entries, connect, disconnect };
+    return { entries, approvalSignal, connect, disconnect };
 });

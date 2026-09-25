@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\ResourceChanged;
 use App\Models\Employee;
 use App\Repositories\EmployeeRepository;
 use Illuminate\Http\UploadedFile;
@@ -48,7 +49,7 @@ class EmployeeService
         $agreedSalary = $data['agreed_salary'];
         unset($data['agreed_salary']);
 
-        return DB::transaction(function () use ($data, $agreedSalary) {
+        $employee = DB::transaction(function () use ($data, $agreedSalary) {
             $employee = $this->employeeRepository->create($data);
             // Ca mặc định (2026-09-23, theo yêu cầu người dùng) — nhân viên
             // mới tạo tự động được gán ca đang đánh dấu is_default=true, HR
@@ -88,6 +89,10 @@ class EmployeeService
 
             return $employee;
         });
+
+        ResourceChanged::dispatch('employees');
+
+        return $employee;
     }
     private function generateCode(): string
     {
@@ -113,7 +118,11 @@ class EmployeeService
             ]);
         }
 
-        return $this->employeeRepository->update($employee, $data);
+        $employee = $this->employeeRepository->update($employee, $data);
+
+        ResourceChanged::dispatch('employees');
+
+        return $employee;
     }
 
     // 2026-09-24, cùng lý do đã sửa ở WorkShiftService::delete() — xóa nhân
@@ -126,6 +135,8 @@ class EmployeeService
             $this->employeeShiftAssignmentService->removeAllForEmployee($employee);
             $this->employeeRepository->delete($employee);
         });
+
+        ResourceChanged::dispatch('employees');
     }
 
 

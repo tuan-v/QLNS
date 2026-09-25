@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\ResourceChanged;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
@@ -31,12 +32,20 @@ class RoleService
     {
         $data['guard_name'] ??= 'api';
 
-        return DB::transaction(fn () => $this->roleRepository->create($data));
+        $role = DB::transaction(fn () => $this->roleRepository->create($data));
+
+        ResourceChanged::dispatch('roles');
+
+        return $role;
     }
 
     public function update(Role $role, array $data): Role
     {
-        return DB::transaction(fn () => $this->roleRepository->update($role, $data));
+        $role = DB::transaction(fn () => $this->roleRepository->update($role, $data));
+
+        ResourceChanged::dispatch('roles');
+
+        return $role;
     }
 
     // Xóa mềm — KHÔNG chặn cứng dù role đang có user (khôi phục được, khác hẳn
@@ -44,6 +53,8 @@ class RoleService
     public function delete(Role $role): void
     {
         $this->roleRepository->delete($role);
+
+        ResourceChanged::dispatch('roles');
     }
 
     public function usersForRole(Role $role): Collection
@@ -74,6 +85,8 @@ class RoleService
             Cache::forget("permission:{$user->id}");
         }
         Cache::forget("permission:{$actor->id}");
+
+        ResourceChanged::dispatch('roles');
 
         return $this->roleRepository->find($role->id);
     }

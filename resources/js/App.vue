@@ -8,6 +8,8 @@ import { useAuthStore } from './stores/authStore';
 import { usePresenceStore } from './stores/usePresenceStore';
 import { useNotificationStore } from './stores/useNotificationStore';
 import { useAttendanceFeedStore } from './stores/useAttendanceFeedStore';
+import { useLeaveFeedStore } from './stores/useLeaveFeedStore';
+import { useResourceSyncStore } from './stores/useResourceSyncStore';
 import { disconnectEcho } from './echo';
 
 const route = useRoute();
@@ -15,6 +17,8 @@ const auth = useAuthStore();
 const presence = usePresenceStore();
 const notifications = useNotificationStore();
 const attendanceFeed = useAttendanceFeedStore();
+const leaveFeed = useLeaveFeedStore();
+const resourceSync = useResourceSyncStore();
 
 onMounted(() => {
     if (auth.accessToken && !auth.user) {
@@ -43,6 +47,12 @@ watch(
             presence.disconnect();
             notifications.disconnect();
             attendanceFeed.disconnect();
+            leaveFeed.disconnect();
+            // resourceSync là store PAGE-SCOPED (mỗi trang tự connect/
+            // disconnect theo vòng đời mounted/unmounted của chính nó,
+            // xem useResourceSyncStore.js) — resetAll() chỉ để dọn sạch
+            // phòng trang hiện tại chưa kịp unmount trước khi mất kết nối.
+            resourceSync.resetAll();
             disconnectEcho();
         }
     },
@@ -59,6 +69,7 @@ watch(
         if (user) {
             notifications.connect(user.id);
             attendanceFeed.connect(auth.permissions);
+            leaveFeed.connect(auth.permissions);
         }
     },
     { immediate: true },

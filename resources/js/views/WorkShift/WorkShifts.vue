@@ -78,8 +78,9 @@
     </div>
 </template>
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useAuthStore } from "../../stores/authStore";
+import { useResourceSyncStore } from "../../stores/useResourceSyncStore";
 import workShiftService from "../../services/workShiftService";
 import DataTable from "../../components/common/DataTable.vue";
 import SearchField from "../../components/common/SearchField.vue";
@@ -95,6 +96,7 @@ const ACTIVE_STATUS_MAP = {
 
 const auth = useAuthStore();
 const toast = useToastStore();
+const resourceSync = useResourceSyncStore();
 
 const search = ref("");
 const workShifts = ref([]);
@@ -174,7 +176,17 @@ function openEdit(workShift) {
     formDialog.value = true;
 }
 
+// Phiên KHÁC vừa Thêm/Sửa/Xóa ca làm việc (kể cả sửa ở trang Cài đặt —
+// Settings.vue dùng chung resource 'work_shifts', cùng WorkShiftService) —
+// xem ResourceChanged (mục 34 CODE_MAP).
+watch(() => resourceSync.signals.work_shifts, fetchData);
+
 onMounted(() => {
     fetchData();
+    resourceSync.connect("work_shifts");
+});
+
+onUnmounted(() => {
+    resourceSync.disconnect("work_shifts");
 });
 </script>

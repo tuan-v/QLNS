@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\ResourceChanged;
 use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\Holiday;
@@ -73,7 +74,7 @@ class PayrollService
             ]);
         }
 
-        return DB::transaction(function () use ($start, $end, $month, $year, $creator, $standardWorkDays) {
+        $payroll = DB::transaction(function () use ($start, $end, $month, $year, $creator, $standardWorkDays) {
             $payroll = $this->payrollRepository->create([
                 'period_month' => $month,
                 'period_year' => $year,
@@ -106,6 +107,10 @@ class PayrollService
 
             return $payroll;
         });
+
+        ResourceChanged::dispatch('payrolls');
+
+        return $payroll;
     }
 
     private function buildDetailForEmployee(Employee $employee, $contract, Carbon $start, Carbon $end, int $standardWorkDays): array
@@ -292,11 +297,15 @@ class PayrollService
             ]);
         }
 
-        return DB::transaction(function () use ($payroll, $closer) {
+        $payroll = DB::transaction(function () use ($payroll, $closer) {
             $payroll->update(['status' => 'closed', 'closed_by' => $closer->id, 'closed_at' => now()]);
 
             return $payroll;
         });
+
+        ResourceChanged::dispatch('payrolls');
+
+        return $payroll;
     }
 
     public function markAsPaid(Payroll $payroll): Payroll
@@ -307,10 +316,14 @@ class PayrollService
             ]);
         }
 
-        return DB::transaction(function () use ($payroll) {
+        $payroll = DB::transaction(function () use ($payroll) {
             $payroll->update(['status' => 'paid', 'paid_at' => now()]);
 
             return $payroll;
         });
+
+        ResourceChanged::dispatch('payrolls');
+
+        return $payroll;
     }
 }

@@ -102,9 +102,10 @@
     </div>
 </template>
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useDepartmentStore } from "../../stores/useDepartmentStore";
 import { useAuthStore } from "../../stores/authStore";
+import { useResourceSyncStore } from "../../stores/useResourceSyncStore";
 import positionService from "../../services/positionService";
 import DataTable from "../../components/common/DataTable.vue";
 import SearchField from "../../components/common/SearchField.vue";
@@ -121,6 +122,7 @@ const ACTIVE_STATUS_MAP = {
 const departmentStore = useDepartmentStore();
 const auth = useAuthStore();
 const toast = useToastStore();
+const resourceSync = useResourceSyncStore();
 
 const search = ref("");
 const departmentFilter = ref(null);
@@ -230,8 +232,19 @@ function openEdit(position) {
 
 watch(departmentFilter, fetchData);
 
+// Phiên KHÁC vừa Thêm/Sửa/Xóa chức vụ — xem ResourceChanged (mục 34 CODE_MAP).
+watch(
+    () => resourceSync.signals.positions,
+    fetchData,
+);
+
 onMounted(() => {
     departmentStore.fetchTree();
     fetchData();
+    resourceSync.connect("positions");
+});
+
+onUnmounted(() => {
+    resourceSync.disconnect("positions");
 });
 </script>

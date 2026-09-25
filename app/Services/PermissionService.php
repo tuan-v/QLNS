@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\ResourceChanged;
 use App\Models\Permission;
 use App\Repositories\PermissionRepository;
 use Illuminate\Support\Collection;
@@ -23,12 +24,20 @@ class PermissionService
     {
         $data['guard_name'] ??= 'api';
 
-        return DB::transaction(fn () => $this->permissionRepository->create($data));
+        $permission = DB::transaction(fn () => $this->permissionRepository->create($data));
+
+        ResourceChanged::dispatch('roles');
+
+        return $permission;
     }
 
     public function update(Permission $permission, array $data): Permission
     {
-        return DB::transaction(fn () => $this->permissionRepository->update($permission, $data));
+        $permission = DB::transaction(fn () => $this->permissionRepository->update($permission, $data));
+
+        ResourceChanged::dispatch('roles');
+
+        return $permission;
     }
 
     public function delete(Permission $permission): void
@@ -40,5 +49,7 @@ class PermissionService
         }
 
         $this->permissionRepository->delete($permission);
+
+        ResourceChanged::dispatch('roles');
     }
 }

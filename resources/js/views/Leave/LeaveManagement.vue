@@ -75,8 +75,10 @@ import DataTable from "../../components/common/DataTable.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useLeaveFeedStore } from "../../stores/useLeaveFeedStore";
 
 const toast = useToastStore();
+const leaveFeed = useLeaveFeedStore();
 
 const LEAVE_STATUS_MAP = {
     pending: { label: "Chờ duyệt", color: "warning" },
@@ -178,6 +180,13 @@ const actions = computed(() => [
 ]);
 
 watch(statusFilter, loadData);
+
+// Phiên Manager/HR KHÁC vừa nộp đơn mới hoặc Duyệt/Từ chối — xem
+// LeaveRequestChanged (2026-09-25, theo yêu cầu người dùng).
+watch(
+    () => leaveFeed.signal,
+    () => loadData(),
+);
 
 onMounted(() => {
     loadData();

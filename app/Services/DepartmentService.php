@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\ResourceChanged;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Repositories\DepartmentRepository;
@@ -26,12 +27,16 @@ class DepartmentService
     {
         $data['code'] = $this->generateCode();
 
-        return DB::transaction(function () use ($data) {
+        $department = DB::transaction(function () use ($data) {
             $department = $this->departmentRepository->create($data);
             $this->syncHeadPosition($department, oldManagerId: null, newManagerId: $department->manager_id);
 
             return $department;
         });
+
+        ResourceChanged::dispatch('departments');
+
+        return $department;
     }
 
     // Mã phòng ban do hệ thống tự sinh, không nhận từ client: "PB" + số thứ tự
@@ -66,7 +71,7 @@ class DepartmentService
 
         $oldManagerId = $department->manager_id;
 
-        return DB::transaction(function () use ($department, $data, $oldManagerId) {
+        $department = DB::transaction(function () use ($department, $data, $oldManagerId) {
             $department = $this->departmentRepository->update($department, $data);
 
             if (array_key_exists('manager_id', $data)) {
@@ -75,6 +80,10 @@ class DepartmentService
 
             return $department;
         });
+
+        ResourceChanged::dispatch('departments');
+
+        return $department;
     }
 
     // Đồng bộ Chức vụ "Trưởng phòng" theo đúng Trưởng phòng hiện tại của phòng
@@ -111,7 +120,10 @@ class DepartmentService
         }
 
         $this->departmentRepository->delete($department);
+
+        ResourceChanged::dispatch('departments');
     }
+
     public function tree(): \Illuminate\Support\Collection
     {
         return $this->departmentRepository->tree();

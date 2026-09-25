@@ -22,3 +22,8 @@ Schedule::command('shifts:assign-missing-default')->dailyAt('00:07');
 // NGÀY (không phải hằng tháng) vì mốc thưởng thâm niên cần đúng ngày, xem
 // comment đầu LeaveAccrualService.php.
 Schedule::command('leave:sync-accrual')->dailyAt('00:20');
+// Nhắc chấm công ra (2026-09-25, theo yêu cầu người dùng) — chạy MỖI PHÚT để
+// bám sát ngưỡng "quá 5 phút" sau giờ tan ca, xem comment đầu
+// RemindMissingCheckout.php. Mỗi bản ghi chỉ được nhắc đúng 1 lần (cột
+// checkout_reminder_sent_at) nên chạy dày không tạo trùng lặp thông báo.
+Schedule::command('attendance:remind-checkout')->everyMinute();
