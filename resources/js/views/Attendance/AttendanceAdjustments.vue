@@ -50,15 +50,24 @@
             </template>
             <template #item.proposed="{ item }">
                 <div v-if="item.type === 'excuse'" style="opacity: 0.75">
-                    Xin miễn trừ đi muộn ({{ formatMinutesAsHours(item.attendance?.late_minutes) }})
+                    Xin miễn trừ đi muộn ({{
+                        formatMinutesAsHours(item.attendance?.late_minutes)
+                    }})
                 </div>
                 <div v-if="item.type === 'overtime'" style="opacity: 0.75">
                     <template v-if="item.attendance?.last_check_out_at">
-                        Xin duyệt OT ({{ formatMinutesAsHours(item.attendance?.overtime_minutes) }})
+                        Xin duyệt OT ({{
+                            formatMinutesAsHours(
+                                item.attendance?.overtime_minutes,
+                            )
+                        }})
                     </template>
                     <template v-else>
-                        Xin OT trước — đang trong ca "{{ item.work_shift?.name ?? "—" }}", kết thúc lúc
-                        {{ item.work_shift?.end_time?.slice(0, 5) }}, chưa chấm công ra
+                        Xin OT trước — đang trong ca "{{
+                            item.work_shift?.name ?? "—"
+                        }}", kết thúc lúc
+                        {{ item.work_shift?.end_time?.slice(0, 5) }}, chưa chấm
+                        công ra
                     </template>
                 </div>
                 <div v-if="item.type === 'extra_shift'" style="opacity: 0.75">

@@ -113,7 +113,7 @@ class AttendanceLiveFeedTest extends TestCase
     // thức thông báo về chấm công).
     public function test_check_in_dispatches_attendance_checked_event_and_notifies_approvers(): void
     {
-        Event::fake([AttendanceChecked::class]);
+        Event::fake([AttendanceChecked::class, \App\Events\NotificationCreated::class]);
         [$employee, $user] = $this->makeEmployeeWithLogin('Employee');
         $workShift = WorkShift::create([
             'code' => 'CA001', 'name' => 'Ca sang',

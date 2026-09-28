@@ -29,7 +29,7 @@
             {{ store.loadError }}
         </v-alert>
 
-        <StatCards :stats="statCards" />
+        <StatCards :stats="statCards" class="mb-2" />
 
         <v-sheet
             class="border rounded-lg pa-2 mb-4 glass-panel"
@@ -310,7 +310,10 @@ function formatCurrency(value) {
 // null (chưa có bản ghi LeaveBalance nào, hoặc bị ẩn vì người xem là cấp
 // dưới — EmployeeResource) hiện "—", giống cột "Lương".
 function formatLeaveDays(item) {
-    if (item.leave_allocated_days === null || item.leave_allocated_days === undefined) {
+    if (
+        item.leave_allocated_days === null ||
+        item.leave_allocated_days === undefined
+    ) {
         return "—";
     }
     return `${item.leave_remaining_days}/${item.leave_allocated_days} ngày`;

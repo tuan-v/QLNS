@@ -11,7 +11,10 @@
             {{ loadError }}
         </v-alert>
 
-        <v-sheet class="border rounded-lg pa-4 mb-4 glass-panel" color="transparent">
+        <v-sheet
+            class="border rounded-lg pa-4 mb-4 glass-panel"
+            color="transparent"
+        >
             <v-row dense>
                 <v-col cols="12" sm="6" md="3">
                     <div class="text-body-2 font-weight-medium mb-1">Tháng</div>
@@ -23,11 +26,15 @@
                     />
                 </v-col>
                 <v-col cols="6" sm="3" md="2">
-                    <div class="text-body-2 font-weight-medium mb-1">Từ ngày</div>
+                    <div class="text-body-2 font-weight-medium mb-1">
+                        Từ ngày
+                    </div>
                     <InputDate v-model="dateFrom" hide-details />
                 </v-col>
                 <v-col cols="6" sm="3" md="2">
-                    <div class="text-body-2 font-weight-medium mb-1">Đến ngày</div>
+                    <div class="text-body-2 font-weight-medium mb-1">
+                        Đến ngày
+                    </div>
                     <InputDate v-model="dateTo" hide-details />
                 </v-col>
                 <v-col cols="6" sm="6" md="3">
@@ -41,7 +48,9 @@
                     />
                 </v-col>
                 <v-col cols="6" sm="6" md="2">
-                    <div class="text-body-2 font-weight-medium mb-1">Trạng thái</div>
+                    <div class="text-body-2 font-weight-medium mb-1">
+                        Trạng thái
+                    </div>
                     <v-select
                         v-model="statusFilter"
                         :items="statusOptions"
@@ -69,24 +78,46 @@
                 </thead>
                 <tbody>
                     <tr v-if="loading">
-                        <td :colspan="readOnly ? 6 : 7" class="text-center py-6">
+                        <td
+                            :colspan="readOnly ? 6 : 7"
+                            class="text-center py-6"
+                        >
                             <v-progress-circular indeterminate size="24" />
                         </td>
                     </tr>
                     <tr v-else-if="!rows.length">
-                        <td :colspan="readOnly ? 6 : 7" class="text-center py-6" style="opacity: 0.6">
+                        <td
+                            :colspan="readOnly ? 6 : 7"
+                            class="text-center py-6"
+                            style="opacity: 0.6"
+                        >
                             Không có dữ liệu trong khoảng đã chọn.
                         </td>
                     </tr>
-                    <tr v-for="row in rows" v-else :key="`${row.date}-${row.work_shift.id}`">
+                    <tr
+                        v-for="row in rows"
+                        v-else
+                        :key="`${row.date}-${row.work_shift.id}`"
+                    >
                         <td>{{ formatDate(row.date) }}</td>
                         <td>{{ row.work_shift.name }}</td>
-                        <td>{{ row.work_shift.start_time?.slice(0, 5) }}-{{ row.work_shift.end_time?.slice(0, 5) }}</td>
                         <td>
-                            {{ formatTime(row.attendance?.first_check_in_at) }}-{{ formatTime(row.attendance?.last_check_out_at) }}
+                            {{ row.work_shift.start_time?.slice(0, 5) }}-{{
+                                row.work_shift.end_time?.slice(0, 5)
+                            }}
                         </td>
                         <td>
-                            <StatusChip :status="row.status" :map="HISTORY_STATUS_MAP" />
+                            {{
+                                formatTime(row.attendance?.first_check_in_at)
+                            }}-{{
+                                formatTime(row.attendance?.last_check_out_at)
+                            }}
+                        </td>
+                        <td>
+                            <StatusChip
+                                :status="row.status"
+                                :map="HISTORY_STATUS_MAP"
+                            />
                         </td>
                         <td>
                             <!-- Chỉ bản ghi đã có giờ vào mới có bước duyệt (ngày vắng/nghỉ phép thì không). -->
@@ -107,7 +138,9 @@
                                 @click="openDetail(row)"
                             >
                                 <v-icon icon="mdi-eye-outline" />
-                                <v-tooltip activator="parent" location="top">Chi tiết</v-tooltip>
+                                <v-tooltip activator="parent" location="top"
+                                    >Chi tiết</v-tooltip
+                                >
                             </v-btn>
                         </td>
                     </tr>
@@ -118,23 +151,40 @@
         <v-dialog v-model="detailDialog" max-width="640">
             <v-card rounded="xl" elevation="12" class="glass-panel">
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
-                    Chi tiết chấm công {{ detailTarget ? formatDate(detailTarget.date) : "" }}
+                    Chi tiết chấm công
+                    {{ detailTarget ? formatDate(detailTarget.date) : "" }}
                 </v-card-title>
                 <v-card-text class="px-5">
                     <!-- Trạng thái HR duyệt của bản ghi này (chưa duyệt thì chưa được tính công/lương). -->
-                    <div v-if="detailTarget?.attendance" class="d-flex flex-wrap align-center ga-2 mb-3">
-                        <span class="text-body-2" style="opacity: 0.75">Duyệt chấm công:</span>
-                        <StatusChip :status="detailTarget.attendance.approval_status" :map="APPROVAL_STATUS_MAP" />
-                        <span v-if="detailTarget.attendance.approval_note" class="text-body-2" style="opacity: 0.75">
+                    <div
+                        v-if="detailTarget?.attendance"
+                        class="d-flex flex-wrap align-center ga-2 mb-3"
+                    >
+                        <span class="text-body-2" style="opacity: 0.75"
+                            >Duyệt chấm công:</span
+                        >
+                        <StatusChip
+                            :status="detailTarget.attendance.approval_status"
+                            :map="APPROVAL_STATUS_MAP"
+                        />
+                        <span
+                            v-if="detailTarget.attendance.approval_note"
+                            class="text-body-2"
+                            style="opacity: 0.75"
+                        >
                             — {{ detailTarget.attendance.approval_note }}
                         </span>
                     </div>
 
-                    <AttendanceLogList :logs="detailTarget?.attendance?.logs ?? []" />
+                    <AttendanceLogList
+                        :logs="detailTarget?.attendance?.logs ?? []"
+                    />
                 </v-card-text>
                 <v-card-actions class="px-5 pb-5">
                     <v-spacer />
-                    <v-btn variant="text" @click="detailDialog = false">Đóng</v-btn>
+                    <v-btn variant="text" @click="detailDialog = false"
+                        >Đóng</v-btn
+                    >
                 </v-card-actions>
             </v-card>
         </v-dialog>
@@ -198,9 +248,11 @@ function formatTime(value) {
     if (!value) {
         return "--:--";
     }
-    return new Date(value).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+    return new Date(value).toLocaleTimeString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+    });
 }
-
 
 function pad2(n) {
     return String(n).padStart(2, "0");
@@ -214,7 +266,10 @@ function buildMonthOptions() {
     for (let i = 0; i < 12; i += 1) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const value = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
-        options.push({ title: `Tháng ${pad2(d.getMonth() + 1)}/${d.getFullYear()}`, value });
+        options.push({
+            title: `Tháng ${pad2(d.getMonth() + 1)}/${d.getFullYear()}`,
+            value,
+        });
     }
     return options;
 }
@@ -331,7 +386,8 @@ async function loadData() {
         rows.value = response.data.data.rows;
     } catch (e) {
         rows.value = [];
-        loadError.value = e.response?.data?.message ?? "Không thể tải lịch sử chấm công.";
+        loadError.value =
+            e.response?.data?.message ?? "Không thể tải lịch sử chấm công.";
     } finally {
         loading.value = false;
     }

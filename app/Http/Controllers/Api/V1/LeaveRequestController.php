@@ -90,31 +90,27 @@ class LeaveRequestController extends Controller
 
     public function decide(DecideLeaveRequest $request, LeaveRequest $leaveRequest): JsonResponse
     {
-        $decidingEmployee = $request->user()->employee;
-        abort_if(! $decidingEmployee, 404, 'Tài khoản này chưa liên kết với hồ sơ nhân viên nào.');
-
-        $isHr = $request->user()->hasPermission('leave.approve_hr');
+        $user = $request->user();
+        $isHr = $user->hasPermission('leave.approve_hr');
         $leaveRequest = $this->leaveApprovalService->decide(
             $leaveRequest,
-            $decidingEmployee,
+            $user,
             $isHr,
             $request->validated('status'),
             $request->validated('comment'),
         );
-        $leaveRequest->load('leaveType', 'employee', 'approvals.approverEmployee');
+        $leaveRequest->load('leaveType', 'employee', 'approvals.approverEmployee', 'approvals.approverUser');
 
         return response()->json($leaveRequest);
     }
 
     public function bulkDecide(BulkDecideLeaveRequest $request): JsonResponse
     {
-        $decidingEmployee = $request->user()->employee;
-        abort_if(! $decidingEmployee, 404, 'Tài khoản này chưa liên kết với hồ sơ nhân viên nào.');
-
-        $isHr = $request->user()->hasPermission('leave.approve_hr');
+        $user = $request->user();
+        $isHr = $user->hasPermission('leave.approve_hr');
         $result = $this->leaveApprovalService->bulkDecide(
             $request->validated('leave_request_ids'),
-            $decidingEmployee,
+            $user,
             $isHr,
             $request->validated('status'),
             $request->validated('comment'),

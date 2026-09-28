@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Events\LeaveRequestChanged;
 use App\Models\Employee;
+use App\Models\EmployeeShiftAssignment;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
@@ -44,6 +45,22 @@ class LeaveRequestService
         $startSession = $data['start_session'] ?? 'full';
         $endSession = $data['end_session'] ?? 'full';
         $isHourly = $startSession === 'hourly';
+
+        // Nhân viên phải có ca làm việc có hiệu lực trong khoảng thời gian xin nghỉ
+        $hasShift = EmployeeShiftAssignment::where('employee_id', $employee->id)
+            ->where('status', 'active')
+            ->where('effective_from', '<=', $toDate->toDateString())
+            ->where(function ($query) use ($fromDate) {
+                $query->whereNull('effective_to')->orWhere('effective_to', '>=', $fromDate->toDateString());
+            })
+            ->whereHas('workShift')
+            ->exists();
+
+        if (! $hasShift) {
+            throw ValidationException::withMessages([
+                'from_date' => 'Bạn chưa được phân ca làm việc nào trong khoảng thời gian xin nghỉ.',
+            ]);
+        }
 
         // Nghỉ theo giờ chỉ trong 1 ngày (StoreLeaveRequest đã chặn from_date
         // !== to_date) — vẫn phải tự kiểm tra Thứ 7/CN riêng vì

@@ -33,12 +33,13 @@ class WorkTimeCalculationServiceTest extends TestCase
         return new WorkShift($attributes);
     }
 
-    private function makeAttendance(int $actualWorkMinutes, int $lateMinutes = 0, int $earlyLeaveMinutes = 0): Attendance
+    private function makeAttendance(int $actualWorkMinutes, int $lateMinutes = 0, int $earlyLeaveMinutes = 0, bool $lateExcused = false): Attendance
     {
         return new Attendance([
             'actual_work_minutes' => $actualWorkMinutes,
             'late_minutes' => $lateMinutes,
             'early_leave_minutes' => $earlyLeaveMinutes,
+            'late_excused' => $lateExcused,
         ]);
     }
 
@@ -319,5 +320,45 @@ class WorkTimeCalculationServiceTest extends TestCase
         );
 
         $this->assertSame(1.0, $result);
+    }
+
+    /* ------------------------ Miễn trừ đi muộn (late_excused) ------------------------ */
+
+    public function test_late_excused_restores_full_day_equivalent(): void
+    {
+        // Nhân viên đi muộn 30 phút (làm 450/480 phút) nhưng đã được duyệt
+        // miễn trừ đi muộn (late_excused = true) -> phải được tính đủ 1.0 công.
+        $result = $this->service()->dayEquivalentFor(
+            $this->makeAttendance(450, lateMinutes: 30, earlyLeaveMinutes: 0, lateExcused: true),
+            $this->makeWorkShift(480),
+        );
+
+        $this->assertSame(1.0, $result);
+    }
+
+    public function test_late_without_excuse_remains_penalized(): void
+    {
+        // Đi muộn 30 phút (làm 450/480 phút) CHƯA được miễn trừ -> bị trừ theo bậc/trần (0.75 công).
+        $result = $this->service()->dayEquivalentFor(
+            $this->makeAttendance(450, lateMinutes: 30, earlyLeaveMinutes: 0, lateExcused: false),
+            $this->makeWorkShift(480),
+        );
+
+        $this->assertSame(0.75, $result);
+    }
+
+    public function test_late_excused_with_unexcused_early_leave_only_penalizes_early_leave(): void
+    {
+        // Đi muộn 60 phút (được miễn trừ) + về sớm 60 phút (không miễn trừ)
+        // actual_work_minutes = 360, late = 60 (excused), early = 60
+        // effectiveWorkMinutes = 360 + 60 = 420 (420/480 = 87.5% -> bậc 0.75)
+        // latenessMinutes = max(0, 60) = 60 -> trần 0.5.
+        // Kết quả = min(0.75, 0.5) = 0.5.
+        $result = $this->service()->dayEquivalentFor(
+            $this->makeAttendance(360, lateMinutes: 60, earlyLeaveMinutes: 60, lateExcused: true),
+            $this->makeWorkShift(480),
+        );
+
+        $this->assertSame(0.5, $result);
     }
 }

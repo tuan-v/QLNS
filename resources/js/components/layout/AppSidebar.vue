@@ -111,13 +111,13 @@
                 to="/work-shifts"
                 rounded="lg"
             />
-            <v-list-item
+            <!-- <v-list-item
                 v-if="can('location.view')"
                 prepend-icon="mdi-map-marker-outline"
                 title="Điểm chấm công"
                 to="/attendance-locations"
                 rounded="lg"
-            />
+            /> -->
             <v-list-item
                 v-if="can('attendance.check')"
                 prepend-icon="mdi-calendar-check-outline"

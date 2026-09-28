@@ -208,7 +208,19 @@ class AttendanceService
 
         return [
             'total_work_days' => round((float) $approved->sum(fn (array $row) => $this->workTimeCalculationService->dayEquivalentFor($row['attendance'], $row['work_shift'])), 2),
-            'total_work_minutes' => (int) $approved->sum(fn (array $row) => $row['attendance']->actual_work_minutes ?? 0),
+            // Khi đã miễn trừ đi muộn (late_excused=true) và đã checkout
+            // (actual_work_minutes > 0), cộng late_minutes vào tổng giờ làm —
+            // nhất quán với dayEquivalentFor() ép ratio=1.0 cho ca đó,
+            // tránh hiển thị giờ làm thấp hơn thực tế (ví dụ: 7h43 thay vì 8h).
+            'total_work_minutes' => (int) $approved->sum(function (array $row): int {
+                $a = $row['attendance'];
+                $minutes = (int) ($a->actual_work_minutes ?? 0);
+                if ($a->late_excused && ($a->late_minutes ?? 0) > 0 && $minutes > 0) {
+                    $minutes += (int) $a->late_minutes;
+                }
+
+                return $minutes;
+            }),
             'unapproved_count' => $withAttendance->count() - $approved->count(),
             'late_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->late_minutes ?? 0) > 0 && ! ($row['attendance']->late_excused ?? false))->count(),
             'early_leave_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->early_leave_minutes ?? 0) > 0)->count(),

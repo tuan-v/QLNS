@@ -4,12 +4,14 @@ namespace Tests\Feature\Notification;
 
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeShiftAssignment;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Notification;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\WorkShift;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -39,13 +41,34 @@ class LeaveNotificationTest extends TestCase
     {
         $department = Department::create(['name' => 'Phong '.uniqid(), 'code' => 'PB-'.uniqid()]);
 
-        return Employee::create(array_merge([
+        $employee = Employee::create(array_merge([
             'full_name' => 'Nhan vien '.uniqid(),
             'company_email' => uniqid().'@qlns.local',
             'hire_date' => now()->subYears(3),
             'code' => 'NV-'.uniqid(),
             'department_id' => $department->id,
         ], $overrides));
+
+        $workShift = WorkShift::firstOrCreate(
+            ['code' => 'CA-STD'],
+            [
+                'name' => 'Ca hanh chinh',
+                'start_time' => '08:00',
+                'end_time' => '17:00',
+                'standard_work_minutes' => 480,
+                'is_default' => true,
+                'is_active' => true,
+            ]
+        );
+        EmployeeShiftAssignment::create([
+            'employee_id' => $employee->id,
+            'work_shift_id' => $workShift->id,
+            'effective_from' => now()->subYears(5)->toDateString(),
+            'work_days' => [1, 2, 3, 4, 5],
+            'status' => 'active',
+        ]);
+
+        return $employee;
     }
 
     private function makeEmployeeWithLogin(string $roleName = 'Employee', array $overrides = []): array

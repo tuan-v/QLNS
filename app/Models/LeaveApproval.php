@@ -11,6 +11,7 @@ class LeaveApproval extends Model
     protected $fillable = [
         'leave_request_id',
         'approver_employee_id',
+        'approver_user_id',
         'approval_level',
         'decision',
         'comment',
@@ -26,5 +27,9 @@ class LeaveApproval extends Model
     public function approverEmployee()
     {
         return $this->belongsTo(Employee::class, 'approver_employee_id');
+    }
+    public function approverUser()
+    {
+        return $this->belongsTo(User::class, 'approver_user_id');
     }
 }

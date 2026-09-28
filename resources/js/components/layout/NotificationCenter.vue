@@ -4,7 +4,9 @@
             <v-btn v-bind="props" icon variant="text">
                 <v-badge
                     :model-value="store.unreadCount > 0"
-                    :content="store.unreadCount > 99 ? '99+' : store.unreadCount"
+                    :content="
+                        store.unreadCount > 99 ? '99+' : store.unreadCount
+                    "
                     color="error"
                     offset-x="2"
                     offset-y="2"
@@ -29,7 +31,10 @@
             </div>
             <v-divider />
 
-            <div v-if="store.notifications.length === 0" class="text-center py-8 text-medium-emphasis">
+            <div
+                v-if="store.notifications.length === 0"
+                class="text-center py-8 text-medium-emphasis"
+            >
                 <v-icon size="32" class="mb-2">mdi-bell-sleep-outline</v-icon>
                 <div class="text-body-2">Chưa có thông báo nào</div>
             </div>
@@ -46,7 +51,11 @@
                         :color="item.read_at ? 'medium-emphasis' : 'primary'"
                         size="18"
                     >
-                        {{ item.read_at ? "mdi-email-open-outline" : "mdi-email-outline" }}
+                        {{
+                            item.read_at
+                                ? "mdi-email-open-outline"
+                                : "mdi-email-outline"
+                        }}
                     </v-icon>
                 </template>
                 <v-list-item-title
@@ -110,7 +119,9 @@ function onClickItem(item) {
 }
 
 function timeAgo(isoString) {
-    const diffSeconds = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+    const diffSeconds = Math.floor(
+        (Date.now() - new Date(isoString).getTime()) / 1000,
+    );
     if (diffSeconds < 60) {
         return "Vừa xong";
     }

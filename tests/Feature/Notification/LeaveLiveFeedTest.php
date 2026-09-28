@@ -5,10 +5,12 @@ namespace Tests\Feature\Notification;
 use App\Events\LeaveRequestChanged;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeShiftAssignment;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\WorkShift;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -46,7 +48,7 @@ class LeaveLiveFeedTest extends TestCase
     {
         $department = Department::create(['name' => 'Phong '.uniqid(), 'code' => 'PB-'.uniqid()]);
 
-        return Employee::create(array_merge([
+        $employee = Employee::create(array_merge([
             'full_name' => 'Nhan vien '.uniqid(),
             'company_email' => uniqid().'@qlns.local',
             // Đã qua năm đầu nên được cấp đủ quỹ phép ngay, không ảnh hưởng
@@ -55,6 +57,27 @@ class LeaveLiveFeedTest extends TestCase
             'code' => 'NV-'.uniqid(),
             'department_id' => $department->id,
         ], $overrides));
+
+        $workShift = WorkShift::firstOrCreate(
+            ['code' => 'CA-STD'],
+            [
+                'name' => 'Ca hanh chinh',
+                'start_time' => '08:00',
+                'end_time' => '17:00',
+                'standard_work_minutes' => 480,
+                'is_default' => true,
+                'is_active' => true,
+            ]
+        );
+        EmployeeShiftAssignment::create([
+            'employee_id' => $employee->id,
+            'work_shift_id' => $workShift->id,
+            'effective_from' => now()->subYears(5)->toDateString(),
+            'work_days' => [1, 2, 3, 4, 5],
+            'status' => 'active',
+        ]);
+
+        return $employee;
     }
 
     private function makeEmployeeWithLogin(string $roleName = 'Employee', array $overrides = []): array
@@ -109,7 +132,7 @@ class LeaveLiveFeedTest extends TestCase
 
     public function test_submitting_a_leave_request_dispatches_leave_request_changed(): void
     {
-        Event::fake([LeaveRequestChanged::class]);
+        Event::fake([LeaveRequestChanged::class, \App\Events\NotificationCreated::class]);
         [$manager, $managerUser] = $this->makeEmployeeWithLogin('Manager');
         [, $employeeUser] = $this->makeEmployeeWithLogin('Employee', ['manager_id' => $manager->id]);
         $leaveType = $this->makeLeaveType();
@@ -134,7 +157,7 @@ class LeaveLiveFeedTest extends TestCase
 
     public function test_deciding_a_leave_request_dispatches_leave_request_changed(): void
     {
-        Event::fake([LeaveRequestChanged::class]);
+        Event::fake([LeaveRequestChanged::class, \App\Events\NotificationCreated::class]);
         [$manager, $managerUser] = $this->makeEmployeeWithLogin('Manager');
         [$subordinate] = $this->makeEmployeeWithLogin('Employee', ['manager_id' => $manager->id]);
         $leaveType = $this->makeLeaveType();

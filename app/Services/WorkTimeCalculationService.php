@@ -60,10 +60,25 @@ class WorkTimeCalculationService
             return 0.0; // Ca đã bị xóa hoặc thiếu số phút chuẩn — bỏ qua an toàn.
         }
 
-        $ratio = ($attendance->actual_work_minutes ?? 0) / $standardMinutes;
+        $effectiveWorkMinutes = (float) ($attendance->actual_work_minutes ?? 0);
+        $effectiveLateMinutes = $attendance->late_excused ? 0 : ($attendance->late_minutes ?? 0);
+
+        $ratio = $effectiveWorkMinutes / $standardMinutes;
+
+        // Khi đã được miễn trừ đi muộn (late_excused = true) VÀ đã checkout
+        // (actual_work_minutes > 0), ép ratio tối thiểu = 1.0 — không cộng
+        // phút muộn vào actual_work_minutes vì do làm tròn giây có thể vẫn
+        // lệch vài giây so với standard_work_minutes khiến ratio < 1.0 (ví
+        // dụ: actual=463, late=16 → 479/480 = 0.9979 < 1.0 → bị rớt bracket
+        // 0.75 thay vì 1.0). Đã miễn trừ đi muộn thì nghiệp vụ coi như đủ
+        // ngày công — ép ratio đủ điều kiện bracket 1.0. Guard actual > 0
+        // để tránh tính đủ công cho bản ghi chưa checkout (actual=0).
+        if ($attendance->late_excused && ($attendance->late_minutes ?? 0) > 0 && $effectiveWorkMinutes > 0) {
+            $ratio = max($ratio, 1.0);
+        }
         $hoursCoefficient = $this->bracketForRatio($ratio);
 
-        $latenessMinutes = max($attendance->late_minutes ?? 0, $attendance->early_leave_minutes ?? 0);
+        $latenessMinutes = max($effectiveLateMinutes, $attendance->early_leave_minutes ?? 0);
         $latenessCap = $this->latenessCapFor($latenessMinutes);
 
         $dayWeight = (float) ($workShift->work_coefficient ?? 1.0);

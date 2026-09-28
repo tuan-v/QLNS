@@ -4,10 +4,12 @@ namespace Tests\Feature\Leave;
 
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeShiftAssignment;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\User;
+use App\Models\WorkShift;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -35,11 +37,11 @@ class LeaveRequestTest extends TestCase
         return $response->json('access_token');
     }
 
-    private function makeEmployee(array $overrides = []): Employee
+    private function makeEmployee(array $overrides = [], bool $withShift = true): Employee
     {
         $department = Department::create(['name' => 'Phong '.uniqid(), 'code' => 'PB-'.uniqid()]);
 
-        return Employee::create(array_merge([
+        $employee = Employee::create(array_merge([
             'full_name' => 'Nhan vien '.uniqid(),
             'company_email' => uniqid().'@qlns.local',
             // Vào làm từ 3 năm trước (mặc định) — đã qua năm đầu nên được
@@ -50,16 +52,39 @@ class LeaveRequestTest extends TestCase
             'code' => 'NV-'.uniqid(),
             'department_id' => $department->id,
         ], $overrides));
+
+        if ($withShift) {
+            $workShift = WorkShift::firstOrCreate(
+                ['code' => 'CA-STD'],
+                [
+                    'name' => 'Ca hanh chinh',
+                    'start_time' => '08:00',
+                    'end_time' => '17:00',
+                    'standard_work_minutes' => 480,
+                    'is_default' => true,
+                    'is_active' => true,
+                ]
+            );
+            EmployeeShiftAssignment::create([
+                'employee_id' => $employee->id,
+                'work_shift_id' => $workShift->id,
+                'effective_from' => now()->subYears(5)->toDateString(),
+                'work_days' => [1, 2, 3, 4, 5],
+                'status' => 'active',
+            ]);
+        }
+
+        return $employee;
     }
 
-    private function makeEmployeeWithLogin(array $overrides = []): array
+    private function makeEmployeeWithLogin(array $overrides = [], bool $withShift = true): array
     {
         $user = User::create([
             'email' => 'leave-'.uniqid().'@qlns.local', 'user_name' => 'Leave User',
             'password' => bcrypt('Secret@123'), 'status' => 'active',
         ]);
         \App\Models\Role::where('name', 'Employee')->first()->users()->attach($user->id);
-        $employee = $this->makeEmployee(array_merge(['user_id' => $user->id], $overrides));
+        $employee = $this->makeEmployee(array_merge(['user_id' => $user->id], $overrides), $withShift);
 
         return [$employee, $user];
     }
@@ -717,5 +742,24 @@ class LeaveRequestTest extends TestCase
         $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
         $this->get("/api/v1/leave-requests/{$leaveRequest->id}/evidence", ['Authorization' => 'Bearer '.$hrToken])
             ->assertStatus(200);
+    }
+
+    public function test_cannot_create_leave_request_when_employee_has_no_shift_assignment(): void
+    {
+        // Nhân viên không được gán ca làm việc (withShift = false)
+        [$employee, $user] = $this->makeEmployeeWithLogin([], false);
+        $leaveType = $this->makeLeaveType();
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $monday = Carbon::parse('next monday');
+
+        $response = $this->postJson('/api/v1/leave-requests', [
+            'leave_type_id' => $leaveType->id,
+            'from_date' => $monday->toDateString(),
+            'to_date' => $monday->toDateString(),
+            'reason' => 'Xin nghi khi chua co ca',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors('from_date');
     }
 }

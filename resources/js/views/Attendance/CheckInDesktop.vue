@@ -117,7 +117,9 @@
                             duyệt mới được đang trong ca") — xem
                             mergedAttendanceStatus() ở useCheckIn.js. -->
                             <StatusChip
-                                :status="mergedAttendanceStatus(entry.attendance)"
+                                :status="
+                                    mergedAttendanceStatus(entry.attendance)
+                                "
                                 :map="MERGED_ATTENDANCE_STATUS_MAP"
                             />
                         </div>

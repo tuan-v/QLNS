@@ -24,8 +24,11 @@
             class="border rounded-lg pa-3 mb-4 glass-panel d-flex flex-wrap align-center ga-2"
             color="transparent"
         >
-            <span class="text-caption font-weight-bold text-medium-emphasis mr-1">
-                <v-icon size="14" class="mr-1">mdi-access-point</v-icon>Vừa chấm công:
+            <span
+                class="text-caption font-weight-bold text-medium-emphasis mr-1"
+            >
+                <v-icon size="14" class="mr-1">mdi-access-point</v-icon>Vừa chấm
+                công:
             </span>
             <v-chip
                 v-for="(entry, index) in attendanceFeed.entries"
@@ -34,18 +37,25 @@
                 :color="entry.type === 'in' ? 'success' : 'default'"
                 variant="tonal"
             >
-                {{ entry.full_name }} — {{ entry.type === "in" ? "Vào" : "Ra" }} lúc {{ formatTime(entry.at) }}
+                {{ entry.full_name }} —
+                {{ entry.type === "in" ? "Vào" : "Ra" }} lúc
+                {{ formatTime(entry.at) }}
             </v-chip>
         </v-sheet>
 
-        <v-sheet class="border rounded-lg pa-4 mb-4 glass-panel" color="transparent">
+        <v-sheet
+            class="border rounded-lg pa-4 mb-4 glass-panel"
+            color="transparent"
+        >
             <v-row dense>
                 <v-col cols="6" sm="4" md="3">
                     <div class="text-body-2 font-weight-medium mb-1">Ngày</div>
                     <InputDate v-model="date" hide-details />
                 </v-col>
                 <v-col cols="6" sm="4" md="3">
-                    <div class="text-body-2 font-weight-medium mb-1">Phòng ban</div>
+                    <div class="text-body-2 font-weight-medium mb-1">
+                        Phòng ban
+                    </div>
                     <SearchSelect
                         v-model="departmentId"
                         :items="departmentOptions"
@@ -55,7 +65,9 @@
                     />
                 </v-col>
                 <v-col cols="6" sm="4" md="3">
-                    <div class="text-body-2 font-weight-medium mb-1">Ca làm việc</div>
+                    <div class="text-body-2 font-weight-medium mb-1">
+                        Ca làm việc
+                    </div>
                     <SearchSelect
                         v-model="workShiftId"
                         :items="shiftOptions"
@@ -65,7 +77,9 @@
                     />
                 </v-col>
                 <v-col cols="6" sm="4" md="3">
-                    <div class="text-body-2 font-weight-medium mb-1">Trạng thái ca</div>
+                    <div class="text-body-2 font-weight-medium mb-1">
+                        Trạng thái ca
+                    </div>
                     <v-select
                         v-model="statusFilter"
                         :items="statusOptions"
@@ -93,33 +107,48 @@
                 @bulk-action-error="loadData"
             >
                 <template #item.employee="{ item }">
-                    <div class="font-weight-medium">{{ item.employee.full_name }}</div>
+                    <div class="font-weight-medium">
+                        {{ item.employee.full_name }}
+                    </div>
                     <div class="text-caption" style="opacity: 0.6">
-                        {{ item.employee.code }} · {{ item.employee.department?.name ?? "—" }}
+                        {{ item.employee.code }} ·
+                        {{ item.employee.department?.name ?? "—" }}
                     </div>
                 </template>
                 <template #item.work_shift="{ item }">
                     {{ item.work_shift.name }}
                     <div class="text-caption" style="opacity: 0.6">
-                        {{ item.work_shift.start_time?.slice(0, 5) }}-{{ item.work_shift.end_time?.slice(0, 5) }}
+                        {{ item.work_shift.start_time?.slice(0, 5) }}-{{
+                            item.work_shift.end_time?.slice(0, 5)
+                        }}
                     </div>
                 </template>
                 <template #item.times="{ item }">
-                    {{ formatTime(item.attendance?.first_check_in_at) }} - {{ formatTime(item.attendance?.last_check_out_at) }}
+                    {{ formatTime(item.attendance?.first_check_in_at) }} -
+                    {{ formatTime(item.attendance?.last_check_out_at) }}
                 </template>
                 <template #item.device="{ item }">
                     <template v-if="firstLog(item)">
                         <div>{{ firstLog(item).device_name ?? "—" }}</div>
                         <div class="text-caption" style="opacity: 0.6">
-                            {{ firstLog(item).attendance_location?.name ?? "Không khớp điểm nào" }}
+                            {{
+                                firstLog(item).attendance_location?.name ??
+                                "Không khớp điểm nào"
+                            }}
                         </div>
                     </template>
                     <span v-else style="opacity: 0.5">—</span>
                 </template>
                 <template #item.status="{ item }">
-                    <StatusChip :status="mergedStatusFor(item)" :map="OVERVIEW_STATUS_MAP" />
+                    <StatusChip
+                        :status="mergedStatusFor(item)"
+                        :map="OVERVIEW_STATUS_MAP"
+                    />
                     <div
-                        v-if="item.attendance?.approval_status === 'rejected' && item.attendance.approval_note"
+                        v-if="
+                            item.attendance?.approval_status === 'rejected' &&
+                            item.attendance.approval_note
+                        "
                         class="text-caption mt-1"
                         style="opacity: 0.7"
                     >
@@ -132,26 +161,46 @@
         <v-dialog v-model="detailDialog" max-width="640">
             <v-card rounded="xl" elevation="12" class="glass-panel">
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
-                    {{ detailTarget?.employee?.full_name }} — {{ formatDate(date) }}
+                    {{ detailTarget?.employee?.full_name }} —
+                    {{ formatDate(date) }}
                 </v-card-title>
                 <v-card-text class="px-5">
-                    <div v-if="!detailTarget?.attendance" class="text-center py-4" style="opacity: 0.6">
+                    <div
+                        v-if="!detailTarget?.attendance"
+                        class="text-center py-4"
+                        style="opacity: 0.6"
+                    >
                         Chưa có nhật ký chấm công cho ca này.
                     </div>
                     <template v-else>
                         <div class="d-flex flex-wrap align-center ga-2 mb-3">
-                            <span class="text-body-2" style="opacity: 0.75">Duyệt chấm công:</span>
-                            <StatusChip :status="detailTarget.attendance.approval_status" :map="APPROVAL_STATUS_MAP" />
-                            <span v-if="detailTarget.attendance.approval_note" class="text-body-2" style="opacity: 0.75">
+                            <span class="text-body-2" style="opacity: 0.75"
+                                >Duyệt chấm công:</span
+                            >
+                            <StatusChip
+                                :status="
+                                    detailTarget.attendance.approval_status
+                                "
+                                :map="APPROVAL_STATUS_MAP"
+                            />
+                            <span
+                                v-if="detailTarget.attendance.approval_note"
+                                class="text-body-2"
+                                style="opacity: 0.75"
+                            >
                                 — {{ detailTarget.attendance.approval_note }}
                             </span>
                         </div>
-                        <AttendanceLogList :logs="detailTarget.attendance.logs ?? []" />
+                        <AttendanceLogList
+                            :logs="detailTarget.attendance.logs ?? []"
+                        />
                     </template>
                 </v-card-text>
                 <v-card-actions class="px-5 pb-5">
                     <v-spacer />
-                    <v-btn variant="text" @click="detailDialog = false">Đóng</v-btn>
+                    <v-btn variant="text" @click="detailDialog = false"
+                        >Đóng</v-btn
+                    >
                 </v-card-actions>
             </v-card>
         </v-dialog>
@@ -180,7 +229,11 @@ import StatCards from "../../components/dashboard/StatCards.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate, { todayIso } from "../../components/common/InputDate.vue";
 import AttendanceLogList from "../../components/attendance/AttendanceLogList.vue";
-import { APPROVAL_STATUS_MAP, formatDate, formatTime } from "../../composables/useCheckIn";
+import {
+    APPROVAL_STATUS_MAP,
+    formatDate,
+    formatTime,
+} from "../../composables/useCheckIn";
 import { useToastStore } from "../../stores/useToastStore";
 
 const toast = useToastStore();
@@ -244,23 +297,34 @@ const statusOptions = [
 // cũ nếu không có (2026-09-25, sửa bug thật: bấm vào mục "Chấm công chờ
 // duyệt" luôn rơi vào hôm nay, có thể KHÔNG thấy bản ghi cần xử lý nếu nó từ
 // ngày khác).
-const date = ref(typeof route.query.date === "string" ? route.query.date : todayIso());
+const date = ref(
+    typeof route.query.date === "string" ? route.query.date : todayIso(),
+);
 const departmentId = ref(null);
 const workShiftId = ref(null);
 const statusFilter = ref(null);
 
 function flattenDepartments(nodes) {
-    return (nodes ?? []).flatMap((node) => [node, ...(node.children?.length ? flattenDepartments(node.children) : [])]);
+    return (nodes ?? []).flatMap((node) => [
+        node,
+        ...(node.children?.length ? flattenDepartments(node.children) : []),
+    ]);
 }
 const departmentOptions = computed(() =>
-    flattenDepartments(departmentStore.tree).map((dept) => ({ title: dept.name, value: dept.id })),
+    flattenDepartments(departmentStore.tree).map((dept) => ({
+        title: dept.name,
+        value: dept.id,
+    })),
 );
 
 const shiftOptions = ref([]);
 async function loadShiftOptions() {
     try {
         const response = await workShiftService.list({ per_page: 1000 });
-        shiftOptions.value = response.data.data.map((s) => ({ title: s.name, value: s.id }));
+        shiftOptions.value = response.data.data.map((s) => ({
+            title: s.name,
+            value: s.id,
+        }));
     } catch {
         shiftOptions.value = [];
     }
@@ -280,7 +344,13 @@ function firstLog(item) {
 }
 
 const summary = ref({
-    total: 0, completed: 0, pending: 0, needs_review: 0, absent: 0, on_leave: 0, awaiting_approval: 0,
+    total: 0,
+    completed: 0,
+    pending: 0,
+    needs_review: 0,
+    absent: 0,
+    on_leave: 0,
+    awaiting_approval: 0,
 });
 const rows = ref([]);
 const loading = ref(false);
@@ -290,13 +360,48 @@ const loadError = ref("");
 // 1 người có 2 ca cùng ngày (mục 14) chỉ tính 1 lần ở đây, xem quy tắc gộp ở
 // AttendanceService::summarizeDailyOverview(). Bảng bên dưới vẫn 1 dòng/ca.
 const summaryStats = computed(() => [
-    { label: "Tổng số nhân viên", value: `${summary.value.total}`, color: "primary", icon: "mdi-account-group-outline" },
-    { label: "Hoàn tất", value: `${summary.value.completed}`, color: "success", icon: "mdi-check-circle-outline" },
-    { label: "Đang trong ca", value: `${summary.value.pending}`, color: "info", icon: "mdi-clock-outline" },
-    { label: "Cần xem lại", value: `${summary.value.needs_review}`, color: "warning", icon: "mdi-alert-circle-outline" },
-    { label: "Vắng", value: `${summary.value.absent}`, color: "default", icon: "mdi-account-off-outline" },
-    { label: "Nghỉ phép", value: `${summary.value.on_leave}`, color: "purple", icon: "mdi-calendar-remove-outline" },
-    { label: "Chờ duyệt", value: `${summary.value.awaiting_approval}`, color: "warning", icon: "mdi-clipboard-clock-outline" },
+    {
+        label: "Tổng số nhân viên",
+        value: `${summary.value.total}`,
+        color: "primary",
+        icon: "mdi-account-group-outline",
+    },
+    {
+        label: "Hoàn tất",
+        value: `${summary.value.completed}`,
+        color: "success",
+        icon: "mdi-check-circle-outline",
+    },
+    {
+        label: "Đang trong ca",
+        value: `${summary.value.pending}`,
+        color: "info",
+        icon: "mdi-clock-outline",
+    },
+    {
+        label: "Cần xem lại",
+        value: `${summary.value.needs_review}`,
+        color: "warning",
+        icon: "mdi-alert-circle-outline",
+    },
+    {
+        label: "Vắng",
+        value: `${summary.value.absent}`,
+        color: "default",
+        icon: "mdi-account-off-outline",
+    },
+    {
+        label: "Nghỉ phép",
+        value: `${summary.value.on_leave}`,
+        color: "purple",
+        icon: "mdi-calendar-remove-outline",
+    },
+    {
+        label: "Chờ duyệt",
+        value: `${summary.value.awaiting_approval}`,
+        color: "warning",
+        icon: "mdi-clipboard-clock-outline",
+    },
 ]);
 
 async function loadData() {
@@ -313,7 +418,8 @@ async function loadData() {
         rows.value = response.data.data.rows;
     } catch (e) {
         rows.value = [];
-        loadError.value = e.response?.data?.message ?? "Không thể tải dữ liệu chấm công.";
+        loadError.value =
+            e.response?.data?.message ?? "Không thể tải dữ liệu chấm công.";
     } finally {
         loading.value = false;
     }
@@ -326,7 +432,9 @@ function openDetail(item) {
     detailDialog.value = true;
 }
 
-const canApprove = computed(() => auth.permissions.includes("attendance.approve"));
+const canApprove = computed(() =>
+    auth.permissions.includes("attendance.approve"),
+);
 // Duyệt được NGAY LÚC CHẤM CÔNG VÀO (2026-09-23, theo yêu cầu người dùng) —
 // mục đích là xác nhận lượt chấm công vào có thật hay không (giờ vào/thiết
 // bị/vị trí), không cần chờ chấm công ra. Xem cùng lý do ở
@@ -350,12 +458,20 @@ const actions = computed(() => [
         // bug) — 2 nút Duyệt/Từ chối CHO PHÉP đổi qua lại (HR bấm nhầm thì sửa
         // lại được, xem AttendanceService::decideApproval()), chỉ là tên nút
         // trước đây không nói rõ ý "đổi quyết định" này.
-        tooltip: (item) => (item.attendance?.approval_status === "rejected" ? "Đổi sang Duyệt" : "Duyệt"),
+        tooltip: (item) =>
+            item.attendance?.approval_status === "rejected"
+                ? "Đổi sang Duyệt"
+                : "Duyệt",
         color: "success",
-        hidden: (item) => !canApprove.value || item.attendance?.approval_status === "approved" || !canDecide(item),
+        hidden: (item) =>
+            !canApprove.value ||
+            item.attendance?.approval_status === "approved" ||
+            !canDecide(item),
         confirm: {
             title: (item) =>
-                item.attendance?.approval_status === "rejected" ? "Đổi quyết định sang Duyệt" : "Duyệt chấm công",
+                item.attendance?.approval_status === "rejected"
+                    ? "Đổi quyết định sang Duyệt"
+                    : "Duyệt chấm công",
             message: (item) =>
                 item.attendance?.approval_status === "rejected"
                     ? `Đơn này ĐANG bị Từ chối — đổi lại thành Duyệt cho ${item.employee.full_name} ngày ${formatDate(date.value)}? Bản ghi được duyệt sẽ được tính công và lương.`
@@ -376,12 +492,20 @@ const actions = computed(() => [
         icon: "mdi-close",
         // "Đổi sang Từ chối" khi dòng ĐANG được duyệt — cùng lý do ở nút Duyệt
         // phía trên (đây là đổi quyết định, không phải "từ chối lần đầu").
-        tooltip: (item) => (item.attendance?.approval_status === "approved" ? "Đổi sang Từ chối" : "Từ chối"),
+        tooltip: (item) =>
+            item.attendance?.approval_status === "approved"
+                ? "Đổi sang Từ chối"
+                : "Từ chối",
         color: "error",
-        hidden: (item) => !canApprove.value || item.attendance?.approval_status === "rejected" || !canDecide(item),
+        hidden: (item) =>
+            !canApprove.value ||
+            item.attendance?.approval_status === "rejected" ||
+            !canDecide(item),
         confirm: {
             title: (item) =>
-                item.attendance?.approval_status === "approved" ? "Đổi quyết định sang Từ chối" : "Từ chối chấm công",
+                item.attendance?.approval_status === "approved"
+                    ? "Đổi quyết định sang Từ chối"
+                    : "Từ chối chấm công",
             message: (item) =>
                 item.attendance?.approval_status === "approved"
                     ? `Đơn này ĐANG được Duyệt — đổi lại thành Từ chối cho ${item.employee.full_name} ngày ${formatDate(date.value)}? Bản ghi bị từ chối sẽ không được tính công và lương.`
@@ -437,12 +561,17 @@ const bulkActions = computed(() => {
             disabled: (selectedItems) => !selectedItems.some(isApprovable),
             confirm: {
                 title: "Duyệt chấm công hàng loạt",
-                message: "Duyệt TẤT CẢ bản ghi đã chọn (bỏ qua dòng đã duyệt sẵn)? Các bản ghi được duyệt sẽ được tính công và lương.",
+                message:
+                    "Duyệt TẤT CẢ bản ghi đã chọn (bỏ qua dòng đã duyệt sẵn)? Các bản ghi được duyệt sẽ được tính công và lương.",
                 confirmText: "Duyệt tất cả",
                 input: { required: false, label: "Ghi chú (tùy chọn)" },
             },
             onClick: (selectedItems, { input }) =>
-                runBulkDecide(selectedItems.filter(isApprovable), "approved", input || null),
+                runBulkDecide(
+                    selectedItems.filter(isApprovable),
+                    "approved",
+                    input || null,
+                ),
         },
         {
             icon: "mdi-close-box-multiple-outline",
@@ -452,12 +581,20 @@ const bulkActions = computed(() => {
             disabled: (selectedItems) => !selectedItems.some(isRejectable),
             confirm: {
                 title: "Từ chối chấm công hàng loạt",
-                message: "Từ chối TẤT CẢ bản ghi đã chọn (bỏ qua dòng đã từ chối sẵn)? Các bản ghi bị từ chối sẽ không được tính công và lương.",
+                message:
+                    "Từ chối TẤT CẢ bản ghi đã chọn (bỏ qua dòng đã từ chối sẵn)? Các bản ghi bị từ chối sẽ không được tính công và lương.",
                 confirmText: "Từ chối tất cả",
-                input: { required: true, label: "Lý do từ chối (áp dụng cho tất cả)" },
+                input: {
+                    required: true,
+                    label: "Lý do từ chối (áp dụng cho tất cả)",
+                },
             },
             onClick: (selectedItems, { input }) =>
-                runBulkDecide(selectedItems.filter(isRejectable), "rejected", input),
+                runBulkDecide(
+                    selectedItems.filter(isRejectable),
+                    "rejected",
+                    input,
+                ),
         },
     ];
 });
@@ -474,7 +611,9 @@ async function runBulkDecide(selectedItems, status, note) {
     const { succeeded, failed } = response.data;
 
     if (failed.length === 0) {
-        toast.success(`Đã ${status === "approved" ? "duyệt" : "từ chối"} ${succeeded.length} bản ghi.`);
+        toast.success(
+            `Đã ${status === "approved" ? "duyệt" : "từ chối"} ${succeeded.length} bản ghi.`,
+        );
     } else {
         toast.warning(
             `${succeeded.length} bản ghi thành công, ${failed.length} bản ghi lỗi: ${failed[0].message}`,

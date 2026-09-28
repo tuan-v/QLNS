@@ -317,4 +317,65 @@ class LeaveApprovalTest extends TestCase
             'type' => 'leave.decided',
         ]);
     }
+
+    public function test_user_without_employee_profile_can_decide_leave_request(): void
+    {
+        [$employee, $employeeUser] = $this->makeEmployeeWithLogin('Employee');
+        $leaveType = $this->makeLeaveType();
+        $leaveRequest = $this->makeLeaveRequest($employee, $leaveType);
+        LeaveBalance::create([
+            'employee_id' => $employee->id,
+            'leave_type_id' => $leaveType->id,
+            'year' => $leaveRequest->from_date->year,
+            'allocated_days' => 12,
+            'used_days' => 0,
+        ]);
+
+        // User có quyền HR nhưng KHÔNG có Employee profile liên kết
+        $hrUser = User::create([
+            'email' => 'admin-hr-no-emp@qlns.local',
+            'user_name' => 'HR Admin No Profile',
+            'password' => bcrypt('Secret@123'),
+            'status' => 'active',
+        ]);
+        Role::where('name', 'HR')->first()->users()->attach($hrUser->id);
+        $token = $this->loginAs($hrUser->email, 'Secret@123');
+
+        $response = $this->putJson("/api/v1/leave-requests/{$leaveRequest->id}/decide", [
+            'status' => 'approved',
+            'comment' => 'Duyet boi Admin HR',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('status', 'approved');
+        $this->assertDatabaseHas('leave_approvals', [
+            'leave_request_id' => $leaveRequest->id,
+            'approver_employee_id' => null,
+            'approver_user_id' => $hrUser->id,
+            'approval_level' => 2,
+            'decision' => 'approved',
+            'comment' => 'Duyet boi Admin HR',
+        ]);
+    }
+
+    public function test_notification_contains_reason_when_rejected_or_approved(): void
+    {
+        [$manager, $managerUser] = $this->makeEmployeeWithLogin('Manager');
+        [$subordinate, $subordinateUser] = $this->makeEmployeeWithLogin('Employee', ['manager_id' => $manager->id]);
+        $leaveType = $this->makeLeaveType();
+        $leaveRequest = $this->makeLeaveRequest($subordinate, $leaveType);
+        $token = $this->loginAs($managerUser->email, 'Secret@123');
+
+        $this->putJson("/api/v1/leave-requests/{$leaveRequest->id}/decide", [
+            'status' => 'rejected',
+            'comment' => 'Du an dang gap',
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(200);
+
+        $notification = \App\Models\Notification::where('user_id', $subordinateUser->id)
+            ->where('type', 'leave.decided')
+            ->firstOrFail();
+
+        $this->assertStringContainsString('Lý do: Du an dang gap', $notification->message);
+        $this->assertEquals('Du an dang gap', $notification->data['comment'] ?? null);
+    }
 }
