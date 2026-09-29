@@ -2,7 +2,7 @@
     <div>
         <PageHeader
             title="Tổng quan"
-            :subtitle="dashboard?.scope === 'personal'
+            :subtitle="activeSection === 'personal'
                 ? 'Thông tin chấm công và nghỉ phép của bạn.'
                 : 'Số liệu nhân sự cập nhật tới hôm nay.'"
         />
@@ -19,8 +19,19 @@
         </v-alert>
 
         <template v-if="dashboard">
+            <!-- 2 tab (2026-09-29, theo yêu cầu người dùng): HR/Manager cũng là
+                 nhân viên đi làm, nên ngoài số liệu công ty cần xem được CẢ phần
+                 cá nhân của chính mình — chỉ hiện khi có employee gắn với tài
+                 khoản (has_personal_view, xem DashboardService::forUser()).
+                 Employee thường (scope luôn là 'personal') không có tab này,
+                 giữ nguyên giao diện cũ y hệt. -->
+            <v-tabs v-if="showTabs" v-model="activeTab" color="primary" class="mb-4">
+                <v-tab value="company">Tổng quan công ty</v-tab>
+                <v-tab value="personal">Của tôi</v-tab>
+            </v-tabs>
+
             <!-- ===== Company-wide (HR/Manager/Admin — có quyền employee.view) ===== -->
-            <template v-if="dashboard.scope === 'company'">
+            <template v-if="activeSection === 'company'">
                 <StatCards :stats="companyStats" />
 
                 <!-- "Cần bạn xử lý" (2026-09-25, demo theo ý tưởng gộp mọi việc chờ
@@ -135,7 +146,7 @@
                             </div>
 
                             <v-spacer />
-                            <v-btn variant="text" size="small" class="ma-2" :to="{ name: 'notifications' }">
+                            <v-btn variant="text" color="primary" size="small" class="ma-2" :to="{ name: 'notifications' }">
                                 Xem tất cả thông báo
                             </v-btn>
                         </v-sheet>
@@ -160,11 +171,11 @@
                 </v-row>
             </template>
 
-            <!-- ===== Cá nhân (Employee — không có employee.view) ===== -->
+            <!-- ===== Cá nhân (Employee, hoặc tab "Của tôi" của HR/Manager) ===== -->
             <!-- 2026-09-25, theo yêu cầu người dùng (kèm mockup cụ thể): mở
                  rộng từ 3 thẻ số liệu + thông báo thành đủ mảng lịch làm việc/
                  công tháng này/lương/đơn của tôi — xem DashboardService::personal(). -->
-            <template v-else>
+            <template v-if="activeSection === 'personal'">
                 <div class="text-h6 font-weight-bold mb-3">
                     Xin chào {{ dashboard.employee_name }}
                 </div>
@@ -242,7 +253,7 @@
                                         <div class="text-body-2 font-weight-medium">{{ formatDate(row.date) }}</div>
                                         <div class="text-caption" style="opacity: 0.65">{{ row.work_shift_name }}</div>
                                     </div>
-                                    <StatusChip :status="row.status" :map="HISTORY_STATUS_MAP" />
+                                    <StatusChip :status="row.status" :map="ATTENDANCE_STATUS_MAP" />
                                 </div>
                             </div>
                         </v-sheet>
@@ -312,7 +323,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <v-btn variant="text" size="small" class="ma-2" :to="{ name: 'notifications' }">
+                            <v-btn variant="text" color="primary" size="small" class="ma-2" :to="{ name: 'notifications' }">
                                 Xem tất cả thông báo
                             </v-btn>
                         </v-sheet>
@@ -341,16 +352,7 @@ import AreaTrendChart from "../components/dashboard/AreaTrendChart.vue";
 import PersonalCheckInCard from "../components/dashboard/PersonalCheckInCard.vue";
 import StatusChip from "../components/common/StatusChip.vue";
 import InputDate, { todayIso } from "../components/common/InputDate.vue";
-
-// "Bảng công gần nhất" — cùng nhãn/màu với AttendanceHistoryPanel.vue (không
-// có sẵn 1 nơi export dùng chung, chấp nhận lặp lại 1 object nhỏ).
-const HISTORY_STATUS_MAP = {
-    full: { label: "Đủ công", color: "success" },
-    late: { label: "Đi muộn", color: "warning" },
-    insufficient: { label: "Thiếu công", color: "error" },
-    absent: { label: "Vắng", color: "default" },
-    on_leave: { label: "Nghỉ phép", color: "info" },
-};
+import { ATTENDANCE_STATUS_MAP } from "../composables/attendanceStatus";
 
 // "Đơn của tôi" — 2 nguồn khác nhau (đơn nghỉ phép/điều chỉnh công) dùng
 // CHUNG 1 vùng trạng thái hiển thị, dù đơn nghỉ phép có thêm 1 trạng thái
@@ -359,7 +361,7 @@ const REQUEST_STATUS_MAP = {
     pending: { label: "Chờ duyệt", color: "warning" },
     manager_approved: { label: "Chờ HR duyệt", color: "info" },
     approved: { label: "Đã duyệt", color: "success" },
-    rejected: { label: "Từ chối", color: "default" },
+    rejected: { label: "Từ chối", color: "error" },
 };
 
 // Nhãn hiển thị theo type — cùng nội dung ADJUSTMENT_TYPE_MAP ở
@@ -396,6 +398,19 @@ const loadError = ref("");
 // trong template (2026-09-25, theo yêu cầu người dùng).
 const statsDate = ref(todayIso());
 
+// Tab "Tổng quan công ty"/"Của tôi" (2026-09-29) — chỉ CÓ Ý NGHĨA khi
+// showTabs true; mặc định mở tab công ty trước (giữ đúng hành vi cũ khi mới
+// vào trang). activeSection luôn suy ra đúng 1 trong 2 giá trị, kể cả với
+// Employee thường (showTabs false) hay trước khi dashboard tải xong.
+const activeTab = ref("company");
+const showTabs = computed(() => dashboard.value?.scope === "company" && dashboard.value?.has_personal_view === true);
+const activeSection = computed(() => {
+    if (dashboard.value?.scope === "personal") {
+        return "personal";
+    }
+    return showTabs.value ? activeTab.value : "company";
+});
+
 async function loadDashboard() {
     loadError.value = "";
     try {
@@ -413,7 +428,7 @@ const companyStats = computed(() => {
     const d = dashboard.value;
     return [
         { label: "Tổng nhân viên", value: d.employee_stats.total, icon: "mdi-account-group-outline", color: "primary" },
-        { label: "Đang làm việc", value: d.employee_stats.active, icon: "mdi-check-circle-outline", color: "success" },
+        { label: "Nhân viên chính thức", value: d.employee_stats.active, icon: "mdi-check-circle-outline", color: "success" },
         { label: "Nhân viên mới tháng này", value: d.employee_stats.new_this_month, icon: "mdi-account-plus-outline", color: "info" },
         { label: "Đơn nghỉ phép chờ duyệt", value: d.leave_pending.total, icon: "mdi-calendar-alert-outline", color: "warning" },
     ];

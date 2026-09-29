@@ -23,13 +23,51 @@
                 color="transparent"
             >
                 <div class="d-flex align-center flex-wrap ga-4">
-                    <v-avatar size="80" color="surface-variant">
-                        <v-img
-                            v-if="employee.avatar_url"
-                            :src="employee.avatar_url"
-                        />
-                        <v-icon v-else icon="mdi-account" size="40" />
-                    </v-avatar>
+                    <!-- Bấm vào ảnh để tự đổi ảnh đại diện (2026-09-29). Nút máy
+                         ảnh nhỏ luôn hiện (màn hình cảm ứng không có hover). -->
+                    <div
+                        class="avatar-upload"
+                        role="button"
+                        tabindex="0"
+                        aria-label="Đổi ảnh đại diện"
+                        @click="pickAvatar"
+                        @keydown.enter="pickAvatar"
+                    >
+                        <v-avatar size="80" color="surface-variant">
+                            <v-img
+                                v-if="employee.avatar_url"
+                                :src="employee.avatar_url"
+                                cover
+                            />
+                            <v-icon v-else icon="mdi-account" size="40" />
+                        </v-avatar>
+                        <div
+                            class="avatar-upload__overlay"
+                            :class="{ 'avatar-upload__overlay--busy': uploadingAvatar }"
+                        >
+                            <v-progress-circular
+                                v-if="uploadingAvatar"
+                                indeterminate
+                                size="24"
+                                width="2"
+                                color="white"
+                            />
+                            <v-icon v-else color="white" size="24">mdi-camera-outline</v-icon>
+                        </div>
+                        <span class="avatar-upload__badge bg-primary">
+                            <v-icon size="14">mdi-camera</v-icon>
+                        </span>
+                        <v-tooltip activator="parent" location="bottom">
+                            Đổi ảnh đại diện (JPG, PNG, WEBP — tối đa 2MB)
+                        </v-tooltip>
+                    </div>
+                    <input
+                        ref="avatarInput"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        hidden
+                        @change="onAvatarSelected"
+                    />
                     <div class="flex-grow-1">
                         <div class="text-h6 font-weight-bold">
                             {{ employee.full_name }}
@@ -54,8 +92,79 @@
                             </v-chip>
                         </div>
                     </div>
+                    <!-- Đơn xin nghỉ việc (2026-09-29) — HR/quản lý trực tiếp duyệt ở
+                         trang "Đơn nghỉ việc", duyệt xong qua ngày làm việc cuối thì
+                         trạng thái tự chuyển "Đã nghỉ việc". -->
+                    <v-btn
+                        v-if="canSubmitResignation"
+                        variant="outlined"
+                        prepend-icon="mdi-account-arrow-right-outline"
+                        @click="openResignationDialog"
+                    >
+                        Nộp đơn nghỉ việc
+                    </v-btn>
                 </div>
             </v-sheet>
+
+            <v-alert
+                v-if="resignationBanner"
+                :type="resignationBanner.type"
+                variant="tonal"
+                class="mb-4"
+                :icon="resignationBanner.icon"
+            >
+                <div class="d-flex align-center flex-wrap ga-3">
+                    <div class="flex-grow-1">{{ resignationBanner.text }}</div>
+                    <v-btn
+                        v-if="latestResignation?.status === 'pending'"
+                        size="small"
+                        variant="outlined"
+                        :loading="cancellingResignation"
+                        @click="cancelResignation"
+                    >
+                        Rút đơn
+                    </v-btn>
+                </div>
+            </v-alert>
+
+            <v-dialog v-model="resignationDialog" max-width="560">
+                <v-card rounded="xl">
+                    <v-card-title class="text-h6 font-weight-bold pt-5 px-6">Nộp đơn xin nghỉ việc</v-card-title>
+                    <v-card-text class="px-6">
+                        <p class="text-body-2 text-medium-emphasis mb-4">
+                            Đơn sẽ được gửi tới HR và quản lý trực tiếp của bạn. Thời hạn báo trước tùy loại hợp
+                            đồng theo Bộ luật Lao động — liên hệ HR nếu chưa rõ.
+                        </p>
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Ngày làm việc cuối cùng <span class="text-error">*</span>
+                        </div>
+                        <InputDate
+                            v-model="resignationForm.last_working_date"
+                            :min="todayIso()"
+                            :error-messages="resignationErrors.last_working_date"
+                        />
+                        <div class="text-body-2 font-weight-medium mb-1 mt-4">
+                            Lý do nghỉ việc <span class="text-error">*</span>
+                        </div>
+                        <v-textarea
+                            v-model="resignationForm.reason"
+                            rows="4"
+                            auto-grow
+                            counter="2000"
+                            :error-messages="resignationErrors.reason"
+                        />
+                    </v-card-text>
+                    <v-card-actions class="px-6 pb-5">
+                        <v-spacer />
+                        <v-btn variant="text" :disabled="submittingResignation" @click="resignationDialog = false">
+                            Hủy
+                        </v-btn>
+                        <v-btn color="primary" :loading="submittingResignation" @click="submitResignation">
+                            Gửi đơn
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
 
             <!-- Thẻ thông tin nhanh -->
             <StatCards :stats="quickStats" />
@@ -65,12 +174,12 @@
                 color="transparent"
             >
                 <v-tabs v-model="tab">
-                    <v-tab value="info">Thông tin cá nhân</v-tab>
-                    <v-tab value="contracts">Hợp đồng</v-tab>
-                    <v-tab value="documents">Tài liệu</v-tab>
-                    <v-tab value="shifts">Ca làm việc</v-tab>
-                    <v-tab value="transfers">Luân chuyển</v-tab>
-                    <v-tab value="payslips">Phiếu lương</v-tab>
+                    <v-tab value="info" prepend-icon="mdi-account-outline">Thông tin cá nhân</v-tab>
+                    <v-tab value="contracts" prepend-icon="mdi-file-document-outline">Hợp đồng</v-tab>
+                    <v-tab value="documents" prepend-icon="mdi-folder-outline">Tài liệu</v-tab>
+                    <v-tab value="shifts" prepend-icon="mdi-calendar-clock-outline">Ca làm việc</v-tab>
+                    <v-tab value="transfers" prepend-icon="mdi-swap-horizontal">Luân chuyển</v-tab>
+                    <v-tab value="payslips" prepend-icon="mdi-cash-multiple">Phiếu lương</v-tab>
                 </v-tabs>
             </v-sheet>
 
@@ -137,6 +246,8 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import employeeService from "../../services/employeeService";
+import { useToastStore } from "../../stores/useToastStore";
+import { useAuthStore } from "../../stores/authStore";
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
 import StatCards from "../../components/dashboard/StatCards.vue";
@@ -147,13 +258,9 @@ import MyProfileDocumentsTab from "./MyProfileDocumentsTab.vue";
 import MyProfileShiftsTab from "./MyProfileShiftsTab.vue";
 import MyProfileTransfersTab from "./MyProfileTransfersTab.vue";
 import MyProfilePayslipsTab from "./MyProfilePayslipsTab.vue";
-
-const EMPLOYMENT_STATUS_MAP = {
-    probation: { label: "Thử việc", color: "warning" },
-    active: { label: "Đang làm việc", color: "success" },
-    resigned: { label: "Đã nghỉ việc", color: "default" },
-    terminated: { label: "Đã chấm dứt HĐ", color: "error" },
-};
+import { EMPLOYMENT_STATUS_MAP } from "../../composables/employmentStatus";
+import resignationService from "../../services/resignationService";
+import InputDate, { todayIso } from "../../components/common/InputDate.vue";
 
 function formatDate(value) {
     if (!value) {
@@ -191,6 +298,8 @@ function formatTenure(hireDate) {
 }
 
 const route = useRoute();
+const toast = useToastStore();
+const auth = useAuthStore();
 const VALID_TABS = ["info", "contracts", "documents", "shifts", "transfers", "payslips"];
 
 const employee = ref(null);
@@ -266,6 +375,57 @@ watch(tab, (value) => {
     }
 });
 
+// --- Tự đổi ảnh đại diện (POST /employees/me/avatar). Kiểm tra loại/dung
+// lượng ngay ở đây để báo lỗi tức thì, Backend vẫn kiểm tra lại (cùng luật).
+const AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+const avatarInput = ref(null);
+const uploadingAvatar = ref(false);
+
+function pickAvatar() {
+    if (!uploadingAvatar.value) {
+        avatarInput.value?.click();
+    }
+}
+
+async function onAvatarSelected(event) {
+    const file = event.target.files?.[0];
+    // Xóa giá trị để lần sau chọn lại ĐÚNG file đó vẫn bắn sự kiện change.
+    event.target.value = "";
+    if (!file) {
+        return;
+    }
+    if (!AVATAR_TYPES.includes(file.type)) {
+        toast.error("Chỉ nhận ảnh JPG, PNG hoặc WEBP.");
+        return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+        toast.error("Ảnh tối đa 2MB, vui lòng chọn ảnh nhỏ hơn.");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+    uploadingAvatar.value = true;
+    try {
+        const response = await employeeService.uploadMyAvatar(formData);
+        employee.value = response.data.data;
+        // Đồng bộ luôn ảnh trên Header, không phải chờ tải lại trang.
+        if (auth.user) {
+            auth.user.avatar_url = employee.value.avatar_url;
+        }
+        toast.success("Đã cập nhật ảnh đại diện.");
+    } catch (e) {
+        toast.error(
+            e.response?.data?.errors?.avatar?.[0] ??
+                e.response?.data?.message ??
+                "Không tải được ảnh lên, vui lòng thử lại.",
+        );
+    } finally {
+        uploadingAvatar.value = false;
+    }
+}
+
 const previewDialog = ref(false);
 const previewFile = ref({ url: "", name: "" });
 
@@ -274,19 +434,163 @@ function openPreview(url, name) {
     previewDialog.value = true;
 }
 
+/* ------------------- Đơn xin nghỉ việc (2026-09-29) ------------------- */
+
+const canRequestResignation = computed(() => auth.permissions.includes("resignation.request"));
+const resignations = ref([]);
+const latestResignation = computed(() => resignations.value[0] ?? null);
+
+// Còn đơn đang chờ duyệt / đã duyệt mà chưa tới hạn thì không cho nộp thêm
+// (Backend cũng chặn — ResignationService::create()).
+const hasOpenResignation = computed(() =>
+    resignations.value.some((r) => r.status === "pending" || (r.status === "approved" && !r.applied_at)),
+);
+
+const canSubmitResignation = computed(
+    () =>
+        canRequestResignation.value &&
+        ["probation", "active"].includes(employee.value?.employment_status) &&
+        !hasOpenResignation.value,
+);
+
+function formatDateVi(value) {
+    return value ? new Date(value).toLocaleDateString("vi-VN") : "";
+}
+
+const resignationBanner = computed(() => {
+    const r = latestResignation.value;
+    if (!r) {
+        return null;
+    }
+    const lastDay = formatDateVi(r.last_working_date);
+    if (r.status === "pending") {
+        return { type: "warning", icon: "mdi-clock-outline", text: `Đơn xin nghỉ việc của bạn (ngày làm việc cuối ${lastDay}) đang chờ duyệt.` };
+    }
+    if (r.status === "approved" && !r.applied_at) {
+        return {
+            type: "success",
+            icon: "mdi-check-circle-outline",
+            text: `Đơn xin nghỉ việc đã được duyệt — ngày làm việc cuối của bạn là ${lastDay}.${r.decision_note ? ` Ghi chú: ${r.decision_note}` : ""}`,
+        };
+    }
+    if (r.status === "rejected") {
+        return {
+            type: "error",
+            icon: "mdi-close-circle-outline",
+            text: `Đơn xin nghỉ việc gần nhất đã bị từ chối.${r.decision_note ? ` Lý do: ${r.decision_note}` : ""}`,
+        };
+    }
+    return null;
+});
+
+async function loadResignations() {
+    if (!canRequestResignation.value) {
+        return;
+    }
+    try {
+        const response = await resignationService.mine();
+        resignations.value = response.data.data;
+    } catch {
+        resignations.value = [];
+    }
+}
+
+const resignationDialog = ref(false);
+const resignationForm = reactive({ last_working_date: "", reason: "" });
+const resignationErrors = ref({});
+const submittingResignation = ref(false);
+const cancellingResignation = ref(false);
+
+function openResignationDialog() {
+    resignationForm.last_working_date = "";
+    resignationForm.reason = "";
+    resignationErrors.value = {};
+    resignationDialog.value = true;
+}
+
+async function submitResignation() {
+    resignationErrors.value = {};
+    submittingResignation.value = true;
+    try {
+        await resignationService.create({ ...resignationForm });
+        toast.success("Đã gửi đơn xin nghỉ việc.");
+        resignationDialog.value = false;
+        await loadResignations();
+    } catch (e) {
+        if (e.response?.status === 422) {
+            const errors = e.response.data.errors ?? {};
+            resignationErrors.value = {
+                last_working_date: errors.last_working_date?.[0],
+                reason: errors.reason?.[0],
+            };
+        } else {
+            toast.error(e.response?.data?.message ?? "Không thể gửi đơn, vui lòng thử lại.");
+        }
+    } finally {
+        submittingResignation.value = false;
+    }
+}
+
+async function cancelResignation() {
+    cancellingResignation.value = true;
+    try {
+        await resignationService.cancel(latestResignation.value.id);
+        toast.success("Đã rút đơn xin nghỉ việc.");
+        await loadResignations();
+    } catch (e) {
+        toast.error(e.response?.data?.errors?.status?.[0] ?? e.response?.data?.message ?? "Không thể rút đơn.");
+    } finally {
+        cancellingResignation.value = false;
+    }
+}
+
 onMounted(() => {
     loadProfile();
+    loadResignations();
 });
 </script>
 
 <style scoped>
 .profile-hero {
-    background:
-        radial-gradient(
-            circle at 8% 0%,
-            rgba(117, 117, 219, 0.16),
-            transparent 22rem
-        ),
-        rgba(var(--v-theme-surface), 0.72);
+    background: rgb(var(--v-theme-surface));
+}
+.avatar-upload {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.avatar-upload:focus-visible {
+    outline: 2px solid rgb(var(--v-theme-primary));
+    outline-offset: 2px;
+}
+.avatar-upload__overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+.avatar-upload:hover .avatar-upload__overlay,
+.avatar-upload__overlay--busy {
+    opacity: 1;
+}
+.avatar-upload__badge {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid rgb(var(--v-theme-surface));
 }
 </style>

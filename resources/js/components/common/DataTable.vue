@@ -31,6 +31,22 @@ const props = defineProps({
         type: Number,
         default: null,
     },
+    // Chữ khi bảng rỗng — mỗi trang tự đặt cho đúng ngữ cảnh.
+    noDataText: {
+        type: String,
+        default: "Không có dữ liệu phù hợp.",
+    },
+    // Ẩn ô "Số dòng" khi API trả cố định số dòng/trang (không nhận per_page),
+    // tránh chọn 10 mà server vẫn trả 20 làm lệch phân trang.
+    showPerPage: {
+        type: Boolean,
+        default: true,
+    },
+    // Bảng nằm liền trong 1 card (không viền/bo/bóng riêng) — tránh khung lồng khung.
+    flush: {
+        type: Boolean,
+        default: false,
+    },
 
     // Danh sách thao tác trên từng dòng. View chỉ khai báo mảng này, bảng tự
     // dựng cột "Thao tác", tự ẩn nút theo quyền và tự lo hộp xác nhận — module
@@ -490,8 +506,10 @@ async function submitBulkConfirm() {
             :item-value="itemValue"
             :item-selectable="itemSelectable ?? undefined"
             density="comfortable"
-            no-data-text="Không có dữ liệu phù hợp."
-            class="border rounded-lg app-data-table"
+            :no-data-text="noDataText"
+            loading-text="Đang tải dữ liệu..."
+            class="border rounded-lg app-data-table overflow-hidden"
+            :class="{ 'app-data-table--flush': flush }"
         >
             <template v-for="(_, slotName) in $slots" #[slotName]="slotProps">
                 <slot :name="slotName" v-bind="slotProps ?? {}" />
@@ -502,15 +520,17 @@ async function submitBulkConfirm() {
                     <template v-for="(action, index) in actions" :key="index">
                         <v-btn
                             v-if="!isHidden(action, item)"
-                            :color="action.color ?? 'primary'"
+                            :color="action.color && action.color !== 'primary' ? action.color : undefined"
                             :disabled="isDisabled(action, item)"
                             :loading="isRunning(action, item)"
-                            variant="tonal"
+                            :variant="action.label ? 'outlined' : 'text'"
+                            :icon="!action.label"
                             size="small"
-                            rounded="lg"
+                            rounded="md"
+                            density="comfortable"
                             @click="onActionClick(action, item)"
                         >
-                            <v-icon :icon="action.icon" />
+                            <v-icon :icon="action.icon" size="18" />
                             <span v-if="action.label" class="ml-1">
                                 {{ action.label }}
                             </span>
@@ -529,9 +549,9 @@ async function submitBulkConfirm() {
             <!-- Footer gọn: chọn số dòng + tổng số kết quả, thay bộ phân trang mặc định -->
             <template #bottom="{ pageCount }">
                 <v-divider />
-                <div class="d-flex flex-wrap align-center ga-4 px-4 py-3">
-                    <div class="d-flex align-center ga-2">
-                        <span class="text-body-2" style="opacity: 0.7">
+                <div class="d-flex flex-wrap align-center ga-4 px-5 py-3">
+                    <div v-if="showPerPage" class="d-flex align-center ga-2">
+                        <span class="text-body-2 text-medium-emphasis">
                             Số dòng:
                         </span>
                         <v-select
@@ -543,7 +563,7 @@ async function submitBulkConfirm() {
                         />
                     </div>
 
-                    <div class="text-body-2" style="opacity: 0.7">
+                    <div class="text-body-2 text-medium-emphasis">
                         Tổng <strong>{{ totalCount }}</strong> kết quả
                     </div>
 
@@ -553,7 +573,10 @@ async function submitBulkConfirm() {
                         v-if="pageCount > 1"
                         v-model="internalPage"
                         :length="pageCount"
-                        density="comfortable"
+                        density="compact"
+                        rounded="md"
+                        active-color="primary"
+                        variant="text"
                         :total-visible="5"
                     />
                 </div>
@@ -633,7 +656,7 @@ async function submitBulkConfirm() {
              (thao tác từng dòng) vì message/input không gắn với 1 item cụ thể
              mà gắn với CẢ danh sách đã chọn. -->
         <v-dialog v-model="bulkConfirmOpen" max-width="480" persistent>
-            <v-card v-if="bulkPending" rounded="xl" elevation="12" class="glass-panel">
+            <v-card v-if="bulkPending" rounded="lg" class="glass-panel">
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     {{ bulkPending.config.title }}
                 </v-card-title>
@@ -699,12 +722,17 @@ async function submitBulkConfirm() {
 </template>
 
 <style scoped>
-.app-data-table :deep(thead th) {
-    background: rgba(var(--v-theme-on-surface), 0.03);
-    font-size: 0.72rem !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    opacity: 0.7;
+/* Header, hover dòng: style chung ở resources/css/app.css. */
+
+/* Bỏ thanh loading ngang Vuetify chèn dưới header (dòng .v-data-table-progress)
+   — nhìn như 1 đường kẻ thừa. Trạng thái tải đã có AppLoadingBar trên cùng
+   trang; trong bảng thay bằng: chưa có dữ liệu -> dòng "Đang tải dữ liệu...",
+   đã có dữ liệu -> làm mờ nhẹ các dòng cũ trong lúc chờ. */
+.app-data-table :deep(.v-data-table-progress) {
+    display: none;
+}
+.app-data-table.v-data-table--loading :deep(tbody) {
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
 }
 </style>

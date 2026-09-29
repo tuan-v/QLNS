@@ -349,6 +349,57 @@ class EmployeeContractTest extends TestCase
         ]);
     }
 
+    /* ---- Trạng thái nhân viên đi theo hợp đồng (2026-09-29, theo yêu cầu người dùng) ---- */
+
+    public function test_signing_official_contract_turns_probation_employee_into_official(): void
+    {
+        $employee = $this->makeEmployee(['employment_status' => 'probation']);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $this->postJson('/api/v1/employees/'.$employee->id.'/contracts', $this->contractPayload([
+            'contract_type' => 'chinh_thuc',
+            'start_date' => now()->toDateString(),
+        ]), ['Authorization' => 'Bearer '.$token])->assertStatus(201);
+
+        $this->assertSame('active', $employee->fresh()->employment_status);
+    }
+
+    public function test_future_official_contract_changes_status_only_when_activated(): void
+    {
+        $employee = $this->makeEmployee(['employment_status' => 'probation']);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $this->postJson('/api/v1/employees/'.$employee->id.'/contracts', $this->contractPayload([
+            'contract_type' => 'chinh_thuc',
+            'start_date' => now()->addDays(5)->toDateString(),
+        ]), ['Authorization' => 'Bearer '.$token])->assertStatus(201);
+
+        // Chưa tới ngày bắt đầu -> vẫn Thử việc.
+        $this->assertSame('probation', $employee->fresh()->employment_status);
+
+        $this->travel(5)->days();
+        $this->artisan('contracts:activate-pending')->assertSuccessful();
+
+        $this->assertSame('active', $employee->fresh()->employment_status);
+    }
+
+    public function test_terminating_the_only_active_contract_marks_employee_terminated(): void
+    {
+        $employee = $this->makeEmployee(['employment_status' => 'active']);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+        $contractId = $this->postJson('/api/v1/employees/'.$employee->id.'/contracts', $this->contractPayload([
+            'contract_type' => 'chinh_thuc',
+        ]), ['Authorization' => 'Bearer '.$token])->json('data.id');
+
+        $this->postJson('/api/v1/employees/'.$employee->id.'/contracts/'.$contractId.'/terminate', [], [
+            'Authorization' => 'Bearer '.$token,
+        ])->assertStatus(200);
+
+        $employee->refresh();
+        $this->assertSame('terminated', $employee->employment_status);
+        $this->assertSame(now()->toDateString(), $employee->termination_date->toDateString());
+    }
+
     public function test_admin_can_terminate_active_contract(): void
     {
         $employee = $this->makeEmployee();

@@ -72,14 +72,13 @@
                         <th>Lịch làm</th>
                         <th>Thực tế</th>
                         <th>Trạng thái</th>
-                        <th>Duyệt công</th>
                         <th v-if="!readOnly" class="text-center">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr v-if="loading">
                         <td
-                            :colspan="readOnly ? 6 : 7"
+                            :colspan="readOnly ? 5 : 6"
                             class="text-center py-6"
                         >
                             <v-progress-circular indeterminate size="24" />
@@ -87,7 +86,7 @@
                     </tr>
                     <tr v-else-if="!rows.length">
                         <td
-                            :colspan="readOnly ? 6 : 7"
+                            :colspan="readOnly ? 5 : 6"
                             class="text-center py-6"
                             style="opacity: 0.6"
                         >
@@ -114,19 +113,20 @@
                             }}
                         </td>
                         <td>
+                            <!-- Trạng thái đã GỘP cả bước duyệt (Chờ duyệt/Từ chối),
+                                 cùng quy tắc với màn Tổng hợp chấm công của HR —
+                                 nên không còn cột "Duyệt công" riêng. -->
                             <StatusChip
                                 :status="row.status"
-                                :map="HISTORY_STATUS_MAP"
+                                :map="ATTENDANCE_STATUS_MAP"
                             />
-                        </td>
-                        <td>
-                            <!-- Chỉ bản ghi đã có giờ vào mới có bước duyệt (ngày vắng/nghỉ phép thì không). -->
-                            <StatusChip
-                                v-if="row.attendance?.first_check_in_at"
-                                :status="row.attendance.approval_status"
-                                :map="APPROVAL_STATUS_MAP"
-                            />
-                            <span v-else style="opacity: 0.5">—</span>
+                            <div
+                                v-if="row.status === 'rejected' && row.attendance?.approval_note"
+                                class="text-caption mt-1"
+                                style="opacity: 0.7"
+                            >
+                                {{ row.attendance.approval_note }}
+                            </div>
                         </td>
                         <td v-if="!readOnly" class="text-center">
                             <v-btn
@@ -206,6 +206,7 @@ import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate from "../../components/common/InputDate.vue";
 import AttendanceLogList from "../../components/attendance/AttendanceLogList.vue";
 import { APPROVAL_STATUS_MAP } from "../../composables/useCheckIn";
+import { ATTENDANCE_STATUS_MAP, ATTENDANCE_STATUS_OPTIONS } from "../../composables/attendanceStatus";
 
 const props = defineProps({
     employeeId: {
@@ -218,24 +219,7 @@ const props = defineProps({
     },
 });
 
-const HISTORY_STATUS_MAP = {
-    full: { label: "Đủ công", color: "success" },
-    late: { label: "Đi muộn", color: "warning" },
-    insufficient: { label: "Thiếu công", color: "error" },
-    absent: { label: "Vắng", color: "default" },
-    // Ngày 41: đơn nghỉ phép đã duyệt tự động phủ lên ngày công, xem
-    // AttendanceService::history()/CODE_MAP mục 16.
-    on_leave: { label: "Nghỉ phép", color: "info" },
-};
-
-const statusOptions = [
-    { title: "Tất cả", value: null },
-    { title: "Đủ công", value: "full" },
-    { title: "Đi muộn", value: "late" },
-    { title: "Thiếu công", value: "insufficient" },
-    { title: "Vắng", value: "absent" },
-    { title: "Nghỉ phép", value: "on_leave" },
-];
+const statusOptions = ATTENDANCE_STATUS_OPTIONS;
 
 function formatDate(value) {
     if (!value) {

@@ -53,44 +53,21 @@ class EmployeeRepository
     {
         $employee->delete();
     }
-    public function wouldCreateCycle(int $employeeId, ?int $newManagerId): bool
-    {
-        if ($newManagerId === null) {
-            return false; // No manager, no cycle
-        }
-
-        $newManager = Employee::find($newManagerId);
-
-        while ($newManager !== null) {
-            if ($newManager->id === $employeeId) {
-                return true; // Cycle detected
-            }
-            $newManager = $newManager->manager;
-        }
-
-        return false; // No cycle detected
-    }
-    public function isSuperiorOf(Employee $target, ?Employee $viewer): bool
-    {
-        if ($viewer === null) {
-            return false;
-        }
-
-        return in_array($target->id, $this->ancestorIds($viewer), true);
-    }
-
     /**
      * Danh sách ID toàn bộ cấp trên (mọi cấp) của 1 nhân viên, đi ngược từ manager
-     * lên tới người không còn quản lý. Tách riêng khỏi isSuperiorOf() để nơi gọi
-     * (EmployeeResource) có thể tính đúng 1 lần cho cả danh sách, thay vì lặp lại
-     * phép duyệt này cho từng dòng — cùng 1 người xem thì chuỗi cấp trên không đổi.
+     * lên tới người không còn quản lý. Nơi gọi (EmployeeResource) tính đúng 1 lần
+     * cho cả danh sách — cùng 1 người xem thì chuỗi cấp trên không đổi.
      */
     public function ancestorIds(Employee $employee): array
     {
         $ids = [];
         $current = $employee->manager;
 
-        while ($current !== null) {
+        // Dừng khi gặp lại người đã đi qua — quản lý giờ tự suy từ cơ cấu phòng
+        // ban (ReportingLineService), cấu hình Trưởng phòng chéo nhau (A làm
+        // Trưởng phòng X nhưng thuộc phòng Y, B làm Trưởng phòng Y nhưng thuộc
+        // phòng X) có thể tạo vòng, không được treo vòng lặp vô hạn.
+        while ($current !== null && ! in_array($current->id, $ids, true) && $current->id !== $employee->id) {
             $ids[] = $current->id;
             $current = $current->manager;
         }

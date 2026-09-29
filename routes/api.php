@@ -26,4 +26,6 @@ Route::prefix('v1')->group(function (): void {
     require __DIR__ . '/api/v1/payrolls.php';
     require __DIR__ . '/api/v1/reports.php';
     require __DIR__ . '/api/v1/notifications.php';
+    require __DIR__ . '/api/v1/search.php';
+    require __DIR__ . '/api/v1/resignations.php';
 });

@@ -3,11 +3,16 @@
 namespace App\Services;
 
 use App\Events\NotificationCreated;
+use App\Models\Attendance;
+use App\Models\AttendanceAdjustment;
+use App\Models\LeaveRequest;
 use App\Models\Notification;
+use App\Models\ResignationRequest;
 use App\Models\User;
 use App\Repositories\NotificationRepository;
 use Illuminate\Contracts\Mail\Mailable;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 
@@ -17,9 +22,12 @@ class NotificationService
     {
     }
 
-    public function listForUser(User $user): LengthAwarePaginator
+    public function listForUser(User $user, int $perPage = 20): LengthAwarePaginator
     {
-        return $this->notificationRepository->paginateForUser($user);
+        $notifications = $this->notificationRepository->paginateForUser($user, $perPage);
+        $this->attachActors($notifications->getCollection());
+
+        return $notifications;
     }
 
     public function unreadCountForUser(User $user): int
@@ -27,9 +35,47 @@ class NotificationService
         return $this->notificationRepository->unreadCountForUser($user);
     }
 
-    public function listAll(array $filters = []): LengthAwarePaginator
+    public function listAll(array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
-        return $this->notificationRepository->paginateAll($filters);
+        $notifications = $this->notificationRepository->paginateAll($filters, $perPage);
+        $this->attachActors($notifications->getCollection());
+
+        return $notifications;
+    }
+
+    // Loại thông báo "có người gây ra" -> [khóa id trong `data`, Model gốc
+    // có quan hệ employee]. Loại không có ở đây (leave.decided,
+    // attendance.checkout_reminder...) là thông báo HỆ THỐNG, không có actor.
+    private const ACTOR_SOURCES = [
+        'leave.pending_manager' => ['leave_request_id', LeaveRequest::class],
+        'leave.pending_hr' => ['leave_request_id', LeaveRequest::class],
+        'attendance.pending_approval' => ['attendance_id', Attendance::class],
+        'attendance_adjustment.pending' => ['attendance_adjustment_id', AttendanceAdjustment::class],
+        'resignation.pending' => ['resignation_request_id', ResignationRequest::class],
+    ];
+
+    // Gắn quan hệ ảo `actor` (Employee đã gây ra thông báo — để chuông hiện
+    // ảnh/tên/chấm online người gửi). SUY RA từ bản ghi gốc trong `data`
+    // thay vì lưu thêm cột, nên áp dụng được luôn cho thông báo CŨ. Nạp theo
+    // lô (1 query/loại Model), không N+1 theo từng thông báo.
+    private function attachActors(Collection $notifications): void
+    {
+        foreach ($notifications->groupBy(fn (Notification $n) => self::ACTOR_SOURCES[$n->type][1] ?? '') as $modelClass => $group) {
+            if ($modelClass === '') {
+                $group->each(fn (Notification $n) => $n->setRelation('actor', null));
+
+                continue;
+            }
+
+            $ids = $group->map(fn (Notification $n) => $n->data[self::ACTOR_SOURCES[$n->type][0]] ?? null)->filter()->unique();
+            $employeesBySourceId = $modelClass::with('employee')->whereIn('id', $ids)->get()
+                ->mapWithKeys(fn ($record) => [$record->id => $record->employee]);
+
+            $group->each(function (Notification $n) use ($employeesBySourceId) {
+                $sourceId = $n->data[self::ACTOR_SOURCES[$n->type][0]] ?? null;
+                $n->setRelation('actor', $employeesBySourceId[$sourceId] ?? null);
+            });
+        }
     }
 
     public function markRead(User $user, string $id): Notification

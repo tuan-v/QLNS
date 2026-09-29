@@ -174,57 +174,11 @@ class EmployeeTransferTest extends TestCase
         $this->assertSame($toDept->id, $boss->position->department_id);
     }
 
-    public function test_cannot_set_new_manager_that_creates_cycle(): void
-    {
-        $department = Department::create(['name' => 'Phong A', 'code' => 'PB-A']);
-        $boss = $this->makeEmployee(['code' => 'NV001']);
-        $subordinate = $this->makeEmployee(['code' => 'NV002', 'manager_id' => $boss->id]);
-        // subordinate phai la Truong phong cua phong dich thi moi qua duoc
-        // quy tac "chi chon Truong phong cua phong ban moi" va toi luot kiem
-        // tra vong lap (neu khong, test nay pass vi sai ly do).
-        $department->update(['manager_id' => $subordinate->id]);
-        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
-
-        // Chuyen boss sang phong moi, dong thoi dat quan ly moi la subordinate
-        // cua chinh minh -> vong lap
-        $response = $this->postJson('/api/v1/employees/'.$boss->id.'/transfers', [
-            'to_department_id' => $department->id,
-            'new_manager_id' => $subordinate->id,
-            'effective_date' => '2026-01-15',
-        ], [
-            'Authorization' => 'Bearer '.$token,
-        ]);
-
-        $response->assertStatus(422)->assertJsonValidationErrors('new_manager_id');
-        // Dung thong bao vong lap (khong phai thong bao "khong phai Truong phong").
-        $this->assertStringContainsString('vòng lặp', $response->json('errors.new_manager_id.0'));
-        $boss->refresh();
-        $this->assertNull($boss->manager_id);
-    }
-
-    // 3 test khoa quy tac "Quan ly moi chi duoc la Truong phong cua phong ban
-    // moi" (2026-09-21, theo yeu cau nguoi dung).
-    public function test_can_set_new_manager_when_they_are_head_of_destination_department(): void
-    {
-        $fromDept = Department::create(['name' => 'Phong A', 'code' => 'PB-A']);
-        $toDept = Department::create(['name' => 'Phong B', 'code' => 'PB-B']);
-        $head = $this->makeEmployee(['code' => 'NV-HEAD', 'department_id' => $toDept->id]);
-        $toDept->update(['manager_id' => $head->id]);
-        $employee = $this->makeEmployee(['department_id' => $fromDept->id]);
-        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
-
-        $this->postJson('/api/v1/employees/'.$employee->id.'/transfers', [
-            'to_department_id' => $toDept->id,
-            'new_manager_id' => $head->id,
-            'effective_date' => '2026-01-15',
-        ], ['Authorization' => 'Bearer '.$token])->assertStatus(201);
-
-        $employee->refresh();
-        $this->assertSame($toDept->id, $employee->department_id);
-        $this->assertSame($head->id, $employee->manager_id);
-    }
-
-    public function test_cannot_set_new_manager_who_is_not_head_of_destination_department(): void
+    // 2026-09-29: "Quản lý mới" KHÔNG còn chọn tay — luân chuyển xong tự lấy
+    // Trưởng phòng của phòng ban mới (ReportingLineService), client gửi
+    // new_manager_id nào cũng bị bỏ qua; bản ghi luân chuyển lưu lại đúng
+    // người quản lý mới đã tự suy ra.
+    public function test_transfer_sets_manager_to_destination_department_head_automatically(): void
     {
         $fromDept = Department::create(['name' => 'Phong A', 'code' => 'PB-A']);
         $toDept = Department::create(['name' => 'Phong B', 'code' => 'PB-B']);
@@ -234,34 +188,32 @@ class EmployeeTransferTest extends TestCase
         $employee = $this->makeEmployee(['department_id' => $fromDept->id]);
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
 
-        $response = $this->postJson('/api/v1/employees/'.$employee->id.'/transfers', [
+        $this->postJson('/api/v1/employees/'.$employee->id.'/transfers', [
             'to_department_id' => $toDept->id,
             'new_manager_id' => $outsider->id,
             'effective_date' => '2026-01-15',
-        ], ['Authorization' => 'Bearer '.$token]);
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(201);
 
-        $response->assertStatus(422)->assertJsonValidationErrors('new_manager_id');
         $employee->refresh();
-        // Loi 422 thi ho so phai giu nguyen, khong ap dung mot phan.
-        $this->assertSame($fromDept->id, $employee->department_id);
-        $this->assertDatabaseMissing('employee_transfers', ['employee_id' => $employee->id]);
+        $this->assertSame($toDept->id, $employee->department_id);
+        $this->assertSame($head->id, $employee->manager_id);
+        $this->assertDatabaseHas('employee_transfers', ['employee_id' => $employee->id, 'new_manager_id' => $head->id]);
     }
 
-    public function test_cannot_set_new_manager_when_destination_department_has_no_head(): void
+    public function test_transfer_to_department_without_head_leaves_manager_empty(): void
     {
         $fromDept = Department::create(['name' => 'Phong A', 'code' => 'PB-A']);
         $toDept = Department::create(['name' => 'Phong B', 'code' => 'PB-B']);
-        $someone = $this->makeEmployee(['code' => 'NV-X', 'department_id' => $fromDept->id]);
-        $employee = $this->makeEmployee(['department_id' => $fromDept->id]);
+        $oldHead = $this->makeEmployee(['code' => 'NV-OLD', 'department_id' => $fromDept->id]);
+        $employee = $this->makeEmployee(['department_id' => $fromDept->id, 'manager_id' => $oldHead->id]);
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
 
-        $response = $this->postJson('/api/v1/employees/'.$employee->id.'/transfers', [
+        $this->postJson('/api/v1/employees/'.$employee->id.'/transfers', [
             'to_department_id' => $toDept->id,
-            'new_manager_id' => $someone->id,
             'effective_date' => '2026-01-15',
-        ], ['Authorization' => 'Bearer '.$token]);
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(201);
 
-        $response->assertStatus(422)->assertJsonValidationErrors('new_manager_id');
+        $this->assertNull($employee->fresh()->manager_id);
     }
 
     public function test_can_list_transfer_history_for_employee(): void

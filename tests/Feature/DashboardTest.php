@@ -87,6 +87,46 @@ class DashboardTest extends TestCase
         ]);
     }
 
+    // 2026-09-29, theo yêu cầu người dùng: HR/Manager (employee.view) NHƯNG
+    // bản thân họ cũng là nhân viên đi làm (có employee gắn với tài khoản)
+    // -> ngoài số liệu công ty, response phải CÓ LUÔN khối cá nhân + cờ
+    // has_personal_view=true, để Frontend hiện tab "Của tôi" (Dashboard.vue).
+    public function test_hr_with_employee_record_also_gets_personal_data_and_flag(): void
+    {
+        [, $hrUser] = $this->makeEmployeeWithLogin('HR');
+        $token = $this->loginAs($hrUser->email, 'Secret@123');
+
+        $response = $this->getJson('/api/v1/dashboard', ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertJsonPath('scope', 'company');
+        $response->assertJsonPath('has_personal_view', true);
+        $response->assertJsonStructure([
+            'employee_name', 'leave_balance', 'checked_in_today', 'week_schedule',
+            'monthly_work' => ['actual_days', 'standard_days'],
+            'recent_attendance', 'recent_requests', 'latest_payslip',
+        ]);
+    }
+
+    // Ngược lại — tài khoản HR/Admin KHÔNG gắn employee nào (giống 3 tài
+    // khoản demo mặc định trong UserSeeder) -> chỉ thấy đúng số liệu công ty
+    // như cũ, KHÔNG có field cá nhân nào cả (tránh Frontend hiện tab "Của
+    // tôi" trống rỗng vô nghĩa cho tài khoản không phải là nhân viên thật).
+    public function test_hr_without_employee_record_has_no_personal_view(): void
+    {
+        $hrUser = User::create([
+            'email' => 'hr-no-emp-'.uniqid().'@qlns.local', 'user_name' => 'HR khong gan employee',
+            'password' => bcrypt('Secret@123'), 'status' => 'active',
+        ]);
+        Role::where('name', 'HR')->first()->users()->attach($hrUser->id);
+        $token = $this->loginAs($hrUser->email, 'Secret@123');
+
+        $response = $this->getJson('/api/v1/dashboard', ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertJsonPath('scope', 'company');
+        $response->assertJsonPath('has_personal_view', false);
+        $response->assertJsonMissingPath('employee_name');
+    }
+
     public function test_employee_sees_personal_scope(): void
     {
         [, $user] = $this->makeEmployeeWithLogin('Employee');
@@ -96,6 +136,7 @@ class DashboardTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJsonPath('scope', 'personal');
+        $response->assertJsonPath('has_personal_view', true);
         $response->assertJsonStructure([
             'leave_balance', 'checked_in_today', 'checked_in_at', 'checked_out_at', 'my_pending_leave_count',
             'week_schedule', 'monthly_work' => ['actual_days', 'standard_days'],

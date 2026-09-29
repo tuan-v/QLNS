@@ -3,7 +3,7 @@
         <div class="d-flex align-center justify-space-between flex-wrap ga-4 mb-5">
             <div class="d-flex align-center ga-4">
                 <v-avatar size="72" color="surface-variant">
-                    <v-img v-if="employee.avatar_url" :src="employee.avatar_url" />
+                    <v-img v-if="employee.avatar_url" :src="employee.avatar_url" cover />
                     <v-icon v-else icon="mdi-account" size="36" />
                 </v-avatar>
                 <div>
@@ -138,6 +138,7 @@ import { computed, ref } from "vue";
 import employeeService from "../../services/employeeService";
 import roleService from "../../services/roleService";
 import StatusChip from "../../components/common/StatusChip.vue";
+import { EMPLOYMENT_STATUS_MAP } from "../../composables/employmentStatus";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import { useToastStore } from "../../stores/useToastStore";
 
@@ -157,13 +158,6 @@ const props = defineProps({
 const emit = defineEmits(["account-created"]);
 
 const toast = useToastStore();
-
-const EMPLOYMENT_STATUS_MAP = {
-    probation: { label: "Thử việc", color: "warning" },
-    active: { label: "Đang làm việc", color: "success" },
-    resigned: { label: "Đã nghỉ việc", color: "default" },
-    terminated: { label: "Đã chấm dứt HĐ", color: "error" },
-};
 
 const GENDER_MAP = {
     male: "Nam",

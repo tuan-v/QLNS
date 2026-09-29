@@ -1,4 +1,5 @@
-@import 'tailwindcss';
+@import "./fonts/lexend.css";
+@import "tailwindcss";
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -6,9 +7,23 @@
 @source '../**/*.js';
 @source '../**/*.vue';
 
+/* =====================================================================
+   Design system QLNS — theo demo.tailadmin.com-DESIGN.md (TailAdmin)
+   Màu/theme: resources/js/plugins/vuetify.js · Font & thang chữ: settings.scss
+   Quy ước: chữ phụ dùng class Vuetify `text-medium-emphasis`, viền dùng
+   `border` (màu hairline), KHÔNG viết mã màu cứng trong component.
+   ===================================================================== */
 @theme {
-    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans:
+        "Lexend Variable", "Lexend", -apple-system, BlinkMacSystemFont,
+        "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+:root {
+    --qlns-shadow-sm: 0 1px 2px 0 rgba(16, 24, 40, 0.05);
+    --qlns-shadow-lg:
+        0 12px 16px -4px rgba(16, 24, 40, 0.08),
+        0 4px 6px -2px rgba(16, 24, 40, 0.03);
 }
 
 html {
@@ -19,35 +34,636 @@ body {
     margin: 0;
 }
 
-/* Vuetify ships its own compiled font-family; force it to match the
-   project's design spec (mục 6, YEU_CAU_DU_AN_QLNS.html: font Inter). */
 .v-application {
     font-family: var(--font-sans) !important;
+    font-size: 14px;
+    line-height: 1.43;
+    color: rgb(var(--v-theme-on-surface));
+    -webkit-font-smoothing: antialiased;
 }
 
-/* Nút bấm: bỏ giãn chữ mặc định của Vuetify, thêm hiệu ứng nhấc nhẹ khi hover.
-   Class này được gắn tự động cho mọi VBtn qua `defaults` trong plugins/vuetify.js. */
+/* Ô ngày/giờ gốc của trình duyệt (icon lịch, đồng hồ) tự đổi theo theme. */
+.v-theme--qlnsLight {
+    color-scheme: light;
+}
+.v-theme--qlnsDark {
+    color-scheme: dark;
+    --qlns-shadow-sm: none;
+    --qlns-shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- Viền hairline cho mọi .border của Vuetify ---------- */
+.v-application .border,
+.v-application .border-b,
+.v-application .border-t,
+.v-application .border-e,
+.v-application .border-s,
+.v-divider {
+    border-color: rgb(var(--v-theme-hairline)) !important;
+}
+.v-divider {
+    opacity: 1 !important;
+}
+
+/* ---------- Card & khung nội dung (TailAdmin: rounded-2xl, viền 1px, bóng micro) ----------
+   Bo góc: card/khung/bảng 16px · ô con lồng bên trong 12px · nút/input 8px. */
+.v-card,
+.glass-panel {
+    box-shadow: var(--qlns-shadow-sm) !important;
+}
+.v-application .v-sheet.glass-panel,
+.v-application .v-card.glass-panel {
+    /* .glass-panel là class của thiết kế cũ (kính mờ) — giữ tên để không phải
+       sửa ~40 chỗ đang dùng, nay là card phẳng theo design.md. */
+    background: rgb(var(--v-theme-surface)) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-radius: 16px !important;
+}
+/* Khung lồng trong khung (vd: Cài đặt, thẻ con trong Dashboard) — nhỏ hơn 1 bậc */
+.v-application .glass-panel .glass-panel,
+.v-application .v-card .glass-panel,
+.v-application .glass-panel .border.rounded-lg,
+.v-application .v-card .border.rounded-lg {
+    border-radius: 12px !important;
+    box-shadow: none !important;
+}
+/* Ô viền rời (không phải card) như lịch tuần, mục "Cần bạn xử lý" */
+.v-application div.border.rounded-lg:not(.v-sheet):not(.v-card):not(.v-table) {
+    border-radius: 12px !important;
+}
+.v-card-title {
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.56;
+    letter-spacing: 0;
+    color: rgb(var(--v-theme-ink));
+}
+.v-card-subtitle {
+    font-size: 14px;
+    letter-spacing: 0;
+    opacity: 1;
+    color: rgb(var(--v-theme-ink-muted));
+}
+/* Modal/menu nổi: bóng lớn (elevated card) */
+.v-overlay__content > .v-card,
+.v-overlay__content > .v-sheet,
+.v-overlay__content > .v-list {
+    box-shadow: var(--qlns-shadow-lg) !important;
+    border: 1px solid rgb(var(--v-theme-hairline));
+}
+
+/* ---------- Nút ---------- */
 .qlns-btn {
     letter-spacing: 0 !important;
+}
+.qlns-btn:not(.v-btn--icon).v-btn--size-default {
+    height: 40px;
+    padding: 0 16px;
+}
+.qlns-btn.v-btn--variant-flat:not([class*="bg-"]):not([class*="text-"]) {
+    /* Nút flat KHÔNG truyền color = nút outline trắng (Button Primary Outline) */
+    background: rgb(var(--v-theme-surface));
+    color: rgb(var(--v-theme-link));
+    border: 1px solid rgb(var(--v-theme-hairline));
+    box-shadow: var(--qlns-shadow-sm);
+}
+.qlns-btn.v-btn--variant-outlined {
+    border-color: rgb(var(--v-theme-hairline));
+    box-shadow: var(--qlns-shadow-sm);
+}
+.qlns-btn.v-btn--variant-outlined:not([class*="text-"]) {
+    color: rgb(var(--v-theme-link));
+}
+.qlns-btn.v-btn--icon.v-btn--variant-text,
+.qlns-btn.v-btn--icon.v-btn--variant-plain {
+    color: rgb(var(--v-theme-ink-muted));
+}
+.qlns-btn:focus-visible {
+    outline: 2px solid rgba(var(--v-theme-primary), 0.5);
+    outline-offset: 2px;
+}
+
+/* ---------- Nút phải NHÌN RA là bấm được (2026-09-29, theo yêu cầu người dùng) ----------
+   Vuetify gắn class text-<màu> khi nút có `color`; nút KHÔNG truyền color thì
+   chữ/nền lấy màu chữ thường (xám) -> nhìn như nhãn tĩnh. Các quy tắc dưới
+   CHỈ áp cho nút chưa có màu (:not(...)), nút đã chọn màu riêng (vd Xóa màu
+   đỏ) giữ nguyên. */
+
+/* Nút tonal chưa có màu (Xem/Tải/Sửa trong bảng, "Quay lại"...) -> màu brand,
+   nền nhạt tự theo vì underlay của Vuetify dùng currentColor. */
+.qlns-btn.v-btn--variant-tonal:not(
+        .text-primary,
+        .text-secondary,
+        .text-success,
+        .text-warning,
+        .text-error,
+        .text-info
+    ) {
+    color: rgb(var(--v-theme-brand-text));
+}
+
+/* Nút chữ/icon trần (Hủy, đóng X, icon thao tác trong bảng...) và nút viền
+   chưa có màu: rê chuột -> đổi sang màu brand, thêm tín hiệu ngoài lớp phủ. */
+.qlns-btn.v-btn--variant-text:not(
+        .v-btn--disabled,
+        .text-primary,
+        .text-secondary,
+        .text-success,
+        .text-warning,
+        .text-error,
+        .text-info
+    ):hover,
+.qlns-btn.v-btn--variant-plain:not(
+        .v-btn--disabled,
+        .text-primary,
+        .text-secondary,
+        .text-success,
+        .text-warning,
+        .text-error,
+        .text-info
+    ):hover,
+.qlns-btn.v-btn--variant-outlined:not(
+        .v-btn--disabled,
+        .text-primary,
+        .text-secondary,
+        .text-success,
+        .text-warning,
+        .text-error,
+        .text-info
+    ):hover {
+    color: rgb(var(--v-theme-brand-text));
+}
+.qlns-btn.v-btn--variant-outlined:not(.v-btn--disabled):hover {
+    border-color: rgba(var(--v-theme-primary), 0.5);
+}
+
+/* Nút nền đặc (Thêm mới, Lưu...): thêm bóng nhẹ khi rê chuột cho rõ hơn lớp
+   phủ sáng rất mỏng trên nền màu đậm. */
+.qlns-btn.v-btn--variant-flat:not(.v-btn--disabled):hover,
+.qlns-btn.v-btn--variant-elevated:not(.v-btn--disabled):hover {
+    box-shadow: 0 2px 8px rgba(16, 24, 40, 0.14);
+}
+.qlns-btn {
     transition:
-        transform 0.18s ease,
-        box-shadow 0.18s ease,
-        background-color 0.18s ease;
+        background-color 0.15s ease,
+        color 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease;
 }
 
-/* Chỉ nhấc nút đặc (variant="flat"/"elevated"), không áp cho nút icon/text
-   để tránh bảng danh sách bị nhảy khi rê chuột. */
-.qlns-btn.v-btn--variant-flat:hover:not(.v-btn--disabled),
-.qlns-btn.v-btn--variant-elevated:hover:not(.v-btn--disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(var(--v-theme-primary), 0.28);
+/* ---------- Input: viền hairline, focus viền brand ---------- */
+.v-field--variant-outlined .v-field__outline {
+    color: rgb(var(--v-theme-hairline));
+    --v-field-border-opacity: 1;
+}
+.v-field--variant-outlined.v-field--focused .v-field__outline {
+    color: rgb(var(--v-theme-primary));
+}
+.v-field--variant-outlined.v-field--error .v-field__outline {
+    color: rgb(var(--v-theme-error));
+}
+.v-field input::placeholder,
+.v-field textarea::placeholder {
+    color: rgb(var(--v-theme-faint));
+    opacity: 1;
+}
+.v-label.v-field-label {
+    opacity: 1;
+    color: rgb(var(--v-theme-ink-muted));
 }
 
-/* Hiệu ứng kính mờ (Glassmorphism nhẹ) cho card/dialog nổi bật trên nền —
-   mục 6, YEU_CAU_DU_AN_QLNS.html. Dùng biến màu --v-theme-surface của Vuetify
-   (thay vì mã màu cứng) để tự đổi đúng theo theme sáng/tối đang chọn. */
-.glass-panel {
-    background: rgba(var(--v-theme-surface), 0.72) !important;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+/* ---------- Sidebar ---------- */
+.qlns-sidebar.v-navigation-drawer {
+    background: rgb(var(--v-theme-sidebar)) !important;
+}
+.qlns-sidebar .v-list-subheader {
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: uppercase;
+    color: rgb(var(--v-theme-faint)) !important;
+    min-height: 32px;
+    padding-top: 12px !important;
+}
+.qlns-sidebar .v-list-item {
+    min-height: 40px !important;
+    margin-bottom: 2px;
+    color: rgb(var(--v-theme-link));
+}
+.qlns-sidebar .v-list-item-title {
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0;
+}
+.qlns-sidebar .v-list-item__prepend > .v-icon {
+    opacity: 1;
+    font-size: 20px;
+    color: rgb(var(--v-theme-ink-muted));
+}
+.qlns-sidebar .v-list-item__prepend .v-list-item__spacer {
+    width: 12px !important;
+}
+.qlns-sidebar .v-list-item--active {
+    color: rgb(var(--v-theme-brand-text)) !important;
+}
+.qlns-sidebar .v-list-item--active > .v-list-item__overlay {
+    background: rgb(var(--v-theme-primary));
+    opacity: 0.08;
+}
+.qlns-sidebar .v-list-item--active .v-list-item__prepend > .v-icon {
+    color: rgb(var(--v-theme-brand-text));
+}
+.qlns-sidebar .v-list-item--disabled {
+    opacity: 0.5;
+}
+
+/* ---------- Header ---------- */
+.qlns-header.v-app-bar {
+    background: rgb(var(--v-theme-surface)) !important;
+}
+
+/* ---------- Tabs ----------
+   Cao 56px, chữ 16px/500, lề ngang 20px, thanh chọn 3px màu brand;
+   tab đang chọn chữ đậm hơn + màu brand, icon (nếu có) 20px. */
+.v-tabs {
+    --v-tabs-height: 50px;
+}
+.v-tab.v-btn {
+    height: 50px !important;
+    min-width: 0 !important;
+    padding: 0 15px !important;
+    font-size: 13px !important;
+    font-weight: 500;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+    color: rgb(var(--v-theme-ink-muted));
+}
+.v-tab.v-btn .v-btn__prepend .v-icon {
+    font-size: 22px;
+}
+.v-tab.v-btn .v-btn__prepend {
+    margin-inline-end: 8px !important;
+}
+.v-tab.v-btn:hover {
+    color: rgb(var(--v-theme-ink));
+}
+.v-tab.v-tab--selected {
+    color: rgb(var(--v-theme-brand-text)) !important;
+    font-weight: 600;
+}
+.v-tab .v-tab__slider {
+    height: 2px !important;
+    border-radius: 3px 3px 0 0;
+}
+/* Thanh tab đặt riêng trong 1 card (Hồ sơ của tôi, Chi tiết nhân viên...) */
+.v-application .glass-panel > .v-tabs {
+    padding: 0 8px;
+}
+
+/* ---------- Bảng (TailAdmin table) ----------
+   Khung bo 16px, header chữ xám 12px/500 không nền, dòng cách nhau bằng
+   hairline, padding ngang 20px, hover nền rất nhạt. */
+.v-table {
+    font-size: 14px;
+    background: rgb(var(--v-theme-surface)) !important;
+    color: rgb(var(--v-theme-on-surface));
+}
+.v-application .v-table.border,
+.v-application .v-table.app-data-table {
+    border-radius: 16px !important;
+    overflow: hidden;
+    box-shadow: var(--qlns-shadow-sm);
+}
+.v-application .glass-panel .v-table.border,
+.v-application .v-card .v-table.border {
+    box-shadow: none;
+}
+.v-table > .v-table__wrapper > table > thead > tr > th {
+    background: rgb(var(--v-theme-surface)) !important;
+    color: rgb(var(--v-theme-ink-muted)) !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    text-transform: none;
+    letter-spacing: 0;
+    white-space: nowrap;
+    height: 48px !important;
+}
+.v-table > .v-table__wrapper > table > thead > tr > th,
+.v-table > .v-table__wrapper > table > tbody > tr > td {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+}
+.v-table > .v-table__wrapper > table > tbody > tr > td {
+    height: 60px;
+}
+.v-table.v-table--density-compact
+    > .v-table__wrapper
+    > table
+    > tbody
+    > tr
+    > td {
+    height: 44px;
+}
+.v-table > .v-table__wrapper > table > tbody > tr > td,
+.v-table > .v-table__wrapper > table > thead > tr > th,
+.v-table > .v-table__wrapper > table > tbody > tr:not(:last-child) > td {
+    border-bottom: 1px solid rgb(var(--v-theme-hairline)) !important;
+}
+.v-table > .v-table__wrapper > table > tbody > tr:last-child > td {
+    border-bottom: 0 !important;
+}
+.v-table.v-table--hover > .v-table__wrapper > table > tbody > tr:hover > td {
+    background: rgba(var(--v-theme-muted), 0.6);
+}
+.v-theme--qlnsDark
+    .v-table.v-table--hover
+    > .v-table__wrapper
+    > table
+    > tbody
+    > tr:hover
+    > td {
+    background: rgba(255, 255, 255, 0.03);
+}
+.v-table .v-data-table-footer,
+.v-table .v-data-table__td--select-row,
+.v-table .v-data-table__th--select-row {
+    border-color: rgb(var(--v-theme-hairline)) !important;
+}
+.v-table .text-end,
+.v-table td.text-right {
+    font-variant-numeric: tabular-nums;
+}
+.v-data-table .v-data-table-rows-no-data td {
+    color: rgb(var(--v-theme-ink-muted));
+    height: 96px !important;
+}
+
+/* Phân trang: nút vuông bo 8px, trang hiện tại nền brand */
+.v-pagination .v-pagination__item .v-btn,
+.v-pagination .v-pagination__prev .v-btn,
+.v-pagination .v-pagination__next .v-btn {
+    border-radius: 8px !important;
+    color: rgb(var(--v-theme-link));
+}
+.v-pagination .v-pagination__item--is-active .v-btn {
+    background: rgb(var(--v-theme-primary)) !important;
+    color: rgb(var(--v-theme-on-primary)) !important;
+}
+.v-pagination .v-pagination__item--is-active .v-btn .v-btn__overlay {
+    opacity: 0 !important;
+}
+
+/* ---------- Chip / badge: viên thuốc, 12px/500 ---------- */
+.v-chip.v-chip--size-small {
+    font-size: 12px;
+    font-weight: 500;
+    --v-chip-height: 22px;
+    padding: 0 10px;
+}
+.v-chip.v-chip--variant-tonal > .v-chip__underlay {
+    opacity: 0.12;
+}
+.v-theme--qlnsDark .v-chip.v-chip--variant-tonal > .v-chip__underlay {
+    opacity: 0.16;
+}
+
+/* ---------- Breadcrumbs ---------- */
+.v-breadcrumbs {
+    font-size: 14px;
+    color: rgb(var(--v-theme-ink-muted));
+}
+.v-breadcrumbs-item--link {
+    transition: color 0.15s ease;
+}
+.v-breadcrumbs-item--link:hover {
+    color: rgb(var(--v-theme-brand-text));
+    text-decoration: underline;
+}
+.v-breadcrumbs-item--disabled {
+    opacity: 1 !important;
+    color: rgb(var(--v-theme-ink));
+}
+
+/* ---------- Tiện ích ---------- */
+.tabular-nums {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Nút icon tròn có viền (Icon Button trong design.md) — header, toolbar */
+.qlns-icon-btn.v-btn {
+    width: 40px !important;
+    height: 40px !important;
+    border: 1px solid rgb(var(--v-theme-hairline));
+    color: rgb(var(--v-theme-ink-muted)) !important;
+}
+.qlns-icon-btn.v-btn:hover,
+.qlns-icon-btn.v-btn[aria-expanded="true"] {
+    color: rgb(var(--v-theme-brand-text)) !important;
+    border-color: rgba(var(--v-theme-primary), 0.45);
+}
+
+/* Theme tối: chữ/icon màu brand dùng brand-400 (#7592FF) cho đủ tương phản
+   trên nền tối — nền nút primary vẫn là #465FFF chữ trắng. */
+.v-theme--qlnsDark .text-primary {
+    color: rgb(var(--v-theme-brand-text)) !important;
+}
+
+/* ---------- Nhịp khoảng cách (TailAdmin: lưới 4px, p-5 md:p-6, gap-4 md:gap-6) ----------
+   Chuẩn hoá padding card đang dùng lẫn pa-4/pa-5 và khoảng cách giữa các khối. */
+.v-application .glass-panel.pa-4,
+.v-application .glass-panel.pa-5 {
+    padding: 20px !important;
+}
+.v-application .glass-panel.mb-4 {
+    margin-bottom: 16px !important;
+}
+.v-application .glass-panel.mt-4 {
+    margin-top: 16px !important;
+}
+@media (min-width: 960px) {
+    .v-application .glass-panel.pa-4,
+    .v-application .glass-panel.pa-5 {
+        padding: 24px !important;
+    }
+    .v-application .glass-panel.mb-4 {
+        margin-bottom: 24px !important;
+    }
+    .v-application .glass-panel.mt-4 {
+        margin-top: 24px !important;
+    }
+}
+/* Khung lồng bên trong giữ padding gọn hơn */
+.v-application .glass-panel .glass-panel.pa-4,
+.v-application .glass-panel .glass-panel.pa-5 {
+    padding: 16px !important;
+}
+/* Tiêu đề khối trong card */
+.v-application .glass-panel > .text-body-1.font-weight-bold:first-child,
+.v-application .glass-panel .text-body-1.font-weight-bold {
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    color: rgb(var(--v-theme-ink));
+}
+
+/* ---------- DataTable ----------
+   Bỏ thanh loading ngang Vuetify chèn dưới header (dòng .v-data-table-progress)
+   cho MỌI bảng — đặt ở đây (global) thay vì style scoped để chắc chắn áp dụng. */
+.v-data-table-progress {
+    display: none !important;
+}
+.v-data-table.v-data-table--loading > .v-table__wrapper > table > tbody {
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+}
+/* Bảng liền trong card (prop `flush` của DataTable) */
+.v-application .v-table.app-data-table--flush {
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+/* =====================================================================
+   FORM & DIALOG — phong cách chung (xem components/common/FormDialog.vue,
+   FormSection.vue, FormField.vue)
+   ===================================================================== */
+
+/* Lưới trường cho <FormSection :columns="2|3"> */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px 20px;
+}
+@media (min-width: 600px) {
+    .form-grid--2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .form-grid--3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+/* Vùng nhập liệu: body của FormDialog (.qlns-form) + body mọi dialog thô */
+/* Ô nhập cao 44px như design.md (Vuetify comfortable = 48px) */
+.qlns-form .v-input--density-comfortable,
+.v-overlay__content
+    > .v-card.glass-panel
+    > .v-card-text
+    .v-input--density-comfortable {
+    --v-input-control-height: 44px;
+    --v-input-padding-top: 10px;
+}
+/* Bỏ khoảng trống 22px Vuetify giữ sẵn dưới MỌI ô cho thông báo lỗi —
+   nguyên nhân chính khiến form "nhiều khoảng trắng". Chỉ hiện khi có lỗi/gợi ý. */
+.qlns-form .v-input__details:not(:has(.v-messages__message)),
+.v-overlay__content
+    > .v-card.glass-panel
+    > .v-card-text
+    .v-input__details:not(:has(.v-messages__message)) {
+    display: none;
+}
+.qlns-form .v-input__details,
+.v-overlay__content > .v-card.glass-panel > .v-card-text .v-input__details {
+    min-height: 0;
+    padding-top: 4px;
+    padding-inline: 2px;
+}
+/* Hàng v-row dense cũ: đủ 16px giữa các hàng khi đã bỏ vùng lỗi */
+.qlns-form .v-row.v-row--dense > .v-col,
+.qlns-form .v-row.v-row--dense > [class*="v-col-"],
+.v-overlay__content
+    > .v-card.glass-panel
+    > .v-card-text
+    .v-row.v-row--dense
+    > .v-col,
+.v-overlay__content
+    > .v-card.glass-panel
+    > .v-card-text
+    .v-row.v-row--dense
+    > [class*="v-col-"] {
+    padding: 8px 10px;
+}
+.qlns-form .v-row.v-row--dense,
+.v-overlay__content > .v-card.glass-panel > .v-card-text .v-row.v-row--dense {
+    margin: -8px -10px 8px;
+}
+/* Nhãn trường viết tay kiểu cũ (<div class="text-body-2 font-weight-medium mb-1">)
+   — hiển thị giống FormField để đồng bộ khi chưa chuyển sang FormField. */
+.qlns-form .text-body-2.font-weight-medium.mb-1,
+.v-overlay__content
+    > .v-card.glass-panel
+    > .v-card-text
+    .text-body-2.font-weight-medium.mb-1 {
+    margin-bottom: 6px !important;
+    color: rgb(var(--v-theme-link));
+}
+.qlns-form > .mb-3,
+.qlns-form .form-section__body > .mb-3 {
+    margin-bottom: 16px !important;
+}
+
+/* ---------- Dialog thô (v-dialog > v-card.glass-panel) ----------
+   Cùng khung header / body / footer với FormDialog, không cần sửa từng file. */
+.v-overlay__content
+    > .v-card.glass-panel:not(.form-dialog-card):not(.preview-card):not(
+        .payslip-print-area
+    )
+    > .v-card-title {
+    padding: 20px 24px 18px !important;
+    font-size: 18px !important;
+    line-height: 26px;
+    font-weight: 600 !important;
+    color: rgb(var(--v-theme-ink));
+    border-bottom: 1px solid rgb(var(--v-theme-hairline));
+    white-space: normal;
+}
+.v-overlay__content
+    > .v-card.glass-panel:not(.form-dialog-card):not(.preview-card):not(
+        .payslip-print-area
+    )
+    > .v-card-text {
+    padding: 24px !important;
+    font-size: 14px;
+    line-height: 20px;
+}
+.v-overlay__content
+    > .v-card.glass-panel:not(.form-dialog-card):not(.preview-card):not(
+        .payslip-print-area
+    )
+    > .v-card-actions {
+    padding: 14px 24px !important;
+    gap: 10px;
+    min-height: 0;
+    border-top: 1px solid rgb(var(--v-theme-hairline));
+}
+/* Divider viết tay trước/sau title/actions -> đã có border, ẩn để khỏi kẻ đôi */
+.v-overlay__content > .v-card.glass-panel:not(.form-dialog-card) > .v-divider {
+    display: none;
+}
+/* Nút Hủy dạng text trong footer dialog -> outline như FormDialog */
+.v-overlay__content
+    > .v-card.glass-panel
+    > .v-card-actions
+    > .v-btn.v-btn--variant-text:not([class*="bg-"]) {
+    border: 1px solid rgb(var(--v-theme-hairline));
+    color: rgb(var(--v-theme-link));
+}
+.v-overlay__content > .v-card.glass-panel > .v-card-actions > .v-btn + .v-btn {
+    margin-inline-start: 0 !important;
+}
+/* v-row thường (không dense) trong form/dialog: cùng nhịp 16px/20px với lưới FormSection */
+.qlns-form .v-row:not(.v-row--dense):not(.v-row--no-gutters),
+.v-overlay__content
+    > .v-card.glass-panel
+    > .v-card-text
+    .v-row:not(.v-row--dense):not(.v-row--no-gutters) {
+    margin: -8px -10px 8px;
+}
+.qlns-form .v-row:not(.v-row--dense):not(.v-row--no-gutters) > [class*="v-col"],
+.v-overlay__content
+    > .v-card.glass-panel
+    > .v-card-text
+    .v-row:not(.v-row--dense):not(.v-row--no-gutters)
+    > [class*="v-col"] {
+    padding: 8px 10px;
 }

@@ -17,7 +17,8 @@ class NotificationController extends Controller
 
     public function index(Request $request): AnonymousResourceCollection
     {
-        $notifications = $this->notificationService->listForUser($request->user());
+        $perPage = (int) $request->input('per_page', 20);
+        $notifications = $this->notificationService->listForUser($request->user(), $perPage);
 
         return NotificationResource::collection($notifications)
             ->additional(['unread_count' => $this->notificationService->unreadCountForUser($request->user())]);
@@ -27,7 +28,8 @@ class NotificationController extends Controller
     // "notification.view_all" ở route, dùng cho trang admin "Toàn công ty".
     public function all(Request $request): AnonymousResourceCollection
     {
-        $notifications = $this->notificationService->listAll($request->only(['type', 'search']));
+        $perPage = (int) $request->input('per_page', 20);
+        $notifications = $this->notificationService->listAll($request->only(['type', 'search']), $perPage);
 
         return NotificationResource::collection($notifications);
     }

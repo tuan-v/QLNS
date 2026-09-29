@@ -359,8 +359,8 @@ async function exportPdf() {
     align-items: center;
     padding: 0.75rem 1rem;
     margin-top: 0;
-    background: rgba(76, 175, 80, 0.16);
-    border: 1px solid rgba(76, 175, 80, 0.4);
+    background: rgba(var(--v-theme-success), 0.1);
+    border: 1px solid rgba(var(--v-theme-success), 0.35);
     border-top: none;
     border-radius: 0 0 0.5rem 0.5rem;
 }

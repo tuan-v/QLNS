@@ -29,13 +29,13 @@
         <template v-if="employee">
             <v-sheet class="border rounded-lg mb-4 glass-panel" color="transparent">
                 <v-tabs v-model="tab">
-                    <v-tab value="profile">Sơ yếu lý lịch</v-tab>
-                    <v-tab value="contracts">Hợp đồng</v-tab>
-                    <v-tab value="documents">Tài liệu</v-tab>
-                    <v-tab value="transfers">Luân chuyển</v-tab>
-                    <v-tab value="shift_assignments">Ca làm việc</v-tab>
-                    <v-tab value="attendance">Chấm công</v-tab>
-                    <v-tab value="payroll">Lương / Phép</v-tab>
+                    <v-tab value="profile" prepend-icon="mdi-account-outline">Sơ yếu lý lịch</v-tab>
+                    <v-tab value="contracts" prepend-icon="mdi-file-document-outline">Hợp đồng</v-tab>
+                    <v-tab value="documents" prepend-icon="mdi-folder-outline">Tài liệu</v-tab>
+                    <v-tab value="transfers" prepend-icon="mdi-swap-horizontal">Luân chuyển</v-tab>
+                    <v-tab value="shift_assignments" prepend-icon="mdi-calendar-clock-outline">Ca làm việc</v-tab>
+                    <v-tab value="attendance" prepend-icon="mdi-calendar-check-outline">Chấm công</v-tab>
+                    <v-tab value="payroll" prepend-icon="mdi-cash-multiple">Lương / Phép</v-tab>
                 </v-tabs>
             </v-sheet>
 
@@ -54,6 +54,7 @@
                         :employee-id="props.id"
                         :employment-status="employee.employment_status"
                         @preview="openPreview"
+                        @changed="loadEmployee"
                     />
                 </v-window-item>
 

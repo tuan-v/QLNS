@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\EmployeeContract;
+use App\Services\EmployeeContractService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +21,7 @@ class ActivatePendingContracts extends Command
 
     protected $description = 'Kích hoạt các hợp đồng "pending" đã tới ngày bắt đầu (start_date <= hôm nay), đồng thời supersede hợp đồng active cũ của cùng nhân viên';
 
-    public function handle(): int
+    public function handle(EmployeeContractService $employeeContractService): int
     {
         $dueContracts = EmployeeContract::query()
             ->where('status', 'pending')
@@ -28,13 +29,16 @@ class ActivatePendingContracts extends Command
             ->get();
 
         foreach ($dueContracts as $contract) {
-            DB::transaction(function () use ($contract) {
+            DB::transaction(function () use ($contract, $employeeContractService) {
                 EmployeeContract::query()
                     ->where('employee_id', $contract->employee_id)
                     ->where('status', 'active')
                     ->update(['status' => 'expired']);
 
                 $contract->update(['status' => 'active']);
+                // Trạng thái nhân viên đổi theo hợp đồng vừa có hiệu lực
+                // (vd thử việc -> chính thức đúng ngày bắt đầu HĐ chính thức).
+                $employeeContractService->applyEmploymentStatus($contract);
             });
         }
 

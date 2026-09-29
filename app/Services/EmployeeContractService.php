@@ -12,8 +12,35 @@ use Illuminate\Validation\ValidationException;
 
 class EmployeeContractService
 {
+    // Trạng thái nhân viên suy ra từ LOẠI hợp đồng đang có hiệu lực (2026-09-29,
+    // theo yêu cầu người dùng: bỏ chọn tay "Trạng thái làm việc", đổi nhãn
+    // 'active' thành "Chính thức" cho khỏi nhầm với "đang đi làm").
+    public const EMPLOYMENT_STATUS_BY_CONTRACT_TYPE = [
+        'thu_viec' => 'probation',
+        'chinh_thuc' => 'active',
+    ];
+
     public function __construct(private readonly EmployeeContractRepository $employeeContractRepository)
     {
+    }
+
+    // Gọi mỗi khi 1 hợp đồng BẮT ĐẦU có hiệu lực (tạo mới với start_date <=
+    // hôm nay, hoặc job contracts:activate-pending kích hoạt) — trạng thái
+    // nhân viên theo đúng loại hợp đồng đó. Ký hợp đồng mới cho người đã nghỉ
+    // việc/chấm dứt HĐ = tuyển lại -> xóa luôn termination_date cũ.
+    public function applyEmploymentStatus(EmployeeContract $contract): void
+    {
+        $employee = $contract->employee;
+        $status = self::EMPLOYMENT_STATUS_BY_CONTRACT_TYPE[$contract->contract_type] ?? null;
+
+        if ($employee === null || $status === null) {
+            return;
+        }
+
+        $employee->forceFill([
+            'employment_status' => $status,
+            'termination_date' => null,
+        ])->save();
     }
 
     public function listForEmployee(Employee $employee): Collection
@@ -67,7 +94,13 @@ class EmployeeContractService
                     ->each(fn (EmployeeContract $old) => $this->employeeContractRepository->update($old, ['status' => 'expired']));
             }
 
-            return $this->employeeContractRepository->create($data);
+            $contract = $this->employeeContractRepository->create($data);
+
+            if (! $startsInFuture) {
+                $this->applyEmploymentStatus($contract);
+            }
+
+            return $contract;
         });
     }
 
@@ -82,10 +115,30 @@ class EmployeeContractService
             ]);
         }
 
-        return $this->employeeContractRepository->update($contract, [
-            'status' => 'terminated',
-            'terminated_at' => now()->toDateString(),
-        ]);
+        return DB::transaction(function () use ($contract) {
+            $contract = $this->employeeContractRepository->update($contract, [
+                'status' => 'terminated',
+                'terminated_at' => now()->toDateString(),
+            ]);
+
+            // Chấm dứt ĐÚNG hợp đồng đang áp dụng mà không còn hợp đồng nào
+            // khác đang/sắp hiệu lực -> nhân viên "Đã chấm dứt HĐ" (2026-09-29,
+            // trạng thái giờ đi theo hợp đồng, không còn chọn tay).
+            $employee = $contract->employee;
+            $hasOtherContract = $employee?->contracts()
+                ->whereKeyNot($contract->id)
+                ->whereIn('status', ['active', 'pending'])
+                ->exists();
+
+            if ($employee && ! $hasOtherContract) {
+                $employee->forceFill([
+                    'employment_status' => 'terminated',
+                    'termination_date' => $contract->terminated_at,
+                ])->save();
+            }
+
+            return $contract;
+        });
     }
 
     // Số hợp đồng do hệ thống tự sinh theo LOẠI hợp đồng, không nhận từ client:

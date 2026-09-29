@@ -272,36 +272,54 @@
                     />
                 </v-col>
 
+                <!-- Quản lý trực tiếp KHÔNG chọn tay (2026-09-29, theo yêu cầu
+                     người dùng) — luôn là Trưởng phòng của phòng ban, Backend tự
+                     tính (ReportingLineService); ô này chỉ xem trước kết quả. -->
                 <v-col cols="12" sm="6">
                     <div class="text-body-2 font-weight-medium mb-1">
                         Quản lý trực tiếp
                     </div>
-                    <SearchSelect
-                        v-model="form.manager_id"
-                        :items="managerOptions"
-                        clearable
-                        :error-messages="store.errors.manager_id"
-                    />
-                </v-col>
-
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Trạng thái làm việc
-                    </div>
-                    <v-select
-                        v-model="form.employment_status"
-                        :items="statusOptions"
-                        placeholder="Chưa chọn"
+                    <v-text-field
+                        :model-value="predictedManagerName"
+                        readonly
                         variant="outlined"
                         density="comfortable"
                         rounded="lg"
-                        clearable
-                        persistent-placeholder
-                        :error-messages="store.errors.employment_status"
+                        prepend-inner-icon="mdi-account-tie-outline"
+                        hint="Tự động là Trưởng phòng của phòng ban"
+                        persistent-hint
                     />
                 </v-col>
 
-                <v-col cols="12" sm="6">
+                <!-- Trạng thái nhân viên KHÔNG chọn tay (2026-09-29) — thêm mới thì
+                     theo "Loại hợp đồng" ở mục bên dưới; sau đó tự đổi theo hợp
+                     đồng mới/chấm dứt hợp đồng/đơn nghỉ việc. -->
+                <v-col v-if="isEdit" cols="12" sm="6">
+                    <div class="text-body-2 font-weight-medium mb-1">
+                        Trạng thái nhân viên
+                    </div>
+                    <div class="d-flex align-center flex-wrap ga-2" style="min-height: 48px">
+                        <StatusChip
+                            :status="employee?.employment_status"
+                            :map="EMPLOYMENT_STATUS_MAP"
+                        />
+                        <span
+                            v-if="employee?.termination_date"
+                            class="text-body-2 text-medium-emphasis"
+                        >
+                            từ {{ formatDateVi(employee.termination_date) }}
+                        </span>
+                    </div>
+                    <div class="text-caption text-medium-emphasis">
+                        Tự đổi theo hợp đồng (tab "Hợp đồng") và đơn nghỉ việc.
+                    </div>
+                </v-col>
+
+                <v-col
+                    v-if="isEdit ? employee?.employment_status === 'probation' : contractType === 'thu_viec'"
+                    cols="12"
+                    sm="6"
+                >
                     <div class="text-body-2 font-weight-medium mb-1">
                         Ngày kết thúc thử việc
                     </div>
@@ -309,17 +327,6 @@
                         v-model="form.probation_end_date"
                         :min="minAfterHireDate"
                         :error-messages="store.errors.probation_end_date"
-                    />
-                </v-col>
-
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Ngày chấm dứt hợp đồng
-                    </div>
-                    <InputDate
-                        v-model="form.termination_date"
-                        :min="minAfterHireDate"
-                        :error-messages="store.errors.termination_date"
                     />
                 </v-col>
             </v-row>
@@ -338,13 +345,29 @@
              "Hợp đồng" (EmployeeContractsTab.vue). -->
         <FormSection v-if="!isEdit" title="Lương & Hợp đồng">
             <p class="text-body-2 mb-4" style="opacity: 0.75">
-                Lưu là tạo luôn hợp đồng lao động đầu tiên với mức lương này
-                (cũng là lương đóng BHXH) — không cần vào tab "Hợp đồng" tạo
-                riêng nữa. Loại hợp đồng tự suy theo Trạng thái làm việc ở
-                trên ("Đang làm việc" → chính thức, còn lại → thử việc); file
-                hợp đồng đã ký (nếu có) upload sau ở tab "Hợp đồng".
+                Lưu là tạo luôn hợp đồng lao động đầu tiên (bắt đầu từ ngày vào
+                làm) với loại hợp đồng và mức lương này (cũng là lương đóng
+                BHXH). Trạng thái nhân viên đặt theo đúng loại hợp đồng:
+                "Thử việc" hoặc "Chính thức". File hợp đồng đã ký upload sau ở
+                tab "Hợp đồng".
             </p>
             <v-row dense>
+                <v-col cols="12" sm="6">
+                    <div class="text-body-2 font-weight-medium mb-1">
+                        Loại hợp đồng <span class="text-error">*</span>
+                    </div>
+                    <v-select
+                        v-model="contractType"
+                        :items="CONTRACT_TYPE_OPTIONS"
+                        :rules="rules.contractType"
+                        placeholder="Chọn loại hợp đồng"
+                        variant="outlined"
+                        density="comfortable"
+                        rounded="lg"
+                        persistent-placeholder
+                        :error-messages="store.errors.contract_type"
+                    />
+                </v-col>
                 <v-col cols="12" sm="6">
                     <div class="text-body-2 font-weight-medium mb-1">
                         Lương cơ bản <span class="text-error">*</span>
@@ -422,7 +445,13 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useEmployeeStore } from "../../stores/useEmployeeStore";
+import { useDepartmentStore } from "../../stores/useDepartmentStore";
 import employeeService from "../../services/employeeService";
+import StatusChip from "../../components/common/StatusChip.vue";
+import {
+    CONTRACT_TYPE_OPTIONS,
+    EMPLOYMENT_STATUS_MAP,
+} from "../../composables/employmentStatus";
 import positionService from "../../services/positionService";
 import addressService from "../../services/addressService";
 import roleService from "../../services/roleService";
@@ -469,13 +498,6 @@ const genderOptions = [
     { title: "Khác", value: "other" },
 ];
 
-const statusOptions = [
-    { title: "Thử việc", value: "probation" },
-    { title: "Đang làm việc", value: "active" },
-    { title: "Đã nghỉ việc", value: "resigned" },
-    { title: "Đã chấm dứt HĐ", value: "terminated" },
-];
-
 const form = reactive({
     full_name: "",
     company_email: "",
@@ -491,10 +513,7 @@ const form = reactive({
     commune_code: null,
     department_id: null,
     position_id: null,
-    manager_id: null,
-    employment_status: null,
     probation_end_date: "",
-    termination_date: "",
 });
 
 const formRef = ref(null);
@@ -506,6 +525,8 @@ const formRef = ref(null);
 // tránh gửi nhầm lên UpdateEmployeeRequest (backend tự bỏ qua field lạ,
 // nhưng tách riêng cho rõ ràng là 2 việc khác nhau).
 const agreedSalary = ref(null);
+// Loại hợp đồng đầu tiên — quyết định luôn trạng thái nhân viên (2026-09-29).
+const contractType = ref(null);
 
 /* --------------------- Tạo tài khoản đăng nhập ngay --------------------- */
 
@@ -589,6 +610,7 @@ const rules = {
     communeCode: [notEmpty("Xã/Phường")],
     departmentId: [notEmpty("Phòng ban")],
     agreedSalary: [notEmpty("Lương cơ bản"), minValue(0, "Lương cơ bản")],
+    contractType: [notEmpty("Loại hợp đồng")],
 };
 
 // Giới hạn của picker phản chiếu đúng rule trong StoreEmployeeRequest /
@@ -597,7 +619,7 @@ const rules = {
 //
 // date_of_birth: 'before:today' -> ngày muộn nhất chọn được là hôm qua.
 const maxBirthDate = computed(() => shiftIsoDate(todayIso(), -1));
-// probation_end_date / termination_date: 'after:hire_date' -> sớm nhất là
+// probation_end_date: 'after:hire_date' -> sớm nhất là
 // ngày kế tiếp ngày vào làm. Chưa nhập ngày vào làm thì không giới hạn.
 const minAfterHireDate = computed(() => shiftIsoDate(form.hire_date, 1));
 
@@ -617,10 +639,11 @@ function fillForm() {
     form.commune_code = e?.commune?.code ?? null;
     form.department_id = e?.department?.id ?? null;
     form.position_id = e?.position?.id ?? null;
-    form.manager_id = e?.manager?.id ?? null;
-    form.employment_status = e?.employment_status ?? null;
     form.probation_end_date = toDateInput(e?.probation_end_date);
-    form.termination_date = toDateInput(e?.termination_date);
+}
+
+function formatDateVi(value) {
+    return value ? new Date(value).toLocaleDateString("vi-VN") : "";
 }
 
 // API trả ngày dạng ISO datetime ("2021-05-09T17:00:00.000000Z") — chuẩn hóa
@@ -650,18 +673,14 @@ watch(
             // Lương & Hợp đồng cũng chỉ áp dụng lúc Thêm mới — cùng lý do reset
             // như createAccount ở trên, không giữ số cũ của lần thêm trước.
             agreedSalary.value = null;
+            contractType.value = null;
             // Nạp lại danh sách Xã/Phường đúng theo Tỉnh đã có sẵn (modal Sửa) —
             // KHÔNG gọi qua onProvinceChange() vì hàm đó xóa luôn commune_code,
             // ở đây form.commune_code vừa được fillForm() gán đúng giá trị cũ.
             loadCommunes(form.province_code);
-            // Nạp lại Chức vụ + Quản lý trực tiếp mỗi lần mở modal (không chỉ
-            // onMounted) — nếu không, nhân viên vừa thêm xong trong modal này sẽ
-            // KHÔNG xuất hiện trong danh sách "Quản lý trực tiếp" khi mở modal
-            // Thêm/Sửa tiếp theo trong cùng phiên, vì allManagers chỉ nạp 1 lần
-            // lúc EmployeeForm.vue mount (là component thường trực, không phải
-            // mount/unmount theo mỗi lần mở).
+            // Nạp lại Chức vụ mỗi lần mở modal (không chỉ onMounted) — form này
+            // là component thường trực, không mount lại theo mỗi lần mở.
             loadPositions();
-            loadManagerOptions();
         }
     },
 );
@@ -699,6 +718,7 @@ async function submit() {
     // form này (vẫn phải qua tab "Hợp đồng" để ký hợp đồng MỚI).
     if (!isEdit.value) {
         payload.agreed_salary = agreedSalary.value;
+        payload.contract_type = contractType.value;
     }
 
     try {
@@ -847,28 +867,41 @@ async function onQuickPositionSaved(created) {
     onPositionChange(created.id);
 }
 
-/* --------------------------- Quản lý trực tiếp --------------------------- */
+/* ---------------- Quản lý trực tiếp (chỉ xem trước, tự động) ---------------- */
 
-const allManagers = ref([]);
+// Cây phòng ban (useDepartmentStore, Employees.vue đã nạp sẵn) có kèm `manager`
+// của từng nút — dò đúng quy tắc của ReportingLineService ở Backend: Trưởng
+// phòng của phòng ban đang chọn; chính người đang sửa là Trưởng phòng hoặc
+// phòng chưa có Trưởng phòng -> đi ngược lên phòng ban cha. Chỉ để HIỂN THỊ,
+// Backend mới là nơi quyết định (không gửi manager_id lên).
+const departmentStore = useDepartmentStore();
 
-// Cố tình KHÔNG dùng useEmployeeStore() ở đây — store đó đang giữ danh sách
-// phân trang thật của bảng Employees.vue (cùng trang, cùng lúc mở modal này);
-// gọi fetchList({per_page:1000}) trên cùng store sẽ ghi đè mất dữ liệu bảng
-// đang hiển thị. Gọi thẳng employeeService vào 1 ref cục bộ để tránh đụng độ.
-async function loadManagerOptions() {
-    const response = await employeeService.list({ per_page: 1000 });
-    allManagers.value = response.data.data;
-}
+const departmentNodesById = computed(() => {
+    const map = new Map();
+    const walk = (nodes, parentId = null) => {
+        for (const node of nodes ?? []) {
+            map.set(node.id, { ...node, parent_id: node.parent_id ?? parentId });
+            walk(node.children, node.id);
+        }
+    };
+    walk(departmentStore.tree);
+    return map;
+});
 
-// Loại chính nhân viên đang sửa khỏi danh sách chọn — tính lại mỗi lần
-// props.employee đổi (modal chỉ tạo 1 lần, mở lại nhiều lần cho nhiều nhân
-// viên khác nhau), không gộp vào loadManagerOptions() vì hàm đó chỉ chạy 1
-// lần lúc mount.
-const managerOptions = computed(() =>
-    allManagers.value
-        .filter((e) => !isEdit.value || e.id !== props.employee?.id)
-        .map((e) => ({ title: `${e.full_name} (${e.code})`, value: e.id })),
-);
+const predictedManagerName = computed(() => {
+    let node = departmentNodesById.value.get(form.department_id);
+    const visited = new Set();
+
+    while (node && !visited.has(node.id)) {
+        visited.add(node.id);
+        if (node.manager && node.manager.id !== props.employee?.id) {
+            return `${node.manager.full_name} (${node.manager.code})`;
+        }
+        node = departmentNodesById.value.get(node.parent_id);
+    }
+
+    return form.department_id ? "Chưa có Trưởng phòng" : "Chọn phòng ban trước";
+});
 
 /* -------------------- Tỉnh/Xã: Xã tải theo Tỉnh đang chọn ------------------- */
 

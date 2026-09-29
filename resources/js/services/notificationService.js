@@ -1,8 +1,8 @@
 import axios from "axios";
 const API_BASE = "/api/v1/notifications";
 export default {
-    list(page = 1) {
-        return axios.get(`${API_BASE}`, { params: { page } });
+    list(page = 1, perPage = 20) {
+        return axios.get(`${API_BASE}`, { params: { page, per_page: perPage } });
     },
     // Toàn bộ thông báo trong công ty (gate notification.view_all) — filters:
     // { page, type, search }.

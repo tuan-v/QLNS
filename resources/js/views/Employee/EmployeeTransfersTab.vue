@@ -134,13 +134,17 @@
                         <div class="text-body-2 font-weight-medium mb-1">
                             Quản lý mới
                         </div>
-                        <SearchSelect
-                            v-model="transferForm.new_manager_id"
-                            :items="transferManagerOptions"
-                            :error-messages="transferErrors.new_manager_id"
-                            :disabled="!transferManagerOptions.length"
-                            :placeholder="transferManagerPlaceholder"
-                            clearable
+                        <!-- Không chọn tay (2026-09-29) — Backend tự đặt theo
+                             Trưởng phòng của phòng ban mới (ReportingLineService). -->
+                        <v-text-field
+                            :model-value="transferManagerPreview"
+                            readonly
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            prepend-inner-icon="mdi-account-tie-outline"
+                            hint="Tự động là Trưởng phòng của phòng ban mới"
+                            persistent-hint
                         />
                     </div>
 
@@ -298,7 +302,6 @@ const transferDialog = ref(false);
 const transferForm = reactive({
     to_department_id: null,
     new_position_id: null,
-    new_manager_id: null,
     effective_date: "",
     reason: "",
     decision_file: null,
@@ -337,37 +340,34 @@ const transferPositionOptions = computed(() =>
         .map((position) => ({ title: position.name, value: position.id })),
 );
 
-// "Quản lý mới" chỉ được là Trưởng phòng của CHÍNH phòng ban đang chọn (Backend
-// cũng chặn lại ở EmployeeTransferService::create() — ẩn ở đây chỉ để người
-// dùng không phải thử sai). Cây phòng ban đã kèm sẵn `manager` cho từng nút
-// (DepartmentRepository::tree()) nên không cần gọi thêm API nào.
-const transferManagerOptions = computed(() => {
-    const department = flattenDepartments(allDepartments.value).find(
-        (dept) => dept.id === transferForm.to_department_id,
-    );
-    const manager = department?.manager;
-
-    return manager
-        ? [{ title: `${manager.full_name} (${manager.code})`, value: manager.id }]
-        : [];
-});
-
-const transferManagerPlaceholder = computed(() => {
+// Xem trước "Quản lý mới" — cùng quy tắc ReportingLineService ở Backend:
+// Trưởng phòng của phòng ban mới, chưa có (hoặc chính người này) thì đi ngược
+// lên phòng ban cha. Cây phòng ban đã kèm sẵn `manager` cho từng nút.
+const transferManagerPreview = computed(() => {
     if (!transferForm.to_department_id) {
         return "Chọn phòng ban mới trước";
     }
-    return transferManagerOptions.value.length
-        ? "Chưa chọn"
-        : "Phòng ban này chưa có Trưởng phòng";
+    const byId = new Map(flattenDepartments(allDepartments.value).map((dept) => [dept.id, dept]));
+    let department = byId.get(transferForm.to_department_id);
+    const visited = new Set();
+
+    while (department && !visited.has(department.id)) {
+        visited.add(department.id);
+        const manager = department.manager;
+        if (manager && String(manager.id) !== String(props.employeeId)) {
+            return `${manager.full_name} (${manager.code})`;
+        }
+        department = byId.get(department.parent_id);
+    }
+
+    return "Chưa có Trưởng phòng";
 });
 
-// Đổi Phòng ban mới thì Chức vụ mới (thuộc phòng ban cũ) lẫn Quản lý mới (là
-// Trưởng phòng của phòng ban cũ) đều không còn hợp lệ — cùng lý do
-// onDepartmentChange() của EmployeeForm.vue không dùng watch() chung.
+// Đổi Phòng ban mới thì Chức vụ mới (thuộc phòng ban cũ) không còn hợp lệ —
+// cùng lý do onDepartmentChange() của EmployeeForm.vue không dùng watch() chung.
 function onTransferDepartmentChange(value) {
     transferForm.to_department_id = value;
     transferForm.new_position_id = null;
-    transferForm.new_manager_id = null;
 }
 
 // Tải danh sách Phòng ban/Chức vụ chỉ khi thật sự mở dialog — hành động "tạo
@@ -389,7 +389,6 @@ async function loadTransferOptions() {
 function openTransferDialog() {
     transferForm.to_department_id = null;
     transferForm.new_position_id = null;
-    transferForm.new_manager_id = null;
     transferForm.effective_date = "";
     transferForm.reason = "";
     transferForm.decision_file = null;
@@ -412,9 +411,6 @@ async function submitTransfer() {
         formData.append("to_department_id", transferForm.to_department_id ?? "");
         if (transferForm.new_position_id) {
             formData.append("new_position_id", transferForm.new_position_id);
-        }
-        if (transferForm.new_manager_id) {
-            formData.append("new_manager_id", transferForm.new_manager_id);
         }
         formData.append("effective_date", transferForm.effective_date ?? "");
         if (transferForm.reason) {
@@ -439,7 +435,6 @@ async function submitTransfer() {
             transferErrors.value = {
                 to_department_id: data.errors.to_department_id?.[0],
                 new_position_id: data.errors.new_position_id?.[0],
-                new_manager_id: data.errors.new_manager_id?.[0],
                 effective_date: data.errors.effective_date?.[0],
                 reason: data.errors.reason?.[0],
                 decision_file: data.errors.decision_file?.[0],

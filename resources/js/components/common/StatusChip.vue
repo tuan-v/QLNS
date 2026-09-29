@@ -19,10 +19,34 @@ const props = defineProps({
 const config = computed(
     () => props.map[String(props.status)] ?? { label: props.status ?? "—", color: "default" },
 );
+
+const isNeutral = computed(() => !config.value.color || ["default", "grey"].includes(config.value.color));
 </script>
 
 <template>
-    <v-chip :color="config.color" variant="tonal" size="small">
+    <!-- Badge trạng thái (design system): nền nhạt + chấm tròn cùng màu;
+         màu "default"/"grey" hiển thị viền trung tính. -->
+    <v-chip
+        :color="isNeutral ? undefined : config.color"
+        :variant="isNeutral ? 'outlined' : 'tonal'"
+        size="small"
+        class="status-chip"
+    >
+        <span v-if="!isNeutral" class="status-dot" />
         {{ config.label }}
     </v-chip>
 </template>
+
+<style scoped>
+.status-chip.v-chip--variant-outlined {
+    border-color: rgb(var(--v-theme-hairline));
+    color: rgb(var(--v-theme-ink-muted));
+}
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+    margin-right: 6px;
+}
+</style>

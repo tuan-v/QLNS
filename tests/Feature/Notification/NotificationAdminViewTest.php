@@ -118,6 +118,25 @@ class NotificationAdminViewTest extends TestCase
         $this->assertEquals(['leave.pending_hr'], $types->values()->all());
     }
 
+    // 2026-09-29, theo yêu cầu người dùng — cùng lý do test ở NotificationInboxTest.
+    public function test_per_page_query_param_controls_page_size(): void
+    {
+        $user = $this->makeUser();
+        for ($i = 0; $i < 5; $i++) {
+            $this->makeNotification($user);
+        }
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $response = $this->getJson('/api/v1/notifications/all?per_page=2', [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonCount(2, 'data');
+        $response->assertJsonPath('meta.per_page', 2);
+        $response->assertJsonPath('meta.total', 5);
+    }
+
     public function test_can_search_by_recipient_employee_name(): void
     {
         $department = Department::create(['name' => 'Phong test', 'code' => 'PB-TEST-02']);

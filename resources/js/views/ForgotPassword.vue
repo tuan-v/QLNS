@@ -7,7 +7,6 @@
       justify-content: center;
       padding: 2rem;
       background:
-        radial-gradient(circle at 12% 8%, rgba(117, 117, 219, 0.3), transparent 36rem),
         rgb(var(--v-theme-background));
     "
   >
@@ -17,15 +16,15 @@
           style="
             width: 3rem;
             height: 3rem;
-            border-radius: 0.875rem;
+            border-radius: 8px;
             background: rgb(var(--v-theme-primary));
+                        color: rgb(var(--v-theme-on-primary));
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0.75rem 1.5rem rgba(117, 117, 219, 0.35);
           "
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="5" r="2.5"></circle>
             <circle cx="5" cy="18" r="2.5"></circle>
             <circle cx="19" cy="18" r="2.5"></circle>
@@ -38,7 +37,7 @@
         </div>
       </div>
 
-      <v-card style="border-radius: 1.5rem;" class="pa-6 glass-panel">
+      <v-card class="pa-8 glass-panel">
         <v-card-title class="text-h5 font-weight-bold px-0">Quên mật khẩu</v-card-title>
         <v-card-subtitle class="px-0 text-wrap" style="opacity: 0.75;">
           Nhập email đã đăng ký — chúng tôi sẽ gửi liên kết đặt lại mật khẩu.

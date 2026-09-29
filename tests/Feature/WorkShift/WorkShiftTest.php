@@ -372,6 +372,7 @@ class WorkShiftTest extends TestCase
             'company_email' => uniqid().'@qlns.local',
             'hire_date' => now()->toDateString(),
             'department_id' => $department->id,
+            'contract_type' => 'thu_viec',
             'agreed_salary' => 0,
         ]);
 
@@ -391,6 +392,7 @@ class WorkShiftTest extends TestCase
             'company_email' => uniqid().'@qlns.local',
             'hire_date' => now()->toDateString(),
             'department_id' => $department->id,
+            'contract_type' => 'thu_viec',
             'agreed_salary' => 0,
         ]);
 
@@ -434,6 +436,7 @@ class WorkShiftTest extends TestCase
             'company_email' => uniqid().'@qlns.local',
             'hire_date' => now()->toDateString(),
             'department_id' => $department->id,
+            'contract_type' => 'thu_viec',
             'agreed_salary' => 0,
         ]);
 
@@ -456,6 +459,7 @@ class WorkShiftTest extends TestCase
             'company_email' => uniqid().'@qlns.local',
             'hire_date' => now()->toDateString(),
             'department_id' => $department->id,
+            'contract_type' => 'thu_viec',
             'agreed_salary' => 0,
         ]);
 

@@ -22,17 +22,17 @@ const theme = useTheme();
 const isDark = computed(() => theme.global.current.value.dark);
 
 const options = computed(() => ({
-    chart: { sparkline: { enabled: true } },
+    chart: { sparkline: { enabled: true }, fontFamily: "'Lexend Variable', Lexend, sans-serif" },
     plotOptions: {
         radialBar: {
             hollow: { size: "62%" },
-            track: { background: isDark.value ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" },
+            track: { background: isDark.value ? "#29292B" : "#F2F4F7" },
             dataLabels: {
                 name: { show: false },
                 value: {
                     fontSize: "22px",
-                    fontWeight: 800,
-                    color: isDark.value ? "#fff" : "#111",
+                    fontWeight: 600,
+                    color: isDark.value ? "#F7F7F8" : "#101828",
                     offsetY: 8,
                     formatter: (val) => `${val}%`,
                 },

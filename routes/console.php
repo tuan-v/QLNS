@@ -15,6 +15,8 @@ Artisan::command('inspire', function () {
 // 00:05 — lùi 5 phút sau nửa đêm để chắc chắn ngày "hôm qua" đã thực sự qua.
 Schedule::command('contracts:activate-pending')->dailyAt('00:05');
 Schedule::command('contracts:expire')->dailyAt('00:06');
+// Đơn nghỉ việc đã duyệt đã qua ngày làm việc cuối -> "Đã nghỉ việc" (2026-09-29).
+Schedule::command('resignations:apply')->dailyAt('00:08');
 // 2026-09-24, theo yêu cầu người dùng — lưới an toàn hằng ngày, xem comment
 // đầu file AssignMissingDefaultShift.php.
 Schedule::command('shifts:assign-missing-default')->dailyAt('00:07');

@@ -7,12 +7,16 @@ use App\Models\WorkShift;
 use App\Services\WorkTimeCalculationService;
 use Tests\TestCase;
 
-// Unit test cho WorkTimeCalculationService — bảng bậc thang dùng CHUNG cho
-// AttendanceService (tổng ngày công hiển thị) và PayrollService (ngày công
-// tính lương), kết hợp % giờ làm + trần phút trễ + work_coefficient của ca
-// (2026-09-16, theo yêu cầu người dùng — bản đầu bỏ hẳn work_coefficient,
-// sau đó sửa lại vì bug thật: nhân viên chia ca sáng+chiều mỗi ca 0.5 công
-// làm đủ CẢ 2 ca bị tính thành 2.0 thay vì đúng 1.0 nếu bỏ work_coefficient).
+// Unit test cho WorkTimeCalculationService — dùng CHUNG cho AttendanceService
+// (tổng ngày công hiển thị) và PayrollService (ngày công tính lương).
+//
+// Viết lại toàn bộ 2026-09-29 (theo yêu cầu người dùng) sau khi phát hiện
+// bug thật: đi làm ĐÚNG GIỜ (late=0, early=0) nhưng actual_work_minutes hụt
+// vài phút so với chuẩn ca vẫn bị bậc thang "% giờ làm" cũ phạt xuống 0.75.
+// Công thức mới: CHỈ MỘT quy tắc duy nhất — trễ/về sớm <= 30 phút (hoặc có
+// late_excused) luôn đủ 1.0; vượt 30 phút mới phạt LIÊN TỤC theo đúng tỉ lệ
+// actual/standard (không bậc thang).
+//
 // Model dùng ở đây đều KHÔNG save() — chỉ là object mang thuộc tính thuần
 // túy để truyền vào hàm tính, giống AttendanceServiceCalculationTest.php.
 class WorkTimeCalculationServiceTest extends TestCase
@@ -43,100 +47,18 @@ class WorkTimeCalculationServiceTest extends TestCase
         ]);
     }
 
-    /* --------------------------- Bậc theo % giờ làm --------------------------- */
+    /* --------------------------- Điều kiện tiên quyết --------------------------- */
 
-    public function test_full_shift_gives_one_full_day(): void
+    public function test_no_actual_minutes_gives_zero_regardless_of_lateness(): void
     {
+        // Chưa checkout (actual_work_minutes = 0) -> chưa có gì để tính
+        // công, bất kể trễ bao nhiêu hay có được miễn trừ hay không.
         $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(480),
-            $this->makeWorkShift(480),
-        );
-
-        $this->assertSame(1.0, $result);
-    }
-
-    public function test_working_over_shift_without_ot_is_capped_at_one(): void
-    {
-        // Làm 600/480 phút (125%) nhưng không đăng ký OT chính thức — vẫn
-        // chỉ tối đa 1.0, phần dư phải đi qua overtime_minutes riêng.
-        $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(600),
-            $this->makeWorkShift(480),
-        );
-
-        $this->assertSame(1.0, $result);
-    }
-
-    public function test_exactly_seventy_five_percent_gives_zero_point_seven_five(): void
-    {
-        $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(360), // 360/480 = 75%
-            $this->makeWorkShift(480),
-        );
-
-        $this->assertSame(0.75, $result);
-    }
-
-    public function test_just_below_seventy_five_percent_falls_to_fifty_percent_bracket(): void
-    {
-        $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(359), // 359/480 = 74.79%
-            $this->makeWorkShift(480),
-        );
-
-        $this->assertSame(0.5, $result);
-    }
-
-    public function test_exactly_fifty_percent_gives_zero_point_five(): void
-    {
-        $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(240),
-            $this->makeWorkShift(480),
-        );
-
-        $this->assertSame(0.5, $result);
-    }
-
-    public function test_exactly_twenty_five_percent_gives_zero_point_two_five(): void
-    {
-        $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(120),
-            $this->makeWorkShift(480),
-        );
-
-        $this->assertSame(0.25, $result);
-    }
-
-    public function test_below_twenty_five_percent_gives_zero(): void
-    {
-        $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(119),
+            $this->makeAttendance(0, lateMinutes: 5, lateExcused: true),
             $this->makeWorkShift(480),
         );
 
         $this->assertSame(0.0, $result);
-    }
-
-    public function test_no_attendance_minutes_gives_zero(): void
-    {
-        $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(0),
-            $this->makeWorkShift(480),
-        );
-
-        $this->assertSame(0.0, $result);
-    }
-
-    // Bậc tính theo % CA CỦA CHÍNH NGÀY ĐÓ, không phải phút tuyệt đối — ca 4
-    // tiếng làm đủ 240/240 (100%) vẫn phải ra tròn 1.0 công như ca 8 tiếng.
-    public function test_bracket_is_relative_to_the_shifts_own_length(): void
-    {
-        $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(240),
-            $this->makeWorkShift(240),
-        );
-
-        $this->assertSame(1.0, $result);
     }
 
     public function test_missing_standard_work_minutes_gives_zero(): void
@@ -156,123 +78,112 @@ class WorkTimeCalculationServiceTest extends TestCase
         $this->assertSame(0.0, $result);
     }
 
-    /* ------------------------- Trần theo phút trễ/về sớm ------------------------ */
+    /* ------------------------ Trong ngưỡng cho phép (<= 30 phút) ------------------------ */
 
-    public function test_late_exactly_fifteen_minutes_is_not_penalized(): void
+    public function test_on_time_full_shift_gives_one_full_day(): void
     {
-        // Làm đủ giờ (bậc 1.0) nhưng trễ ĐÚNG 15 phút -> ranh giới KHÔNG phạt.
         $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(480, lateMinutes: 15),
+            $this->makeAttendance(480),
             $this->makeWorkShift(480),
         );
 
         $this->assertSame(1.0, $result);
     }
 
-    public function test_late_sixteen_minutes_caps_at_zero_point_seven_five(): void
+    // Bug thật đã vấp (Nguyễn Ánh, 2026-09-28): đi đúng giờ (late=0, early=0)
+    // nhưng actual_work_minutes hụt vài phút so với chuẩn ca (làm tròn giờ
+    // chấm công) -> vẫn phải tính đủ 1.0, không được phạt theo % giờ làm
+    // nữa khi không hề trễ/sớm.
+    public function test_on_time_with_slightly_fewer_actual_minutes_still_gives_full_day(): void
     {
         $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(480, lateMinutes: 16),
+            $this->makeAttendance(476, lateMinutes: 0, earlyLeaveMinutes: 0),
             $this->makeWorkShift(480),
         );
 
-        $this->assertSame(0.75, $result);
+        $this->assertSame(1.0, $result);
     }
 
-    public function test_late_thirty_minutes_caps_at_zero_point_seven_five(): void
+    public function test_late_exactly_thirty_minutes_is_the_boundary_still_full_day(): void
     {
         $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(480, lateMinutes: 30),
+            $this->makeAttendance(450, lateMinutes: 30),
             $this->makeWorkShift(480),
         );
 
-        $this->assertSame(0.75, $result);
+        $this->assertSame(1.0, $result);
     }
 
-    public function test_late_thirty_one_minutes_caps_at_zero_point_five(): void
+    public function test_early_leave_within_threshold_gives_full_day(): void
     {
         $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(480, lateMinutes: 31),
+            $this->makeAttendance(450, earlyLeaveMinutes: 30),
             $this->makeWorkShift(480),
         );
 
-        $this->assertSame(0.5, $result);
+        $this->assertSame(1.0, $result);
     }
 
-    public function test_late_sixty_minutes_caps_at_zero_point_five(): void
+    /* ------------------------ Vượt ngưỡng (> 30 phút) -> phạt liên tục ------------------------ */
+
+    public function test_late_thirty_one_minutes_penalizes_by_continuous_ratio(): void
     {
+        // Trễ 31 phút (vượt ngưỡng đúng 1 phút) -> chuyển sang phạt theo tỉ
+        // lệ actual/standard thực tế, không còn bậc thang.
         $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(480, lateMinutes: 60),
+            $this->makeAttendance(449, lateMinutes: 31), // 449/480 = 0.9354...
             $this->makeWorkShift(480),
         );
 
-        $this->assertSame(0.5, $result);
+        $this->assertEqualsWithDelta(449 / 480, $result, 0.0001);
     }
 
-    public function test_late_over_sixty_minutes_caps_at_zero_point_two_five(): void
+    // Chứng minh KHÔNG còn hiện tượng "rơi cliff": 2 mức phút trễ khác nhau
+    // (đều vượt ngưỡng, cùng actual_work_minutes) phải cho ra CÙNG 1 kết quả
+    // — vì công thức mới chỉ quan tâm actual/standard, không quan tâm trễ
+    // bao nhiêu phút MIỄN LÀ đã vượt ngưỡng 30 phút.
+    public function test_penalty_depends_only_on_actual_minutes_not_on_how_late(): void
     {
+        $shift = $this->makeWorkShift(480);
+
+        $result35 = $this->service()->dayEquivalentFor($this->makeAttendance(400, lateMinutes: 35), $shift);
+        $result90 = $this->service()->dayEquivalentFor($this->makeAttendance(400, lateMinutes: 90), $shift);
+
+        $this->assertSame($result35, $result90);
+        $this->assertEqualsWithDelta(400 / 480, $result35, 0.0001);
+    }
+
+    public function test_working_over_shift_with_large_lateness_is_still_capped_at_one(): void
+    {
+        // Làm 600/480 phút (125%) nhưng trễ 45 phút (vượt ngưỡng) -> vẫn tối
+        // đa 1.0, phần dư giờ phải đi qua overtime_minutes riêng, không được
+        // tự cộng thêm ngày công ở đây.
         $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(480, lateMinutes: 61),
+            $this->makeAttendance(600, lateMinutes: 45),
             $this->makeWorkShift(480),
         );
 
-        $this->assertSame(0.25, $result);
+        $this->assertSame(1.0, $result);
     }
 
-    public function test_early_leave_uses_same_penalty_table_as_late(): void
-    {
-        $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(480, earlyLeaveMinutes: 45),
-            $this->makeWorkShift(480),
-        );
-
-        $this->assertSame(0.5, $result);
-    }
-
-    // Trễ và về sớm CÙNG xảy ra 1 ngày -> lấy số phút LỚN HƠN giữa 2 cái để
-    // tra bảng phạt (không cộng dồn 2 số phút lại).
     public function test_late_and_early_leave_together_uses_the_larger_minutes(): void
     {
+        // late=10 (dưới ngưỡng) nhưng early=40 (vượt ngưỡng) -> lấy số lớn
+        // hơn (40) để quyết định có phạt hay không.
         $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(480, lateMinutes: 10, earlyLeaveMinutes: 40),
+            $this->makeAttendance(400, lateMinutes: 10, earlyLeaveMinutes: 40),
             $this->makeWorkShift(480),
         );
 
-        // max(10, 40) = 40 -> khung 30-60 -> trần 0.5.
-        $this->assertSame(0.5, $result);
-    }
-
-    // Kết hợp: làm đủ giờ (bậc giờ làm = 1.0) NHƯNG trễ nhiều (trần phạt
-    // 0.25) -> kết quả cuối lấy số THẤP HƠN (0.25), không phải trung bình.
-    public function test_full_hours_but_very_late_takes_the_lower_of_the_two(): void
-    {
-        $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(480, lateMinutes: 90),
-            $this->makeWorkShift(480),
-        );
-
-        $this->assertSame(0.25, $result);
-    }
-
-    // Ngược lại: giờ làm ít (bậc 0.5) nhưng KHÔNG trễ -> trần phạt vẫn 1.0,
-    // kết quả cuối lấy số THẤP HƠN là bậc giờ làm (0.5), không bị phạt thêm.
-    public function test_low_hours_without_lateness_is_not_further_penalized(): void
-    {
-        $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(240, lateMinutes: 0, earlyLeaveMinutes: 0),
-            $this->makeWorkShift(480),
-        );
-
-        $this->assertSame(0.5, $result);
+        $this->assertEqualsWithDelta(400 / 480, $result, 0.0001);
     }
 
     /* ------------------------ work_coefficient (ca nửa ngày) ------------------------ */
 
     public function test_half_day_shift_worked_fully_gives_half_a_day(): void
     {
-        // Ca nửa ngày (chuẩn 240 phút, work_coefficient=0.5) làm đủ 100% giờ
-        // của CHÍNH ca đó -> bậc giờ làm = 1.0, nhưng ca này chỉ đáng 0.5
-        // ngày -> kết quả cuối phải là 0.5, không phải 1.0.
+        // Ca nửa ngày (work_coefficient=0.5) làm đủ giờ, không trễ -> kết
+        // quả cuối phải là 0.5, không phải 1.0.
         $result = $this->service()->dayEquivalentFor(
             $this->makeAttendance(240),
             $this->makeWorkShift(240, workCoefficient: 0.5),
@@ -281,10 +192,9 @@ class WorkTimeCalculationServiceTest extends TestCase
         $this->assertSame(0.5, $result);
     }
 
-    // Bug thật đã vấp (phát hiện qua câu hỏi người dùng, tái hiện bằng tinker
-    // trước khi sửa): nếu bỏ work_coefficient, nhân viên chia ca sáng+chiều
+    // Bug thật đã vấp trước đây (khóa lại, không được tái diễn khi viết lại
+    // công thức): nếu bỏ work_coefficient, nhân viên chia ca sáng+chiều
     // (mỗi ca 0.5 công) làm đủ CẢ 2 ca sẽ bị cộng thành 2.0 thay vì đúng 1.0.
-    // Test này khóa lại đúng phép cộng của 1 ngày chia 2 ca.
     public function test_two_half_day_shifts_worked_fully_sum_to_one_full_day(): void
     {
         $morningShift = $this->makeWorkShift(240, workCoefficient: 0.5);
@@ -298,12 +208,12 @@ class WorkTimeCalculationServiceTest extends TestCase
         $this->assertSame(1.0, $morning + $afternoon);
     }
 
-    // Chỉ làm nửa Ca sáng (nửa ngày, work_coefficient=0.5) -> bậc giờ làm
-    // 0.5 (làm 50% của ca) NHÂN work_coefficient 0.5 = 0.25, không phải 0.5.
-    public function test_partial_hours_on_a_half_day_shift_multiplies_both_factors(): void
+    public function test_penalized_half_day_shift_multiplies_ratio_and_coefficient(): void
     {
+        // Ca nửa ngày, trễ 45 phút (vượt ngưỡng), làm 120/240 phút (50% ca)
+        // -> ratio 0.5 NHÂN work_coefficient 0.5 = 0.25.
         $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(120), // 120/240 = 50% cua ca
+            $this->makeAttendance(120, lateMinutes: 45),
             $this->makeWorkShift(240, workCoefficient: 0.5),
         );
 
@@ -312,8 +222,6 @@ class WorkTimeCalculationServiceTest extends TestCase
 
     public function test_missing_work_coefficient_defaults_to_one(): void
     {
-        // WorkShift chưa set work_coefficient (vd object thuần chưa qua DB
-        // default) -> coi như ca đầy đủ (1.0), không được coi là 0.
         $result = $this->service()->dayEquivalentFor(
             $this->makeAttendance(480),
             $this->makeWorkShift(480),
@@ -324,41 +232,37 @@ class WorkTimeCalculationServiceTest extends TestCase
 
     /* ------------------------ Miễn trừ đi muộn (late_excused) ------------------------ */
 
-    public function test_late_excused_restores_full_day_equivalent(): void
+    public function test_late_excused_restores_full_day_even_with_large_lateness(): void
     {
-        // Nhân viên đi muộn 30 phút (làm 450/480 phút) nhưng đã được duyệt
-        // miễn trừ đi muộn (late_excused = true) -> phải được tính đủ 1.0 công.
+        // Trễ 90 phút (vượt xa ngưỡng 30) nhưng đã được duyệt miễn trừ ->
+        // vẫn tính đủ 1.0, bỏ qua hoàn toàn việc tính theo phút.
         $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(450, lateMinutes: 30, earlyLeaveMinutes: 0, lateExcused: true),
+            $this->makeAttendance(390, lateMinutes: 90, lateExcused: true),
             $this->makeWorkShift(480),
         );
 
         $this->assertSame(1.0, $result);
     }
 
-    public function test_late_without_excuse_remains_penalized(): void
+    public function test_late_excused_still_requires_checkout(): void
     {
-        // Đi muộn 30 phút (làm 450/480 phút) CHƯA được miễn trừ -> bị trừ theo bậc/trần (0.75 công).
+        // Được duyệt miễn trừ NHƯNG chưa checkout (actual=0) -> vẫn phải là
+        // 0, không được tính đủ công cho ca chưa hoàn thành.
         $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(450, lateMinutes: 30, earlyLeaveMinutes: 0, lateExcused: false),
+            $this->makeAttendance(0, lateMinutes: 90, lateExcused: true),
             $this->makeWorkShift(480),
         );
 
-        $this->assertSame(0.75, $result);
+        $this->assertSame(0.0, $result);
     }
 
-    public function test_late_excused_with_unexcused_early_leave_only_penalizes_early_leave(): void
+    public function test_late_without_excuse_beyond_threshold_is_penalized(): void
     {
-        // Đi muộn 60 phút (được miễn trừ) + về sớm 60 phút (không miễn trừ)
-        // actual_work_minutes = 360, late = 60 (excused), early = 60
-        // effectiveWorkMinutes = 360 + 60 = 420 (420/480 = 87.5% -> bậc 0.75)
-        // latenessMinutes = max(0, 60) = 60 -> trần 0.5.
-        // Kết quả = min(0.75, 0.5) = 0.5.
         $result = $this->service()->dayEquivalentFor(
-            $this->makeAttendance(360, lateMinutes: 60, earlyLeaveMinutes: 60, lateExcused: true),
+            $this->makeAttendance(450, lateMinutes: 30 + 1, lateExcused: false),
             $this->makeWorkShift(480),
         );
 
-        $this->assertSame(0.5, $result);
+        $this->assertEqualsWithDelta(450 / 480, $result, 0.0001);
     }
 }

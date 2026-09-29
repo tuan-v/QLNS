@@ -82,11 +82,12 @@
                         offset-y="3"
                     >
                         <v-avatar
-                            :color="avatarColor(item.full_name)"
+                            :color="item.avatar_url ? undefined : avatarColor(item.full_name)"
                             variant="tonal"
                             size="36"
                         >
-                            <span class="text-caption font-weight-bold">{{
+                            <v-img v-if="item.avatar_url" :src="item.avatar_url" cover />
+                            <span v-else class="text-caption font-weight-bold">{{
                                 initials(item.full_name)
                             }}</span>
                         </v-avatar>
@@ -151,6 +152,8 @@ import { useAuthStore } from "../../stores/authStore";
 import { usePresenceStore } from "../../stores/usePresenceStore";
 import { useResourceSyncStore } from "../../stores/useResourceSyncStore";
 import employeeService from "../../services/employeeService";
+import { avatarColor, initials } from "../../composables/avatar";
+import { EMPLOYMENT_STATUS_MAP } from "../../composables/employmentStatus";
 import DataTable from "../../components/common/DataTable.vue";
 import SearchField from "../../components/common/SearchField.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
@@ -178,16 +181,8 @@ const employmentStatus = ref(null);
 const page = ref(1);
 const perPage = ref(10);
 
-// Nguồn duy nhất cho nhãn + màu của employment_status — dùng chung cho cả
-// StatusChip (hiển thị trong bảng) lẫn dropdown lọc, tránh 2 nơi ghi nhãn
-// khác nhau rồi lệch nhau dần theo thời gian.
-const EMPLOYMENT_STATUS_MAP = {
-    probation: { label: "Thử việc", color: "warning" },
-    active: { label: "Đang làm việc", color: "success" },
-    resigned: { label: "Đã nghỉ việc", color: "default" },
-    terminated: { label: "Đã chấm dứt HĐ", color: "error" },
-};
-
+// Nhãn + màu employment_status lấy từ composables/employmentStatus.js (dùng
+// chung toàn app) — cho cả StatusChip trong bảng lẫn dropdown lọc.
 const statusOptions = [
     { title: "Tất cả trạng thái", value: null },
     ...Object.entries(EMPLOYMENT_STATUS_MAP).map(([value, { label }]) => ({
@@ -208,7 +203,7 @@ const statCards = computed(() => [
         icon: "mdi-account-group-outline",
     },
     {
-        label: "Đang làm việc",
+        label: "Chính thức",
         value: stats.value.active,
         color: "success",
         icon: "mdi-check-circle-outline",
@@ -235,41 +230,6 @@ async function fetchStats() {
         // Số liệu phụ, không phải luồng chính của trang — lỗi tải bảng chính
         // đã có store.loadError lo, ở đây chỉ cần giữ nguyên số liệu cũ.
     }
-}
-
-// Ghép sẵn màu để tránh đổi màu ngẫu nhiên mỗi lần render (tô theo tên nên
-// cùng 1 người luôn ra cùng 1 màu).
-const AVATAR_COLORS = [
-    "primary",
-    "success",
-    "info",
-    "warning",
-    "purple",
-    "teal",
-    "indigo",
-    "deep-orange",
-];
-
-function initials(fullName) {
-    const parts = String(fullName ?? "")
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean);
-    if (!parts.length) {
-        return "?";
-    }
-    const first = parts[0][0];
-    const last = parts[parts.length - 1][0];
-    return (parts.length > 1 ? first + last : first).toUpperCase();
-}
-
-function avatarColor(fullName) {
-    const text = String(fullName ?? "");
-    let hash = 0;
-    for (let i = 0; i < text.length; i += 1) {
-        hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
-    }
-    return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
 // Gộp Mã/Họ tên/Phòng ban/Chức vụ/Email vào 1 cột "Nhân viên" cho gọn bảng

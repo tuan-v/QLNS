@@ -110,7 +110,9 @@ class EmployeeTest extends TestCase
             'department_id' => $departmentId,
             'position_id' => $positionId,
             // Hợp đồng ĐẦU TIÊN tự tạo cùng lúc (2026-09-24) — bắt buộc từ
-            // StoreEmployeeRequest, xem EmployeeService::create().
+            // StoreEmployeeRequest, xem EmployeeService::create(). Loại hợp
+            // đồng quyết định trạng thái nhân viên (2026-09-29).
+            'contract_type' => 'thu_viec',
             'agreed_salary' => 10000000,
         ], $overrides);
     }
@@ -297,7 +299,9 @@ class EmployeeTest extends TestCase
             'province_code',
             'commune_code',
             'department_id',
-            // Hợp đồng ĐẦU TIÊN tự tạo cùng lúc (2026-09-24) — bắt buộc.
+            // Hợp đồng ĐẦU TIÊN tự tạo cùng lúc (2026-09-24) — bắt buộc,
+            // kể cả loại hợp đồng (2026-09-29).
+            'contract_type',
             'agreed_salary',
         ]);
     }
@@ -322,21 +326,24 @@ class EmployeeTest extends TestCase
             // cầu người dùng) — không còn là ô nhập riêng.
             'insurance_salary' => 8000000,
             'start_date' => now()->toDateString(),
-            // Không truyền employment_status -> mặc định 'probation' -> thử việc.
             'contract_type' => 'thu_viec',
             'status' => 'active',
             'contract_file_path' => null,
         ]);
+        // Hợp đồng thử việc -> trạng thái nhân viên "Thử việc".
+        $this->assertDatabaseHas('employees', ['id' => $employeeId, 'employment_status' => 'probation']);
     }
 
-    public function test_active_employment_status_creates_official_contract(): void
+    // 2026-09-29, theo yêu cầu người dùng: trạng thái nhân viên KHÔNG còn chọn
+    // tay — đi theo loại hợp đồng HR chọn khi tạo (chính thức -> "Chính thức"),
+    // client cố gửi employment_status/insurance_salary vẫn bị bỏ qua.
+    public function test_official_contract_type_sets_employee_status_to_official(): void
     {
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
 
-        // Client cố gửi insurance_salary riêng vẫn bị ghi đè — không còn
-        // field này ở StoreEmployeeRequest nên bị bỏ qua hoàn toàn.
         $response = $this->postJson('/api/v1/employees', $this->validPayload([
-            'employment_status' => 'active',
+            'contract_type' => 'chinh_thuc',
+            'employment_status' => 'probation',
             'agreed_salary' => 9000000,
             'insurance_salary' => 1,
         ]), ['Authorization' => 'Bearer '.$token]);
@@ -348,6 +355,22 @@ class EmployeeTest extends TestCase
             'agreed_salary' => 9000000,
             'insurance_salary' => 9000000,
         ]);
+        $this->assertDatabaseHas('employees', ['id' => $response->json('data.id'), 'employment_status' => 'active']);
+    }
+
+    public function test_update_cannot_change_employment_status_manually(): void
+    {
+        $employee = $this->makeEmployee(['employment_status' => 'probation']);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $this->putJson('/api/v1/employees/'.$employee->id, $this->validPayload([
+            'full_name' => $employee->full_name,
+            'company_email' => $employee->company_email,
+            'hire_date' => $employee->hire_date->toDateString(),
+            'employment_status' => 'active',
+        ]), ['Authorization' => 'Bearer '.$token])->assertStatus(200);
+
+        $this->assertDatabaseHas('employees', ['id' => $employee->id, 'employment_status' => 'probation']);
     }
 
     public function test_contract_start_date_matches_hire_date_and_is_pending_when_hire_date_is_in_the_future(): void
@@ -371,9 +394,7 @@ class EmployeeTest extends TestCase
     {
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
 
-        // manager_id / employment_status / probation_end_date / termination_date
-        // cố ý KHÔNG bắt buộc: giám đốc không có quản lý cấp trên, và hai mốc
-        // ngày kia chỉ có khi thực sự phát sinh.
+        // probation_end_date cố ý KHÔNG bắt buộc (chỉ có khi thực sự phát sinh).
         $response = $this->postJson('/api/v1/employees', $this->validPayload(), [
             'Authorization' => 'Bearer '.$token,
         ]);
@@ -433,40 +454,63 @@ class EmployeeTest extends TestCase
         $this->assertDatabaseHas('employees', ['id' => $employee->id, 'code' => 'NV001']);
     }
 
-    public function test_cannot_set_employee_as_its_own_manager(): void
+    /* ------- Quản lý trực tiếp = Trưởng phòng, tự động (2026-09-29) ------- */
+
+    public function test_new_employee_manager_is_department_head_and_client_value_is_ignored(): void
     {
-        $employee = $this->makeEmployee();
+        [$departmentId] = $this->organisationIds();
+        $head = $this->makeEmployee(['department_id' => $departmentId]);
+        Department::whereKey($departmentId)->update(['manager_id' => $head->id]);
+        $someoneElse = $this->makeEmployee();
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
 
-        $response = $this->putJson('/api/v1/employees/'.$employee->id, $this->validPayload([
-            'full_name' => $employee->full_name,
-            'company_email' => $employee->company_email,
-            'hire_date' => $employee->hire_date->toDateString(),
-            'manager_id' => $employee->id,
-        ]), [
-            'Authorization' => 'Bearer '.$token,
-        ]);
+        $response = $this->postJson('/api/v1/employees', $this->validPayload([
+            'manager_id' => $someoneElse->id,
+        ]), ['Authorization' => 'Bearer '.$token]);
 
-        $response->assertStatus(422)->assertJsonValidationErrors('manager_id');
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('employees', ['id' => $response->json('data.id'), 'manager_id' => $head->id]);
     }
 
-    public function test_cannot_move_employee_under_its_own_subordinate(): void
+    public function test_department_head_reports_to_parent_department_head(): void
     {
-        $boss = $this->makeEmployee(['code' => 'NV001']);
-        $subordinate = $this->makeEmployee(['code' => 'NV002', 'manager_id' => $boss->id]);
+        $parent = Department::create(['name' => 'Khoi', 'code' => 'PB-CHA']);
+        $child = Department::create(['name' => 'Phong con', 'code' => 'PB-CON', 'parent_id' => $parent->id]);
+        $director = $this->makeEmployee(['department_id' => $parent->id]);
+        $childHead = $this->makeEmployee(['department_id' => $child->id]);
+        $member = $this->makeEmployee(['department_id' => $child->id]);
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
 
-        $response = $this->putJson('/api/v1/employees/'.$boss->id, $this->validPayload([
-            'full_name' => $boss->full_name,
-            'company_email' => $boss->company_email,
-            'hire_date' => $boss->hire_date->toDateString(),
-            'manager_id' => $subordinate->id,
-        ]), [
+        // Gán Trưởng phòng qua API phòng ban -> cả cây tự tính lại quản lý.
+        $this->putJson('/api/v1/departments/'.$parent->id, ['name' => $parent->name, 'manager_id' => $director->id], [
             'Authorization' => 'Bearer '.$token,
-        ]);
+        ])->assertStatus(200);
+        $this->putJson('/api/v1/departments/'.$child->id, [
+            'name' => $child->name, 'parent_id' => $parent->id, 'manager_id' => $childHead->id,
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(200);
 
-        $response->assertStatus(422)->assertJsonValidationErrors('manager_id');
-        $this->assertDatabaseHas('employees', ['id' => $boss->id, 'manager_id' => null]);
+        $this->assertSame($childHead->id, $member->fresh()->manager_id);
+        $this->assertSame($director->id, $childHead->fresh()->manager_id);
+        $this->assertNull($director->fresh()->manager_id);
+    }
+
+    public function test_changing_department_head_updates_manager_of_all_members(): void
+    {
+        $department = Department::create(['name' => 'Phong doi', 'code' => 'PB-DOI']);
+        $oldHead = $this->makeEmployee(['department_id' => $department->id]);
+        $newHead = $this->makeEmployee(['department_id' => $department->id]);
+        $member = $this->makeEmployee(['department_id' => $department->id]);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        foreach ([$oldHead, $newHead] as $head) {
+            $this->putJson('/api/v1/departments/'.$department->id, ['name' => $department->name, 'manager_id' => $head->id], [
+                'Authorization' => 'Bearer '.$token,
+            ])->assertStatus(200);
+        }
+
+        $this->assertSame($newHead->id, $member->fresh()->manager_id);
+        $this->assertSame($newHead->id, $oldHead->fresh()->manager_id);
+        $this->assertNull($newHead->fresh()->manager_id);
     }
 
     // --- Xóa (Delete) ---
@@ -804,6 +848,65 @@ class EmployeeTest extends TestCase
         ]);
 
         $response->assertStatus(422);
+    }
+
+    // --- Tự đổi ảnh đại diện (POST /employees/me/avatar) ---
+
+    public function test_employee_without_update_permission_can_upload_own_avatar(): void
+    {
+        Storage::fake('public');
+        $user = User::where('email', 'employee@qlns.local')->firstOrFail();
+        $employee = $this->makeEmployee(['user_id' => $user->id]);
+        $token = $this->loginAs('employee@qlns.local', 'Employee@123');
+
+        $response = $this->postJson('/api/v1/employees/me/avatar', [
+            'avatar' => UploadedFile::fake()->create('me.png', 100, 'image/png'),
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.id', $employee->id);
+        $this->assertNotNull($response->json('data.avatar_url'));
+        Storage::disk('public')->assertExists($employee->refresh()->avatar);
+    }
+
+    // Cùng tài khoản đó vẫn KHÔNG được đổi ảnh của người khác qua route HR.
+    public function test_employee_cannot_upload_avatar_for_someone_else(): void
+    {
+        Storage::fake('public');
+        $other = $this->makeEmployee();
+        $token = $this->loginAs('employee@qlns.local', 'Employee@123');
+
+        $response = $this->postJson('/api/v1/employees/'.$other->id.'/avatar', [
+            'avatar' => UploadedFile::fake()->create('x.png', 100, 'image/png'),
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(403);
+    }
+
+    public function test_own_avatar_rejects_svg_and_non_images(): void
+    {
+        Storage::fake('public');
+        $user = User::where('email', 'employee@qlns.local')->firstOrFail();
+        $this->makeEmployee(['user_id' => $user->id]);
+        $token = $this->loginAs('employee@qlns.local', 'Employee@123');
+
+        foreach ([['a.svg', 'image/svg+xml'], ['a.txt', 'text/plain']] as [$name, $mime]) {
+            $this->postJson('/api/v1/employees/me/avatar', [
+                'avatar' => UploadedFile::fake()->create($name, 10, $mime),
+            ], ['Authorization' => 'Bearer '.$token])->assertStatus(422);
+        }
+    }
+
+    public function test_own_avatar_returns_404_when_account_has_no_employee(): void
+    {
+        Storage::fake('public');
+        $token = $this->loginAs('hr@qlns.local', 'Hr@123456');
+
+        $response = $this->postJson('/api/v1/employees/me/avatar', [
+            'avatar' => UploadedFile::fake()->create('me.png', 100, 'image/png'),
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(404);
     }
 
     // --- Hồ sơ của chính mình (/employees/me) ---

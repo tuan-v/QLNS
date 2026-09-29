@@ -8,8 +8,10 @@
 //                    (dùng chung cho tab Tài liệu của HR lẫn "Hồ sơ của tôi")
 //   transferDecision StoreEmployeeTransferRequest   decision_file  mimes:pdf                     max:10240
 //   leaveEvidence    StoreLeaveRequest              evidence_file  mimes:jpg,jpeg,png,pdf        max:5120
-// (max của Laravel tính bằng KB: 5120 = 5MB, 10240 = 10MB.) Ảnh đại diện có rule
-// 2MB ở EmployeeController::uploadAvatar nhưng CHƯA có giao diện tải lên nào.
+// (max của Laravel tính bằng KB: 5120 = 5MB, 10240 = 10MB.) Ảnh đại diện KHÔNG
+// dùng component này — rule ở EmployeeController::AVATAR_RULES (jpg/jpeg/png/
+// webp, max:2048), giao diện tự đổi ảnh nằm thẳng trong MyProfile.vue
+// (AVATAR_TYPES/AVATAR_MAX_BYTES — đổi rule thì đổi cả 2 bên).
 export const UPLOAD_LIMITS = {
     contract: { maxSizeMb: 5, formats: "PDF", accept: ".pdf" },
     document: {

@@ -9,7 +9,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\ValidationException;
 
 class EmployeeService
 {
@@ -17,6 +16,7 @@ class EmployeeService
         private readonly EmployeeRepository $employeeRepository,
         private readonly EmployeeShiftAssignmentService $employeeShiftAssignmentService,
         private readonly EmployeeContractService $employeeContractService,
+        private readonly ReportingLineService $reportingLineService,
     ) {
     }
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -47,10 +47,21 @@ class EmployeeService
         // (không nằm trong $fillable) nhưng tách ra cho rõ ràng, tránh hiểu
         // nhầm sau này khi đọc lại.
         $agreedSalary = $data['agreed_salary'];
-        unset($data['agreed_salary']);
+        $contractType = $data['contract_type'];
+        unset($data['agreed_salary'], $data['contract_type']);
+        // Trạng thái nhân viên theo ĐÚNG loại hợp đồng đầu tiên (2026-09-29,
+        // theo yêu cầu người dùng — trước đó HR chọn tay trạng thái rồi hợp
+        // đồng suy ngược từ trạng thái). Từ đây trở đi trạng thái chỉ đổi qua
+        // hợp đồng/đơn nghỉ việc, xem EmployeeContractService::applyEmploymentStatus().
+        $data['employment_status'] = EmployeeContractService::EMPLOYMENT_STATUS_BY_CONTRACT_TYPE[$contractType];
 
-        $employee = DB::transaction(function () use ($data, $agreedSalary) {
+        // Quản lý trực tiếp luôn tự suy ra từ phòng ban (ReportingLineService),
+        // không nhận từ client.
+        unset($data['manager_id']);
+
+        $employee = DB::transaction(function () use ($data, $agreedSalary, $contractType) {
             $employee = $this->employeeRepository->create($data);
+            $this->reportingLineService->syncEmployee($employee);
             // Ca mặc định (2026-09-23, theo yêu cầu người dùng) — nhân viên
             // mới tạo tự động được gán ca đang đánh dấu is_default=true, HR
             // vẫn đổi/gán thêm ca khác cho họ sau đó ở tab "Ca làm việc" nếu
@@ -61,26 +72,11 @@ class EmployeeService
 
             // Hợp đồng lao động ĐẦU TIÊN tự tạo LUÔN cùng lúc (2026-09-24,
             // theo yêu cầu người dùng: "điền lương cơ bản vào luôn... không
-            // cần tạo hđ như bây giờ") — đã hỏi lại và CHỐT: vẫn giữ nguyên
-            // kiến trúc Payroll dựa trên EmployeeContract (đúng tài liệu yêu
-            // cầu, xem CODE_MAP), chỉ bỏ bước THAO TÁC THỦ CÔNG riêng của HR.
-            // `contract_type` suy từ `employment_status` (active -> chính
-            // thức, còn lại/mặc định probation -> thử việc) thay vì hỏi
-            // thêm field riêng; `start_date` DÙNG CHUNG `hire_date`, không
-            // hỏi lại ngày thứ 2. File hợp đồng đã ký (`contract_file`) CHƯA
-            // bắt buộc ở đây — HR upload sau ở tab "Hợp đồng" khi có bản
-            // giấy thật. `insurance_salary` KHÔNG cần truyền — cùng ngày
-            // (2026-09-24, theo yêu cầu người dùng: "lương đóng bh sẽ tính
-            // là lương cb luôn không tách ra") EmployeeContractService::create()
-            // tự đặt insurance_salary = agreed_salary cho MỌI hợp đồng.
-            // Đọc từ $data (giá trị request gửi lên) chứ không phải
-            // $employee->employment_status — EmployeeRepository::create()
-            // không gọi ->fresh() nên thuộc tính đó có thể đang NULL trong bộ
-            // nhớ dù DB đã tự áp default 'probation' (cùng bẫy đã ghi chú ở
-            // EmployeeContractRepository::create()). Không sao vì mọi giá trị
-            // KHÁC 'active' (kể cả null/thiếu) đều đúng nghĩa "chưa chính
-            // thức" -> rơi về 'thu_viec'.
-            $contractType = ($data['employment_status'] ?? 'probation') === 'active' ? 'chinh_thuc' : 'thu_viec';
+            // cần tạo hđ như bây giờ") — vẫn giữ kiến trúc Payroll dựa trên
+            // EmployeeContract, chỉ bỏ bước thao tác thủ công riêng của HR.
+            // Loại hợp đồng do HR chọn ở form (2026-09-29). `start_date` DÙNG
+            // CHUNG `hire_date`. File hợp đồng đã ký (`contract_file`) CHƯA
+            // bắt buộc ở đây — HR upload sau ở tab "Hợp đồng".
             $this->employeeContractService->create($employee, [
                 'contract_type' => $contractType,
                 'start_date' => $employee->hire_date->toDateString(),
@@ -108,17 +104,12 @@ class EmployeeService
     }
     public function update(Employee $employee, array $data): Employee
     {
-        if (
-            array_key_exists('manager_id', $data)
-            && $data['manager_id'] !== null
-            && $this->employeeRepository->wouldCreateCycle($employee->id, $data['manager_id'])
-        ) {
-            throw ValidationException::withMessages([
-                'manager_id' => 'Không thể chọn nhân viên này làm quản lý vì sẽ tạo vòng lặp trong cơ cấu tổ chức.',
-            ]);
-        }
+        // Không nhận manager_id từ client — tự tính lại theo phòng ban (đổi
+        // phòng ban ở form Sửa cũng tự đổi luôn quản lý).
+        unset($data['manager_id']);
 
         $employee = $this->employeeRepository->update($employee, $data);
+        $this->reportingLineService->syncEmployee($employee);
 
         ResourceChanged::dispatch('employees');
 

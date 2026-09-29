@@ -95,6 +95,14 @@ const routes = [
         props: true,
     },
     {
+        path: "/resignations",
+        name: "resignations",
+        // HR thấy mọi đơn, Manager chỉ đơn của nhân viên mình quản lý trực tiếp
+        // (Backend tự lọc — ResignationService).
+        meta: { title: "Đơn nghỉ việc", permission: "resignation.approve" },
+        component: () => import("../views/Resignation/Resignations.vue"),
+    },
+    {
         path: "/work-shifts",
         name: "work-shifts",
         meta: { title: "Ca làm việc", permission: "shift.view" },

@@ -15,6 +15,7 @@ class DepartmentService
     public function __construct(
         private readonly DepartmentRepository $departmentRepository,
         private readonly PositionService $positionService,
+        private readonly ReportingLineService $reportingLineService,
     ) {
     }
 
@@ -30,6 +31,7 @@ class DepartmentService
         $department = DB::transaction(function () use ($data) {
             $department = $this->departmentRepository->create($data);
             $this->syncHeadPosition($department, oldManagerId: null, newManagerId: $department->manager_id);
+            $this->reportingLineService->syncDepartmentTree($department);
 
             return $department;
         });
@@ -77,6 +79,10 @@ class DepartmentService
             if (array_key_exists('manager_id', $data)) {
                 $this->syncHeadPosition($department, $oldManagerId, $department->manager_id);
             }
+
+            // Đổi Trưởng phòng/phòng ban cha -> quản lý trực tiếp của cả cây
+            // phòng ban này tự đổi theo (2026-09-29, xem ReportingLineService).
+            $this->reportingLineService->syncDepartmentTree($department);
 
             return $department;
         });

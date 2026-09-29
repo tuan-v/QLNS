@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Department;
+use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -70,6 +72,44 @@ class AuthTest extends TestCase
         $response->assertOk()->assertJson([
             'email' => 'user@qlns.local',
         ]);
+    }
+
+    // Header hiện ảnh đại diện lấy từ hồ sơ Employee gắn với tài khoản.
+    public function test_me_includes_avatar_url_from_linked_employee(): void
+    {
+        $user = $this->createUser();
+        $department = Department::create(['name' => 'Phong test', 'code' => 'PB-AUTH']);
+        Employee::create([
+            'full_name' => 'Nguoi dung test', 'company_email' => 'emp-auth@qlns.local',
+            'hire_date' => now(), 'code' => 'NV-AUTH', 'department_id' => $department->id,
+            'user_id' => $user->id, 'avatar' => 'avatars/me.png',
+        ]);
+        $login = $this->postJson('/api/v1/auth/login', [
+            'email' => 'user@qlns.local',
+            'password' => 'Secret@123',
+        ])->json();
+
+        $response = $this->getJson('/api/v1/auth/me', [
+            'Authorization' => 'Bearer '.$login['access_token'],
+        ]);
+
+        $response->assertOk();
+        $this->assertStringEndsWith('/storage/avatars/me.png', $response->json('avatar_url'));
+    }
+
+    public function test_me_avatar_url_is_null_without_linked_employee(): void
+    {
+        $this->createUser();
+        $login = $this->postJson('/api/v1/auth/login', [
+            'email' => 'user@qlns.local',
+            'password' => 'Secret@123',
+        ])->json();
+
+        $response = $this->getJson('/api/v1/auth/me', [
+            'Authorization' => 'Bearer '.$login['access_token'],
+        ]);
+
+        $response->assertOk()->assertJsonPath('avatar_url', null);
     }
 
     public function test_refresh_token_rotates_and_old_token_becomes_invalid(): void

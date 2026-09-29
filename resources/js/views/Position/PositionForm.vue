@@ -1,7 +1,8 @@
 <template>
     <FormDialog
         :model-value="modelValue"
-        eyebrow="HỒ SƠ CHỨC VỤ"
+        icon="mdi-badge-account-outline"
+        size="md"
         :title="isEdit ? 'Sửa chức vụ' : 'Thêm chức vụ'"
         :subtitle="
             isEdit
@@ -14,42 +15,31 @@
         @update:model-value="close"
         @submit="submit"
     >
-        <FormSection title="Thông tin cơ bản">
-            <v-row dense>
-                <v-col cols="12" sm="7">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Tên chức vụ <span class="text-error">*</span>
-                    </div>
-                    <v-text-field
-                        v-model="form.name"
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        placeholder="Nhập tên chức vụ"
-                        :error-messages="errors.name"
-                    />
-                </v-col>
+        <FormSection
+            title="Thông tin cơ bản"
+            description="Tên và mã dùng để nhận diện chức vụ trong hệ thống."
+            :columns="2"
+        >
+            <FormField label="Tên chức vụ" required>
+                <v-text-field
+                    v-model="form.name"
+                    density="comfortable"
+                    placeholder="Nhập tên chức vụ"
+                    :error-messages="errors.name"
+                />
+            </FormField>
 
-                <v-col cols="12" sm="5">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Mã chức vụ
-                    </div>
-                    <v-text-field
-                        :model-value="isEdit ? position.code : 'Tự động sau khi lưu'"
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        readonly
-                        prepend-inner-icon="mdi-auto-fix"
-                        :class="{ 'text-medium-emphasis': !isEdit }"
-                    />
-                </v-col>
-            </v-row>
+            <FormField label="Mã chức vụ" hint="Hệ thống tự sinh khi lưu.">
+                <v-text-field
+                    :model-value="isEdit ? position.code : 'Tự động sau khi lưu'"
+                    density="comfortable"
+                    readonly
+                    prepend-inner-icon="mdi-auto-fix"
+                    :class="{ 'text-medium-emphasis': !isEdit }"
+                />
+            </FormField>
 
-            <div class="mb-3">
-                <div class="text-body-2 font-weight-medium mb-1">
-                    Phòng ban <span class="text-error">*</span>
-                </div>
+            <FormField label="Phòng ban" required span="full">
                 <SearchSelect
                     v-model="form.department_id"
                     :items="departmentOptions"
@@ -58,54 +48,46 @@
                     placeholder="Chọn phòng ban"
                     :error-messages="errors.department_id"
                 />
-            </div>
+            </FormField>
+        </FormSection>
 
-            <v-row dense>
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Cấp bậc
-                    </div>
-                    <v-text-field
-                        v-model.number="form.level"
-                        type="number"
-                        min="1"
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        placeholder="Không bắt buộc"
-                        :error-messages="errors.level"
-                    />
-                </v-col>
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Phụ cấp chức vụ
-                    </div>
-                    <InputMoney
-                        v-model="form.position_allowance"
-                        :error-messages="errors.position_allowance"
-                    />
-                </v-col>
-            </v-row>
+        <FormSection
+            title="Cấp bậc & phụ cấp"
+            description="Không bắt buộc — dùng khi tính lương và sắp xếp chức vụ."
+            :columns="2"
+        >
+            <FormField label="Cấp bậc">
+                <v-text-field
+                    v-model.number="form.level"
+                    type="number"
+                    min="1"
+                    density="comfortable"
+                    placeholder="Ví dụ: 1"
+                    :error-messages="errors.level"
+                />
+            </FormField>
 
-            <div class="d-flex align-center justify-space-between">
-                <div>
-                    <div class="text-body-2 font-weight-medium">
-                        Trạng thái hoạt động
-                    </div>
-                    <div class="text-caption" style="opacity: 0.65">
-                        Chức vụ ngừng hoạt động vẫn được lưu nhưng không dùng
-                        để phân công mới.
-                    </div>
-                </div>
+            <FormField label="Phụ cấp chức vụ">
+                <InputMoney
+                    v-model="form.position_allowance"
+                    :error-messages="errors.position_allowance"
+                />
+            </FormField>
+
+            <FormField
+                label="Trạng thái hoạt động"
+                hint="Chức vụ ngừng hoạt động vẫn được lưu nhưng không dùng để phân công mới."
+                span="full"
+                inline
+            >
                 <v-switch
                     v-model="form.is_active"
-                    color="success"
+                    color="primary"
                     density="compact"
                     hide-details
                     inset
-                    class="flex-grow-0 ms-4"
                 />
-            </div>
+            </FormField>
         </FormSection>
 
         <template #footer-note>
@@ -119,6 +101,7 @@ import { computed, reactive, ref, watch } from "vue";
 import positionService from "../../services/positionService";
 import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
+import FormField from "../../components/common/FormField.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputMoney from "../../components/common/InputMoney.vue";
 import { useToastStore } from "../../stores/useToastStore";

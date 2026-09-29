@@ -6,7 +6,7 @@
         >
             <template #actions>
                 <v-btn
-                    color="secondary"
+                    color="primary"
                     variant="tonal"
                     prepend-icon="mdi-calendar-edit"
                     @click="openSupplementDialog"
@@ -14,10 +14,9 @@
                     Xin bổ sung chấm công
                 </v-btn>
                 <v-btn
-                    color="secondary"
+                    color="primary"
                     variant="tonal"
                     prepend-icon="mdi-calendar-plus"
-                    class="md-2"
                     @click="openExtraShiftDialog('extra_shift')"
                 >
                     Xin làm ngoài lịch
@@ -51,7 +50,7 @@
                 cập vị trí — nên cho phép để lượt chấm công có địa chỉ.
             </div>
 
-            <div class="text-body-2 font-weight-medium mt-4 mb-1">
+            <!-- <div class="text-body-2 font-weight-medium mt-4 mb-1">
                 Mã QR tại điểm chấm công (không bắt buộc)
             </div>
             <v-text-field
@@ -61,7 +60,7 @@
                 density="comfortable"
                 rounded="lg"
                 hide-details
-            />
+            /> -->
 
             <v-alert
                 v-if="submitError"
@@ -348,7 +347,7 @@
                                     v-if="a.late_minutes > 0 && !a.late_excused"
                                     icon="mdi-shield-check-outline"
                                     variant="tonal"
-                                    color="secondary"
+                                    color="primary"
                                     size="small"
                                     rounded="lg"
                                     @click="openExcuseDialog(a)"
@@ -365,7 +364,7 @@
                                     "
                                     icon="mdi-clock-plus-outline"
                                     variant="tonal"
-                                    color="secondary"
+                                    color="primary"
                                     size="small"
                                     rounded="lg"
                                     @click="openOtApprovalDialog(a)"

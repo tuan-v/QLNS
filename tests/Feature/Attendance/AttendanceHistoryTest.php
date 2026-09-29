@@ -165,17 +165,17 @@ class AttendanceHistoryTest extends TestCase
         // Sắp theo ngày GIẢM DẦN.
         $this->assertSame(['2026-01-09', '2026-01-08', '2026-01-07', '2026-01-06', '2026-01-05'], array_column($data['rows'], 'date'));
 
-        // Ngày công giờ tính qua WorkTimeCalculationService: bậc thang theo
-        // % giờ làm/ca 480 phút + trần theo phút trễ/về sớm, NHÂN với
-        // work_coefficient=0.5 của ca này (ca nửa ngày — work_coefficient vẫn
-        // cần thiết dù không còn là YẾU TỐ DUY NHẤT như công thức cũ):
-        // 01-05: 540/480=112.5% -> bậc 1.0, không trễ -> 1.0 x 0.5 = 0.5
-        // 01-06: 525/480=109.4% -> bậc 1.0, trễ 15p (<=15, chưa phạt) -> 1.0 x 0.5 = 0.5
-        // 01-07: 520/480=108.3% -> bậc 1.0, về sớm 20p (15-30) -> trần 0.75 -> 0.75 x 0.5 = 0.375
-        // 01-09: 0/480=0% -> bậc 0.0 (chưa check-out) -> 0.0 x 0.5 = 0.0
-        // Tổng = 0.5 + 0.5 + 0.375 + 0.0 = 1.375 -> làm tròn 2 chữ số = 1.38
-        // (summarizeHistory() round(...,2), xem AttendanceService.php).
-        $this->assertEquals(1.38, $data['summary']['total_work_days']);
+        // Ngày công giờ tính qua WorkTimeCalculationService (viết lại
+        // 2026-09-29, theo yêu cầu người dùng): CHỈ MỘT quy tắc duy nhất —
+        // trễ/về sớm <= 30 phút (hoặc late_excused) luôn đủ 1.0; vượt 30
+        // phút mới phạt liên tục theo actual/standard. NHÂN riêng với
+        // work_coefficient=0.5 của ca này (ca nửa ngày):
+        // 01-05: trễ 0p (<=30) -> đủ 1.0 x 0.5 = 0.5
+        // 01-06: trễ 15p (<=30) -> đủ 1.0 x 0.5 = 0.5
+        // 01-07: về sớm 20p (<=30, KHÔNG còn bị phạt như bậc thang cũ) -> đủ 1.0 x 0.5 = 0.5
+        // 01-09: chưa check-out (actual=0) -> 0.0
+        // Tổng = 0.5 + 0.5 + 0.5 + 0.0 = 1.5.
+        $this->assertEquals(1.5, $data['summary']['total_work_days']);
         $this->assertSame(540 + 525 + 520 + 0, $data['summary']['total_work_minutes']);
         $this->assertSame(1, $data['summary']['late_count']);
         $this->assertSame(1, $data['summary']['early_leave_count']);
@@ -454,6 +454,36 @@ class AttendanceHistoryTest extends TestCase
         $response->assertStatus(200);
         $dates = array_column($response->json('data.rows'), 'date');
         $this->assertContains(now()->toDateString(), $dates);
+    }
+
+    // 2026-09-29, sửa lỗi thật (người dùng báo qua Dashboard "Bảng công gần
+    // nhất"): hôm nay đã chấm vào, ca chưa kết thúc, chưa chấm ra -> phải là
+    // "Đang làm" (in_progress), không phải "Thiếu công"; hôm qua quên chấm ra
+    // thì vẫn là "Thiếu công".
+    public function test_history_marks_today_without_checkout_as_in_progress(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA-H12', ['work_coefficient' => 1]);
+        $this->assignShift($employee, $workShift, now()->subMonth()->toDateString());
+        $this->makeAttendance($employee, $workShift, now()->toDateString(), [
+            'first_check_in_at' => now()->startOfDay()->setTime(8, 0),
+            'status' => 'pending',
+        ]);
+        $yesterday = now()->subDay();
+        $this->makeAttendance($employee, $workShift, $yesterday->toDateString(), [
+            'first_check_in_at' => $yesterday->copy()->setTime(8, 0),
+            'status' => 'pending',
+        ]);
+
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $response = $this->getJson('/api/v1/attendances/history/me?date_from='.$yesterday->toDateString().'&date_to='.now()->toDateString(), [
+            'Authorization' => 'Bearer '.$token,
+        ]);
+
+        $response->assertStatus(200);
+        $byDate = collect($response->json('data.rows'))->keyBy('date');
+        $this->assertSame('in_progress', $byDate[now()->toDateString()]['status']);
+        $this->assertSame('insufficient', $byDate[$yesterday->toDateString()]['status']);
     }
 
     // 2026-09-24, sửa lỗi thật (người dùng phát hiện qua trình duyệt): mở

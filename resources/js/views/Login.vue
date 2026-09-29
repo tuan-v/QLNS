@@ -7,11 +7,6 @@
             justify-content: center;
             padding: 2rem;
             background:
-                radial-gradient(
-                    circle at 12% 8%,
-                    rgba(117, 117, 219, 0.3),
-                    transparent 36rem
-                ),
                 rgb(var(--v-theme-background));
         "
     >
@@ -36,12 +31,12 @@
                     style="
                         width: 3rem;
                         height: 3rem;
-                        border-radius: 0.875rem;
+                        border-radius: 8px;
                         background: rgb(var(--v-theme-primary));
+                        color: rgb(var(--v-theme-on-primary));
                         display: flex;
                         align-items: center;
                         justify-content: center;
-                        box-shadow: 0 0.75rem 1.5rem rgba(117, 117, 219, 0.35);
                     "
                 >
                     <svg
@@ -49,7 +44,7 @@
                         height="24"
                         viewBox="0 0 24 24"
                         fill="none"
-                        stroke="white"
+                        stroke="currentColor"
                         stroke-width="1.75"
                         stroke-linecap="round"
                         stroke-linejoin="round"
@@ -84,7 +79,7 @@
                 </div>
             </div>
 
-            <v-card style="border-radius: 1.5rem" class="pa-6 glass-panel">
+            <v-card class="pa-8 glass-panel">
                 <v-card-title class="text-h5 font-weight-bold px-0"
                     >Đăng nhập</v-card-title
                 >
@@ -112,7 +107,8 @@
                                     height="20"
                                     viewBox="0 0 24 24"
                                     fill="none"
-                                    stroke="rgba(255,255,255,0.5)"
+                                    stroke="currentColor"
+                                    stroke-opacity="0.55"
                                     stroke-width="1.75"
                                     stroke-linecap="round"
                                     stroke-linejoin="round"
@@ -151,7 +147,8 @@
                                     height="20"
                                     viewBox="0 0 24 24"
                                     fill="none"
-                                    stroke="rgba(255,255,255,0.5)"
+                                    stroke="currentColor"
+                                    stroke-opacity="0.55"
                                     stroke-width="1.75"
                                     stroke-linecap="round"
                                     stroke-linejoin="round"
@@ -172,7 +169,8 @@
                                     height="18"
                                     viewBox="0 0 24 24"
                                     fill="none"
-                                    stroke="rgba(255,255,255,0.5)"
+                                    stroke="currentColor"
+                                    stroke-opacity="0.55"
                                     stroke-width="1.75"
                                     stroke-linecap="round"
                                     stroke-linejoin="round"

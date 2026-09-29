@@ -35,15 +35,29 @@ class DashboardService
     // — đặc biệt `action_items` ("Cần bạn xử lý") đúng bản chất là việc còn
     // TỒN ĐỌNG tính tới bây giờ, giới hạn theo 1 ngày sẽ làm sai lệch ý
     // nghĩa "cần xử lý" (dễ hiểu lầm "không còn gì" nếu quên đổi bộ lọc).
+    //
+    // `has_personal_view` (2026-09-29, theo yêu cầu người dùng): HR/Manager
+    // có quyền "employee.view" NHƯNG bản thân họ cũng là nhân viên đi làm
+    // (có employee gắn với tài khoản) -> ngoài số liệu công ty, trả về LUÔN
+    // CẢ khối cá nhân (`personal()`) trong CÙNG 1 response, Frontend tự
+    // quyết định hiện tab "Của tôi" hay không dựa vào cờ này. Không đổi
+    // response cho Employee thường (chỉ có `scope: 'personal'`, không có
+    // `employee.view`) — giữ nguyên hành vi cũ 100% cho họ. `companyWide()`
+    // và `personal()` KHÔNG có key trùng nhau nên gộp bằng `+` an toàn.
     public function forUser(User $user, ?string $date = null): array
     {
         $date ??= now()->toDateString();
 
         if ($user->hasPermission('employee.view')) {
-            return ['scope' => 'company'] + $this->companyWide($user, $date);
+            $hasPersonalView = $user->employee !== null;
+
+            $result = ['scope' => 'company', 'has_personal_view' => $hasPersonalView]
+                + $this->companyWide($user, $date);
+
+            return $hasPersonalView ? $result + $this->personal($user) : $result;
         }
 
-        return ['scope' => 'personal'] + $this->personal($user);
+        return ['scope' => 'personal', 'has_personal_view' => $user->employee !== null] + $this->personal($user);
     }
 
     private function companyWide(User $user, string $date): array
@@ -57,7 +71,7 @@ class DashboardService
             ->count();
 
         $dateSummary = $this->attendanceService->dailyOverview($date, null, null, null, null)['summary'];
-        $present = $dateSummary['completed'] + $dateSummary['pending'] + $dateSummary['needs_review'];
+        $present = $dateSummary['present'];
         $totalForDate = max($dateSummary['total'], 1);
 
         return [

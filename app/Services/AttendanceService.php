@@ -99,15 +99,10 @@ class AttendanceService
                 }
 
                 $attendance = $attendancesByKey->get($dateStr . '|' . $assignment->work_shift_id);
-                // Đơn nghỉ phép đã DUYỆT (mục 19-20) phủ đúng ngày này thì
-                // ưu tiên nhãn "on_leave" thay vì suy ra từ Attendance — ngày
-                // 41 chỉ xử lý trường hợp đơn phủ CẢ NGÀY (full/am/pm), CHƯA
-                // phân biệt nửa ngày che đúng ca sáng/chiều nào (để dành Ngày
-                // 42 cùng các edge case khác), cũng bỏ qua đơn 'hourly' (nghỉ
-                // vài tiếng không nên che mất cả ngày công).
-                $rowStatus = $approvedLeaveDates->has($dateStr)
-                    ? 'on_leave'
-                    : $this->deriveHistoryStatus($attendance);
+                // Đơn nghỉ phép đã DUYỆT (mục 19-20) phủ đúng ngày này — ngày
+                // 41 chỉ xử lý đơn phủ CẢ NGÀY (full/am/pm), bỏ qua đơn
+                // 'hourly' (nghỉ vài tiếng không nên che mất cả ngày công).
+                $rowStatus = $this->displayStatusFor($attendance, $approvedLeaveDates->has($dateStr));
 
                 if ($status && $rowStatus !== $status) {
                     continue;
@@ -148,6 +143,33 @@ class AttendanceService
             ->sum('overtime_minutes');
     }
 
+    // Trạng thái hiển thị DÙNG CHUNG cho history() ("Bảng công gần nhất" ở
+    // Dashboard + "Lịch sử chấm công" của nhân viên) VÀ dailyOverview() ("Tổng
+    // hợp chấm công" của HR) — 2026-09-29, theo yêu cầu người dùng đồng bộ 2
+    // màn (trước đó HR thấy "Hoàn tất/Đang trong ca/Cần xem lại" còn nhân viên
+    // thấy "Đủ công/Đi muộn/Thiếu công" cho CÙNG 1 ca). Thứ tự:
+    //   1. Không có lượt chấm vào -> 'on_leave' (có đơn phép đã duyệt) / 'absent'.
+    //   2. Bị từ chối -> 'rejected'; chưa duyệt -> 'pending_approval' — công
+    //      CHỈ được cộng sau khi duyệt (summarizeHistory()/PayrollService), nên
+    //      nhân viên cũng phải thấy "Chờ duyệt" mới hiểu vì sao công chưa lên.
+    //   3. Đã duyệt -> kết quả ngày công theo deriveHistoryStatus().
+    // Đã chấm vào thì THẮNG đơn nghỉ phép (người đó thật sự đã đi làm — trước
+    // đây history() làm ngược lại, lệch với dailyOverview()).
+    private function displayStatusFor(?Attendance $attendance, bool $onApprovedLeave): string
+    {
+        if (! $attendance || ! $attendance->first_check_in_at) {
+            return $onApprovedLeave ? 'on_leave' : 'absent';
+        }
+        if ($attendance->approval_status === Attendance::APPROVAL_REJECTED) {
+            return 'rejected';
+        }
+        if ($attendance->approval_status !== Attendance::APPROVAL_APPROVED) {
+            return 'pending_approval';
+        }
+
+        return $this->deriveHistoryStatus($attendance);
+    }
+
     private function deriveHistoryStatus(?Attendance $attendance): string
     {
         if (! $attendance || ! $attendance->first_check_in_at) {
@@ -158,6 +180,15 @@ class AttendanceService
         // "Đi muộn" nữa, chỉ xét tiếp điều kiện về giờ ra.
         if ($attendance->late_minutes > 0 && ! $attendance->late_excused) {
             return 'late';
+        }
+        // Đã chấm vào, CHƯA chấm ra, và là bản ghi HÔM NAY -> đang trong ca
+        // (hoặc đang làm thêm giờ), CHƯA thể kết luận thiếu công (2026-09-29,
+        // lỗi thật người dùng báo: Dashboard hiện "Thiếu công" lúc 13h57 cho
+        // ca 08:00-17:30 vừa chấm vào). Qua ngày mà vẫn chưa chấm ra thì mới
+        // rơi xuống 'insufficient' bên dưới như cũ. Dự án chưa hỗ trợ ca qua
+        // đêm (xem EmployeeShiftAssignmentService) nên "hôm nay" là đủ.
+        if (! $attendance->last_check_out_at && $attendance->attendance_date?->isToday()) {
+            return 'in_progress';
         }
         if (! $attendance->last_check_out_at || $attendance->early_leave_minutes > 0) {
             return 'insufficient';
@@ -246,13 +277,11 @@ class AttendanceService
     // trang: quy mô "1 ngày x toàn công ty" chỉ vài chục-vài trăm dòng, khác
     // history()/list() vốn trải dài nhiều tháng.
     //
-    // $status ở đây là 5 giá trị suy ra cho MÀN HÌNH NÀY — 'pending'/
-    // 'completed'/'needs_review' lấy thẳng từ attendances.status khi ĐÃ có
-    // bản ghi, 'on_leave'/'absent' suy ra khi CHƯA có bản ghi — khác
-    // deriveHistoryStatus() (mục 18, 'full'/'late'/'insufficient') vốn không
-    // hợp cho màn "hôm nay": 1 người đang trong ca, đúng giờ, chưa chấm công
-    // ra sẽ bị deriveHistoryStatus() tính nhầm thành "insufficient" (thiếu
-    // công) dù họ chỉ đơn giản là ĐANG LÀM VIỆC.
+    // $status (lọc) và `status` mỗi dòng dùng CHUNG bộ giá trị với history()
+    // — xem displayStatusFor(). `location_mismatch` = lượt chấm công không
+    // khớp điểm chấm công nào (attendances.status 'needs_review', trước đây là
+    // nhãn "Cần xem lại") — giờ là cờ riêng hiện cạnh trạng thái cho HR, vì nó
+    // là lý do CẦN XEM KỸ trước khi duyệt chứ không phải kết quả ngày công.
     public function dailyOverview(string $date, ?int $departmentId, ?int $workShiftId, ?string $status, ?string $approvalStatus): array
     {
         $dayIso = Carbon::parse($date)->dayOfWeekIso;
@@ -276,17 +305,12 @@ class AttendanceService
             ->map(function (EmployeeShiftAssignment $assignment) use ($attendancesByKey, $onLeaveEmployeeIds) {
                 $attendance = $attendancesByKey->get($assignment->employee_id.'|'.$assignment->work_shift_id);
 
-                $rowStatus = match (true) {
-                    $attendance !== null => $attendance->status,
-                    $onLeaveEmployeeIds->contains($assignment->employee_id) => 'on_leave',
-                    default => 'absent',
-                };
-
                 return [
                     'employee' => $assignment->employee,
                     'work_shift' => $assignment->workShift,
                     'attendance' => $attendance,
-                    'status' => $rowStatus,
+                    'status' => $this->displayStatusFor($attendance, $onLeaveEmployeeIds->contains($assignment->employee_id)),
+                    'location_mismatch' => $attendance?->status === 'needs_review',
                 ];
             })
             // Cùng lý do dedupe ở history(): 1 ca có thể bị lặp qua 2 lượt gán
@@ -316,7 +340,8 @@ class AttendanceService
                 'employee' => $attendance->employee,
                 'work_shift' => $attendance->workShift,
                 'attendance' => $attendance,
-                'status' => $attendance->status,
+                'status' => $this->displayStatusFor($attendance, false),
+                'location_mismatch' => $attendance->status === 'needs_review',
             ])
             ->values();
 
@@ -350,45 +375,48 @@ class AttendanceService
     // 2 ca không ai chấm). $rows vẫn giữ nguyên 1 dòng/ca cho bảng danh sách
     // (còn dùng để duyệt riêng từng ca) — chỉ phần TỔNG HỢP này gộp lại.
     //
-    // 1 người có nhiều ca mà mỗi ca 1 trạng thái khác nhau (vd ca sáng đã
-    // hoàn tất, ca chiều còn vắng) thì rơi vào ĐÚNG 1 nhóm theo thứ tự ưu
-    // tiên dưới đây. "Đang trong ca" đứng NGAY SAU "cần xem lại" — đây là
-    // trạng thái ĐANG DIỄN RA (2026-09-23, sửa theo phản hồi người dùng: 1
-    // người rõ ràng đang trong ca sáng vẫn bị tính "Vắng" ở thẻ tổng quan vì
-    // ca chiều của họ chưa tới giờ/chưa có bản ghi — "đang trong ca" phải
-    // thắng "vắng" vì là sự thật NGAY LÚC NÀY, còn "vắng" chỉ là suy ra từ 1
-    // ca KHÁC chưa ai đụng tới). Sau đó mới tới vắng (không phép, đáng lo
-    // hơn hoàn tất) > hoàn tất > nghỉ phép (chỉ khi TẤT CẢ ca trong ngày của
-    // người đó đều là nghỉ phép). Giả định tạm thời — người dùng cho biết sẽ
-    // chỉnh lại cách gán ca để 1 người không bị chồng nhiều ca kiểu này nữa.
-    private const EMPLOYEE_STATUS_PRIORITY = ['needs_review', 'pending', 'absent', 'completed', 'on_leave'];
+    // 1 người có nhiều ca mà mỗi ca 1 trạng thái khác nhau thì rơi vào ĐÚNG 1
+    // nhóm theo thứ tự ưu tiên dưới đây — việc HR CẦN LÀM đứng trước (từ
+    // chối, chờ duyệt), rồi kết quả đáng lo (thiếu công, đi muộn), rồi "Đang
+    // làm" THẮNG "Vắng" (2026-09-23, theo phản hồi người dùng: người đang trong
+    // ca sáng không được tính "Vắng" chỉ vì ca chiều chưa tới giờ — đang làm
+    // là sự thật NGAY LÚC NÀY), cuối cùng đủ công > nghỉ phép (chỉ khi TẤT CẢ
+    // ca của người đó đều nghỉ phép).
+    private const EMPLOYEE_STATUS_PRIORITY = [
+        'rejected', 'pending_approval', 'insufficient', 'late', 'in_progress', 'absent', 'full', 'on_leave',
+    ];
 
     private function summarizeDailyOverview(Collection $rows): array
     {
-        $statusesByEmployee = $rows
-            ->groupBy(fn (array $row) => $row['employee']->id)
-            ->map(fn (Collection $employeeRows) => $employeeRows->pluck('status'));
+        $rowsByEmployee = $rows->groupBy(fn (array $row) => $row['employee']->id);
 
-        $employeeStatus = $statusesByEmployee->map(
-            fn (Collection $statuses) => collect(self::EMPLOYEE_STATUS_PRIORITY)->first(fn ($p) => $statuses->contains($p)),
-        );
+        $employeeStatus = $rowsByEmployee->map(function (Collection $employeeRows) {
+            $statuses = $employeeRows->pluck('status');
 
-        // Đã chấm công VÀO (duyệt được từ lúc này, xem decideApproval()) mà
-        // HR chưa quyết định — cũng gộp theo nhân viên, cùng lý do trên.
-        $awaitingApprovalEmployees = $rows
-            ->filter(fn (array $row) => $row['attendance']?->first_check_in_at
-                && $row['attendance']->approval_status === Attendance::APPROVAL_PENDING)
-            ->pluck('employee.id')
-            ->unique();
+            return collect(self::EMPLOYEE_STATUS_PRIORITY)->first(fn ($p) => $statuses->contains($p));
+        });
+
+        $countOf = fn (string $status) => $employeeStatus->filter(fn ($s) => $s === $status)->count();
 
         return [
             'total' => $employeeStatus->count(),
-            'completed' => $employeeStatus->filter(fn ($s) => $s === 'completed')->count(),
-            'pending' => $employeeStatus->filter(fn ($s) => $s === 'pending')->count(),
-            'needs_review' => $employeeStatus->filter(fn ($s) => $s === 'needs_review')->count(),
-            'absent' => $employeeStatus->filter(fn ($s) => $s === 'absent')->count(),
-            'on_leave' => $employeeStatus->filter(fn ($s) => $s === 'on_leave')->count(),
-            'awaiting_approval' => $awaitingApprovalEmployees->count(),
+            'pending_approval' => $countOf('pending_approval'),
+            'rejected' => $countOf('rejected'),
+            'in_progress' => $countOf('in_progress'),
+            'full' => $countOf('full'),
+            'late' => $countOf('late'),
+            'insufficient' => $countOf('insufficient'),
+            'absent' => $countOf('absent'),
+            'on_leave' => $countOf('on_leave'),
+            // Số người ĐÃ có mặt (có ít nhất 1 lượt chấm vào, bất kể đã duyệt
+            // hay chưa) — DashboardService dùng cho "Tỷ lệ đi làm".
+            'present' => $rowsByEmployee->filter(fn (Collection $employeeRows) => $employeeRows->contains(
+                fn (array $row) => $row['attendance']?->first_check_in_at !== null,
+            ))->count(),
+            // Số người có lượt chấm công không khớp điểm chấm công nào.
+            'location_mismatch' => $rowsByEmployee->filter(
+                fn (Collection $employeeRows) => $employeeRows->contains('location_mismatch', true),
+            )->count(),
         ];
     }
 

@@ -256,6 +256,38 @@ class AttendanceServiceCalculationTest extends TestCase
         $this->assertSame('insufficient', $result);
     }
 
+    // 2026-09-29 — lỗi thật: chấm vào hôm nay, ca chưa hết, chưa chấm ra thì
+    // KHÔNG được coi là thiếu công (test ngay trên dùng ngày trong QUÁ KHỨ).
+    public function test_derive_history_status_missing_check_out_today_is_in_progress(): void
+    {
+        $service = $this->makeService();
+        $attendance = new Attendance([
+            'attendance_date' => now()->toDateString(),
+            'first_check_in_at' => now()->setTime(8, 0),
+            'last_check_out_at' => null,
+            'late_minutes' => 0,
+        ]);
+
+        $result = $this->callPrivateMethod($service, 'deriveHistoryStatus', [$attendance]);
+
+        $this->assertSame('in_progress', $result);
+    }
+
+    public function test_derive_history_status_missing_check_out_on_past_day_is_insufficient(): void
+    {
+        $service = $this->makeService();
+        $attendance = new Attendance([
+            'attendance_date' => now()->subDay()->toDateString(),
+            'first_check_in_at' => now()->subDay()->setTime(8, 0),
+            'last_check_out_at' => null,
+            'late_minutes' => 0,
+        ]);
+
+        $result = $this->callPrivateMethod($service, 'deriveHistoryStatus', [$attendance]);
+
+        $this->assertSame('insufficient', $result);
+    }
+
     public function test_derive_history_status_early_leave_is_insufficient(): void
     {
         $service = $this->makeService();

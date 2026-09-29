@@ -3,21 +3,19 @@
         v-model="open"
         :rail="!mobile && rail"
         rail-width="80"
-        width="264"
+        width="280"
         :permanent="!mobile"
         :temporary="mobile"
-        class="border-e"
+        class="border-e qlns-sidebar"
     >
-        <div
-            class="d-flex align-center ga-3 pa-4 border-b"
-            style="min-height: 64px"
-        >
+        <div class="d-flex align-center ga-3 px-4" style="min-height: 64px">
             <div
                 style="
                     width: 36px;
                     height: 36px;
-                    border-radius: 10px;
+                    border-radius: 8px;
                     background: rgb(var(--v-theme-primary));
+                    color: rgb(var(--v-theme-on-primary));
                     display: flex;
                     align-items: center;
                     justify-content: center;
@@ -29,7 +27,7 @@
                     height="18"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="white"
+                    stroke="currentColor"
                     stroke-width="1.75"
                     stroke-linecap="round"
                     stroke-linejoin="round"
@@ -41,16 +39,22 @@
                 </svg>
             </div>
             <div v-if="showLabels" style="overflow: hidden">
-                <div class="text-subtitle-2 font-weight-bold text-no-wrap">
+                <div
+                    class="text-subtitle-1 font-weight-bold text-no-wrap"
+                    style="color: rgb(var(--v-theme-ink))"
+                >
                     QLNS
                 </div>
-                <div class="text-caption text-no-wrap" style="opacity: 0.6">
+                <div
+                    class="text-caption text-no-wrap text-medium-emphasis"
+                    style="line-height: 1.2"
+                >
                     Quản lý Nhân sự
                 </div>
             </div>
         </div>
 
-        <v-list nav density="compact" color="primary" class="px-2 pt-2">
+        <v-list nav density="compact" class="px-4 pt-2">
             <v-list-item
                 prepend-icon="mdi-view-dashboard-outline"
                 title="Tổng quan"
@@ -75,9 +79,9 @@
             <v-list-subheader
                 v-if="
                     showLabels &&
-                    (can('employee.view') || can('department.view'))
+                    (can('employee.view') || can('department.view') || can('resignation.approve'))
                 "
-                >NHÂN SỰ</v-list-subheader
+                >Nhân sự</v-list-subheader
             >
             <v-list-item
                 v-if="can('employee.view')"
@@ -100,17 +104,24 @@
                 to="/positions"
                 rounded="lg"
             />
+            <v-list-item
+                v-if="can('resignation.approve')"
+                prepend-icon="mdi-account-arrow-right-outline"
+                title="Đơn nghỉ việc"
+                to="/resignations"
+                rounded="lg"
+            />
 
             <v-list-subheader v-if="showLabels"
-                >CHẤM CÔNG &amp; NGHỈ PHÉP</v-list-subheader
+                >Chấm công &amp; Nghỉ phép</v-list-subheader
             >
-            <v-list-item
+            <!-- <v-list-item
                 v-if="can('shift.view')"
                 prepend-icon="mdi-timetable"
                 title="Ca làm việc"
                 to="/work-shifts"
                 rounded="lg"
-            />
+            /> -->
             <!-- <v-list-item
                 v-if="can('location.view')"
                 prepend-icon="mdi-map-marker-outline"
@@ -155,7 +166,7 @@
             />
 
             <v-list-subheader v-if="showLabels"
-                >LƯƠNG &amp; BÁO CÁO</v-list-subheader
+                >Lương &amp; Báo cáo</v-list-subheader
             >
             <v-list-item
                 v-if="can('payroll.view_all')"
@@ -172,7 +183,7 @@
                 disabled
             />
 
-            <v-list-subheader v-if="showLabels">HỆ THỐNG</v-list-subheader>
+            <v-list-subheader v-if="showLabels">Hệ thống</v-list-subheader>
             <v-list-item
                 v-if="can('shift.manage')"
                 prepend-icon="mdi-cog-outline"
@@ -196,8 +207,8 @@
         </v-list>
 
         <template #append>
-            <v-divider class="mb-2" />
-            <v-list nav density="compact" class="px-2 pb-2">
+            <v-divider class="mb-1" />
+            <v-list nav density="compact" class="px-4 pb-2">
                 <v-list-item
                     prepend-icon="mdi-help-circle-outline"
                     title="Hướng dẫn sử dụng"

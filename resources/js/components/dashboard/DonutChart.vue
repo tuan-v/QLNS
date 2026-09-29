@@ -18,7 +18,11 @@ const isDark = computed(() => theme.global.current.value.dark);
 
 const palette = computed(() => {
     const c = theme.global.current.value.colors;
-    return [c.primary, c.success, "#f59e0b", "#38bdf8", "#a78bfa", "#f43f5e"];
+    // Thang brand theo design.md (TailAdmin brand-500 → 200) + 2 màu phụ,
+    // khác nhau về ĐỘ SÁNG để phân biệt được cả khi mù màu.
+    return isDark.value
+        ? ["#7592FF", "#465FFF", "#9CB9FF", "#3641F5", "#C2D6FF", "#2A31D8"]
+        : ["#465FFF", "#9CB9FF", "#3641F5", "#C2D6FF", "#252DAE", "#DDE9FF"];
 });
 
 const series = computed(() => props.data);
@@ -26,12 +30,12 @@ const legendColor = computed(() => (isDark.value ? "rgba(255,255,255,0.75)" : "r
 
 const options = computed(() => ({
     labels: props.labels,
-    chart: { background: "transparent" },
+    chart: { background: "transparent", fontFamily: "'Lexend Variable', Lexend, sans-serif" },
     theme: { mode: isDark.value ? "dark" : "light" },
     colors: palette.value,
     legend: { position: "bottom", labels: { colors: legendColor.value } },
     dataLabels: { enabled: false },
-    stroke: { width: 0 },
+    stroke: { width: 2, colors: [isDark.value ? "#1C1D1F" : "#FFFFFF"] },
     plotOptions: {
         pie: {
             donut: {

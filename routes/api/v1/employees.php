@@ -22,6 +22,9 @@ Route::middleware('auth:api')->prefix('employees')->group(function (): void {
     // Chỉ sửa được thông tin liên hệ (xem UpdateMyProfileRequest) — không
     // dùng permission:employee.update vì đây là tự sửa hồ sơ CHÍNH MÌNH.
     Route::put('/me', [EmployeeController::class, 'updateMine']);
+    // Tự đổi ảnh đại diện CHÍNH MÌNH — cùng lý do không gắn permission như
+    // PUT /me (bản HR đổi ảnh người khác là POST /{employee}/avatar bên dưới).
+    Route::post('/me/avatar', [EmployeeController::class, 'uploadMyAvatar']);
     Route::get('/me/contracts', [EmployeeContractController::class, 'mine']);
     Route::get('/me/documents', [EmployeeDocumentController::class, 'mine']);
     // Tự tải tài liệu lên hồ sơ CHÍNH MÌNH — khác Hợp đồng (chỉ HR/Manager

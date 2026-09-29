@@ -6,7 +6,7 @@
         >
             <template #actions>
                 <v-btn
-                    color="secondary"
+                    color="primary"
                     variant="tonal"
                     prepend-icon="mdi-calendar-edit"
                     block
@@ -15,11 +15,10 @@
                     Xin bổ sung chấm công
                 </v-btn>
                 <v-btn
-                    color="secondary"
+                    color="primary"
                     variant="tonal"
                     prepend-icon="mdi-calendar-plus"
                     block
-                    class="md-2"
                     @click="openExtraShiftDialog('extra_shift')"
                 >
                     Xin làm ngoài lịch
@@ -349,7 +348,7 @@
                         v-if="a.late_minutes > 0 && !a.late_excused"
                         size="small"
                         variant="tonal"
-                        color="secondary"
+                        color="primary"
                         rounded="lg"
                         prepend-icon="mdi-shield-check-outline"
                         @click="openExcuseDialog(a)"
@@ -360,7 +359,7 @@
                         v-if="a.overtime_minutes > 0 && !a.overtime_approved"
                         size="small"
                         variant="tonal"
-                        color="secondary"
+                        color="primary"
                         rounded="lg"
                         prepend-icon="mdi-clock-plus-outline"
                         @click="openOtApprovalDialog(a)"

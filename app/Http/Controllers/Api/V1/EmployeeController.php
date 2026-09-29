@@ -15,6 +15,12 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class EmployeeController extends Controller
 {
+    // 'image' của Laravel 12 đã loại SVG mặc định (SVG chứa được script);
+    // liệt kê thêm mimes để chỉ nhận đúng các định dạng ảnh thông dụng.
+    private const AVATAR_RULES = [
+        'avatar' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+    ];
+
     public function __construct(private readonly EmployeeService $employeeService)
     {
     }
@@ -80,9 +86,23 @@ class EmployeeController extends Controller
     }
     public function uploadAvatar(Request $request, Employee $employee): JsonResponse
     {
-        $request->validate([
-            'avatar' => ['required', 'image', 'max:2048'],
-        ]);
+        $request->validate(self::AVATAR_RULES);
+
+        $employee = $this->employeeService->updateAvatar($employee, $request->file('avatar'));
+
+        return (new EmployeeResource($employee))->response();
+    }
+
+    // Tự đổi ảnh đại diện của CHÍNH MÌNH (trang "Hồ sơ của tôi") — cùng luật
+    // kiểm tra file và cùng EmployeeService::updateAvatar() với bản HR ở trên,
+    // chỉ khác nguồn lấy employee (luôn là của người đang đăng nhập).
+    public function uploadMyAvatar(Request $request): JsonResponse
+    {
+        $employee = $request->user()->employee;
+
+        abort_if(! $employee, 404, 'Tài khoản này chưa liên kết với hồ sơ nhân viên nào.');
+
+        $request->validate(self::AVATAR_RULES);
 
         $employee = $this->employeeService->updateAvatar($employee, $request->file('avatar'));
 

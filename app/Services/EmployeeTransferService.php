@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeTransfer;
-use App\Repositories\EmployeeRepository;
 use App\Repositories\EmployeeTransferRepository;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
@@ -16,8 +15,8 @@ class EmployeeTransferService
 {
     public function __construct(
         private readonly EmployeeTransferRepository $employeeTransferRepository,
-        private readonly EmployeeRepository $employeeRepository,
         private readonly PositionService $positionService,
+        private readonly ReportingLineService $reportingLineService,
     ) {
     }
 
@@ -40,28 +39,10 @@ class EmployeeTransferService
             ]);
         }
 
-        if (! empty($data['new_manager_id'])) {
-            // Quản lý mới chỉ được là Trưởng phòng (Department.manager_id) của
-            // CHÍNH phòng ban đang được điều tới (2026-09-21, theo yêu cầu
-            // người dùng) — không cho chọn nhân viên tùy ý. Kiểm tra ở
-            // Backend chứ không chỉ ẩn ở dropdown, vì client có thể gọi API
-            // trực tiếp với bất kỳ new_manager_id nào.
-            $toDepartment = Department::findOrFail($data['to_department_id']);
-
-            if ((int) $toDepartment->manager_id !== (int) $data['new_manager_id']) {
-                throw ValidationException::withMessages([
-                    'new_manager_id' => $toDepartment->manager_id
-                        ? 'Quản lý mới phải là Trưởng phòng của phòng ban mới.'
-                        : 'Phòng ban mới chưa có Trưởng phòng, không thể chọn Quản lý mới.',
-                ]);
-            }
-
-            if ($this->employeeRepository->wouldCreateCycle($employee->id, $data['new_manager_id'])) {
-                throw ValidationException::withMessages([
-                    'new_manager_id' => 'Không thể chọn nhân viên này làm quản lý vì sẽ tạo vòng lặp trong cơ cấu tổ chức.',
-                ]);
-            }
-        }
+        // "Quản lý mới" KHÔNG còn chọn tay (2026-09-29) — tự suy ra theo
+        // phòng ban mới sau khi điều chuyển (ReportingLineService), vẫn ghi
+        // vào new_manager_id của bản ghi luân chuyển để giữ lịch sử.
+        unset($data['new_manager_id']);
 
         // Đang là Trưởng phòng (Position type='head') mà bị điều sang phòng ban
         // khác thì không còn là Trưởng phòng của phòng cũ nữa: tự để trống
@@ -94,11 +75,21 @@ class EmployeeTransferService
                     ? $this->positionService->ensureDefaultPosition(Department::findOrFail($data['to_department_id']))->id
                     : $employee->position_id);
 
+            $oldDepartmentId = $employee->department_id;
+
             $employee->forceFill([
                 'department_id' => $data['to_department_id'],
                 'position_id' => $newPositionId,
-                'manager_id' => $data['new_manager_id'] ?? $employee->manager_id,
             ])->save();
+
+            $this->reportingLineService->syncEmployee($employee);
+            // Trưởng phòng rời đi thì phòng cũ mất Trưởng phòng -> quản lý của
+            // cả cây phòng cũ phải tính lại.
+            if ($wasHeadMovingOut && $oldDepartment = Department::find($oldDepartmentId)) {
+                $this->reportingLineService->syncDepartmentTree($oldDepartment);
+            }
+
+            $transfer->forceFill(['new_manager_id' => $employee->manager_id])->save();
 
             return $transfer;
         });

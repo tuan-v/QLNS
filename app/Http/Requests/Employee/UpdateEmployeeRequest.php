@@ -31,12 +31,12 @@ class UpdateEmployeeRequest extends FormRequest
                 'integer',
                 Rule::exists('communes', 'code')->where('province_code', $this->input('province_code')),
             ],
-            'employment_status' => ['nullable', 'in:probation,active,resigned,terminated'],
+            // Không nhận employment_status/manager_id/termination_date — xem
+            // chú thích ở StoreEmployeeRequest (tự động theo hợp đồng, phòng
+            // ban, đơn nghỉ việc).
             'department_id' => ['required', 'exists:departments,id'],
             'position_id' => ['nullable', 'exists:positions,id'],
-            'manager_id' => ['nullable', 'exists:employees,id'],
             'user_id' => ['nullable', 'exists:users,id', 'unique:employees,user_id,' . $this->route('employee')->id],
-            'termination_date' => ['nullable', 'date', 'after:hire_date'],
             'probation_end_date' => ['nullable', 'date', 'after:hire_date'],
         ];
     }
@@ -78,15 +78,11 @@ class UpdateEmployeeRequest extends FormRequest
             'province_code.exists' => 'Tỉnh/Thành phố không tồn tại',
             'commune_code.required' => 'Xã/Phường không được để trống',
             'commune_code.exists' => 'Xã/Phường không tồn tại hoặc không thuộc Tỉnh/Thành phố đã chọn',
-            'employment_status.in' => 'Trạng thái làm việc không hợp lệ',
             'department_id.required' => 'Phòng ban không được để trống',
             'department_id.exists' => 'Phòng ban không tồn tại',
             'position_id.exists' => 'Chức vụ không tồn tại',
-            'manager_id.exists' => 'Quản lý không tồn tại',
             'user_id.exists' => 'Người dùng không tồn tại',
             'user_id.unique' => 'Người dùng đã được liên kết với nhân viên khác',
-            'termination_date.date' => 'Ngày chấm dứt hợp đồng không đúng định dạng',
-            'termination_date.after' => 'Ngày chấm dứt hợp đồng phải sau ngày tuyển dụng',
             'probation_end_date.date' => 'Ngày kết thúc thử việc không đúng định dạng',
             'probation_end_date.after' => 'Ngày kết thúc thử việc phải sau ngày tuyển dụng',
         ];

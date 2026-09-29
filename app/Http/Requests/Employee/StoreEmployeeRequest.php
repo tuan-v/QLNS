@@ -31,21 +31,21 @@ class StoreEmployeeRequest extends FormRequest
                 'integer',
                 Rule::exists('communes', 'code')->where('province_code', $this->input('province_code')),
             ],
-            'employment_status' => ['nullable', 'in:probation,active,resigned,terminated'],
+            // KHÔNG còn nhận employment_status/manager_id/termination_date
+            // (2026-09-29, theo yêu cầu người dùng): trạng thái nhân viên tự
+            // đặt theo LOẠI HỢP ĐỒNG bên dưới, quản lý trực tiếp tự suy từ
+            // phòng ban (ReportingLineService), ngày nghỉ việc do luồng đơn
+            // nghỉ việc/chấm dứt hợp đồng tự ghi.
             'department_id' => ['required', 'exists:departments,id'],
             'position_id' => ['nullable', 'exists:positions,id'],
-            'manager_id' => ['nullable', 'exists:employees,id'],
             'user_id' => ['nullable', 'exists:users,id', 'unique:employees,user_id'],
-            'termination_date' => ['nullable', 'date', 'after:hire_date'],
             'probation_end_date' => ['nullable', 'date', 'after:hire_date'],
-            // Hợp đồng ĐẦU TIÊN tự tạo luôn cùng lúc tạo nhân viên (2026-09-24,
-            // theo yêu cầu người dùng) — không hỏi thêm "loại hợp đồng"/"ngày
-            // bắt đầu" riêng: contract_type suy từ employment_status (active
-            // -> chính thức, còn lại -> thử việc), start_date = hire_date. Xem
-            // EmployeeService::create(). Không còn hỏi "lương đóng BHXH" riêng
-            // nữa (2026-09-24, theo yêu cầu người dùng) —
-            // EmployeeContractService::create() tự đặt insurance_salary =
-            // agreed_salary cho MỌI hợp đồng (kể cả tạo tay ở tab "Hợp đồng").
+            // Hợp đồng ĐẦU TIÊN tự tạo luôn cùng lúc tạo nhân viên — HR chọn
+            // loại hợp đồng, trạng thái nhân viên suy ra từ đó (thu_viec ->
+            // "Thử việc", chinh_thuc -> "Chính thức"), start_date = hire_date.
+            // Xem EmployeeService::create(). insurance_salary = agreed_salary
+            // (EmployeeContractService::create()).
+            'contract_type' => ['required', 'in:thu_viec,chinh_thuc'],
             'agreed_salary' => ['required', 'numeric', 'min:0'],
         ];
     }
@@ -87,15 +87,13 @@ class StoreEmployeeRequest extends FormRequest
             'province_code.exists' => 'Tỉnh/Thành phố không tồn tại',
             'commune_code.required' => 'Xã/Phường không được để trống',
             'commune_code.exists' => 'Xã/Phường không tồn tại hoặc không thuộc Tỉnh/Thành phố đã chọn',
-            'employment_status.in' => 'Trạng thái làm việc không hợp lệ',
             'department_id.required' => 'Phòng ban không được để trống',
             'department_id.exists' => 'Phòng ban không tồn tại',
             'position_id.exists' => 'Chức vụ không tồn tại',
-            'manager_id.exists' => 'Quản lý không tồn tại',
             'user_id.exists' => 'Người dùng không tồn tại',
             'user_id.unique' => 'Người dùng đã được liên kết với nhân viên khác',
-            'termination_date.date' => 'Ngày chấm dứt hợp đồng không đúng định dạng',
-            'termination_date.after' => 'Ngày chấm dứt hợp đồng phải sau ngày tuyển dụng',
+            'contract_type.required' => 'Vui lòng chọn loại hợp đồng',
+            'contract_type.in' => 'Loại hợp đồng không hợp lệ',
             'probation_end_date.date' => 'Ngày kết thúc thử việc không đúng định dạng',
             'probation_end_date.after' => 'Ngày kết thúc thử việc phải sau ngày tuyển dụng',
             'agreed_salary.required' => 'Lương cơ bản không được để trống',

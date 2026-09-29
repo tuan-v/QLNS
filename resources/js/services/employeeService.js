@@ -26,6 +26,9 @@ export default {
     updateMe(payload) {
         return axios.put(`${API_BASE}/me`, payload);
     },
+    uploadMyAvatar(formData) {
+        return axios.post(`${API_BASE}/me/avatar`, formData);
+    },
     uploadMyDocument(formData) {
         return axios.post(`${API_BASE}/me/documents`, formData);
     },

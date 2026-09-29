@@ -67,6 +67,8 @@ Broadcast::channel('resource-sync.{resource}', function (User $user, string $res
         'work_shifts' => 'shift.view',
         'attendance_locations' => 'location.view',
         'attendance_adjustments' => 'attendance.adjust',
+        // Đơn nghỉ việc (2026-09-29) — trang "Đơn nghỉ việc" của HR/Manager.
+        'resignations' => 'resignation.approve',
         default => null,
     };
 

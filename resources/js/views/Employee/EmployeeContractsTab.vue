@@ -422,7 +422,7 @@ const props = defineProps({
     },
 });
 
-defineEmits(["preview"]);
+const emit = defineEmits(["preview", "changed"]);
 
 /* ---------------------------------------------------------------------------
  * Bảng ánh xạ hiển thị: đổi giá trị THÔ lưu trong DB (tiếng Anh, snake_case)
@@ -587,6 +587,9 @@ async function submitCreate() {
         await loadContracts();
         toast.success("Đã thêm hợp đồng.");
         createDialog.value = false;
+        // Trạng thái nhân viên đi theo hợp đồng (2026-09-29) — báo trang cha
+        // tải lại hồ sơ để chip "Thử việc/Chính thức" cập nhật ngay.
+        emit("changed");
     } catch (e) {
         if (e.response?.status === 422) {
             createErrors.value = e.response.data.errors;
@@ -629,6 +632,7 @@ async function submitTerminate() {
         if (index !== -1) contracts.value[index] = updated;
         toast.success("Đã chấm dứt hợp đồng.");
         terminateDialog.value = false;
+        emit("changed");
     } catch (e) {
         terminateError.value =
             e.response?.data?.message ?? "Không thể chấm dứt hợp đồng.";

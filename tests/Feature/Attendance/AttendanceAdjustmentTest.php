@@ -116,6 +116,52 @@ class AttendanceAdjustmentTest extends TestCase
         ]);
     }
 
+    // 2026-09-29, theo báo lỗi người dùng: nộp đơn điều chỉnh công trước đây
+    // không báo cho ai cả — người có quyền attendance.adjust phải nhận được.
+    public function test_new_request_notifies_users_with_attendance_adjust(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee);
+        $hrUser = User::where('email', 'hr@qlns.local')->firstOrFail();
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->postJson('/api/v1/attendances/adjustments', [
+            'attendance_id' => $attendance->id,
+            'proposed_check_in_at' => now()->setTime(8, 0)->toDateTimeString(),
+            'reason' => 'Quen bam gio vao',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $hrUser->id,
+            'type' => 'attendance_adjustment.pending',
+        ]);
+        // Người nộp (Employee thường, không có attendance.adjust) không tự nhận.
+        $this->assertDatabaseMissing('notifications', [
+            'user_id' => $user->id,
+            'type' => 'attendance_adjustment.pending',
+        ]);
+    }
+
+    public function test_requester_with_attendance_adjust_is_not_notified_of_own_request(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        Role::where('name', 'HR')->first()->users()->attach($user->id);
+        $attendance = $this->makeAttendance($employee);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $this->postJson('/api/v1/attendances/adjustments', [
+            'attendance_id' => $attendance->id,
+            'proposed_check_in_at' => now()->setTime(8, 0)->toDateTimeString(),
+            'reason' => 'Quen bam gio vao',
+        ], ['Authorization' => 'Bearer '.$token])->assertStatus(201);
+
+        $this->assertDatabaseMissing('notifications', [
+            'user_id' => $user->id,
+            'type' => 'attendance_adjustment.pending',
+        ]);
+    }
+
     public function test_cannot_request_adjustment_for_another_employee_attendance(): void
     {
         [, $user] = $this->makeEmployeeWithLogin();

@@ -30,6 +30,8 @@ class RolePermissionSeeder extends Seeder
                 'attendance.approve',
                 'leave.view_all',
                 'leave.approve_hr',
+                'resignation.approve',
+                'resignation.view_all',
                 'payroll.view_all',
                 'payroll.manage',
                 'report.view',
@@ -46,6 +48,10 @@ class RolePermissionSeeder extends Seeder
                 'leave.view_own',
                 'leave.view_all',
                 'leave.approve_manager',
+                // Manager duyệt được đơn nghỉ việc của nhân viên mình quản lý
+                // trực tiếp (không có view_all — xem ResignationService).
+                'resignation.request',
+                'resignation.approve',
                 'payroll.view_own',
                 'report.view',
             ],
@@ -59,6 +65,7 @@ class RolePermissionSeeder extends Seeder
                 'attendance.view_own',
                 'leave.request',
                 'leave.view_own',
+                'resignation.request',
                 'payroll.view_own',
             ],
         ];

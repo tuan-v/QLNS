@@ -163,20 +163,55 @@ class AttendanceOverviewTest extends TestCase
         $this->assertCount(3, $data['rows']);
 
         $byEmployee = collect($data['rows'])->keyBy('employee.id');
-        $this->assertSame('completed', $byEmployee[$checkedIn->id]['status']);
-        $this->assertSame('pending', $byEmployee[$checkedIn->id]['attendance']['approval_status']);
+        // Đã chấm công nhưng HR chưa duyệt -> "Chờ duyệt" (2026-09-29, bộ
+        // trạng thái dùng chung với Lịch sử chấm công — xem displayStatusFor()).
+        $this->assertSame('pending_approval', $byEmployee[$checkedIn->id]['status']);
+        $this->assertFalse($byEmployee[$checkedIn->id]['location_mismatch']);
         $this->assertSame('absent', $byEmployee[$absent->id]['status']);
         $this->assertNull($byEmployee[$absent->id]['attendance']);
         $this->assertSame('on_leave', $byEmployee[$onLeave->id]['status']);
         $this->assertNull($byEmployee[$onLeave->id]['attendance']);
 
         $this->assertSame(3, $data['summary']['total']);
-        $this->assertSame(1, $data['summary']['completed']);
+        $this->assertSame(1, $data['summary']['pending_approval']);
         $this->assertSame(1, $data['summary']['absent']);
         $this->assertSame(1, $data['summary']['on_leave']);
-        $this->assertSame(0, $data['summary']['pending']);
-        $this->assertSame(0, $data['summary']['needs_review']);
-        $this->assertSame(1, $data['summary']['awaiting_approval']);
+        $this->assertSame(0, $data['summary']['full']);
+        $this->assertSame(1, $data['summary']['present']);
+    }
+
+    // 2026-09-29, theo yêu cầu người dùng đồng bộ 2 màn: CÙNG 1 ca thì màn
+    // "Tổng hợp chấm công" (HR) và "Lịch sử chấm công"/"Bảng công gần nhất"
+    // (nhân viên) phải ra CÙNG 1 trạng thái, ở mọi giai đoạn duyệt.
+    public function test_overview_and_history_report_the_same_status_for_the_same_shift(): void
+    {
+        $workShift = $this->makeWorkShift();
+        $cases = [
+            'pending_approval' => ['approval_status' => 'pending'],
+            'rejected' => ['approval_status' => 'rejected'],
+            'full' => ['approval_status' => 'approved'],
+            'late' => ['approval_status' => 'approved', 'first_check_in_at' => '2026-01-05 08:20:00', 'late_minutes' => 20],
+            'insufficient' => ['approval_status' => 'approved', 'early_leave_minutes' => 45],
+        ];
+        $employees = [];
+        foreach ($cases as $expected => $overrides) {
+            $employees[$expected] = $this->makeEmployee();
+            $this->assignShift($employees[$expected], $workShift, '2026-01-01');
+            $this->makeAttendance($employees[$expected], $workShift, '2026-01-05', $overrides);
+        }
+        $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
+
+        $overview = collect($this->getJson($this->overviewUrl(['date' => '2026-01-05']), ['Authorization' => 'Bearer '.$hrToken])
+            ->json('data.rows'))->keyBy('employee.id');
+
+        foreach ($employees as $expected => $employee) {
+            $history = $this->getJson('/api/v1/attendances/history/'.$employee->id.'?date_from=2026-01-05&date_to=2026-01-05', [
+                'Authorization' => 'Bearer '.$hrToken,
+            ])->json('data.rows.0.status');
+
+            $this->assertSame($expected, $overview[$employee->id]['status'], "Tổng hợp chấm công sai cho ca '{$expected}'");
+            $this->assertSame($expected, $history, "Lịch sử chấm công sai cho ca '{$expected}'");
+        }
     }
 
     // 2026-09-24, sửa lỗi thật: 1 bản gán ca "mồ côi" (Ca làm việc đã bị xóa
@@ -244,30 +279,30 @@ class AttendanceOverviewTest extends TestCase
         $this->assertCount(2, $rowsForEmployee);
         $pendingRow = $rowsForEmployee->firstWhere('attendance.id', $attendance->id);
         $this->assertNotNull($pendingRow, 'Bản ghi chấm công chờ duyệt phải còn hiện ra dù ca/assignment gốc đã bị xóa mềm.');
-        $this->assertSame('pending', $pendingRow['attendance']['approval_status']);
-        $this->assertSame(1, $data['summary']['awaiting_approval']);
+        $this->assertSame('pending_approval', $pendingRow['status']);
+        $this->assertSame(1, $data['summary']['pending_approval']);
     }
 
-    // Đang trong ca, đúng giờ, CHƯA chấm công ra — status phải là 'pending'
-    // ("Đang trong ca"), không được suy diễn nhầm thành thiếu công như
-    // deriveHistoryStatus() (mục 18) vẫn dùng cho màn Lịch sử.
-    public function test_in_progress_shift_shows_pending_not_insufficient(): void
+    // Đã duyệt, HÔM NAY, đang trong ca, CHƯA chấm công ra -> "Đang làm"
+    // (in_progress), không được suy nhầm thành thiếu công.
+    public function test_in_progress_shift_today_shows_in_progress_not_insufficient(): void
     {
+        $today = now()->toDateString();
         $employee = $this->makeEmployee();
         $workShift = $this->makeWorkShift();
-        $this->assignShift($employee, $workShift, '2026-01-01');
-        $this->makeAttendance($employee, $workShift, '2026-01-05', [
-            'last_check_out_at' => null, 'actual_work_minutes' => 0, 'status' => 'pending',
+        $this->assignShift($employee, $workShift, now()->subMonth()->toDateString());
+        $this->makeAttendance($employee, $workShift, $today, [
+            'first_check_in_at' => $today.' 08:00:00', 'last_check_out_at' => null,
+            'actual_work_minutes' => 0, 'status' => 'pending', 'approval_status' => 'approved',
         ]);
         $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
 
-        $data = $this->getJson($this->overviewUrl(['date' => '2026-01-05']), ['Authorization' => 'Bearer '.$hrToken])
+        $data = $this->getJson($this->overviewUrl(['date' => $today]), ['Authorization' => 'Bearer '.$hrToken])
             ->assertStatus(200)->json('data');
 
-        $this->assertSame('pending', $data['rows'][0]['status']);
-        // 2026-09-23: đã chấm công VÀO là duyệt được rồi (không cần chờ chấm
-        // công ra) -> có 1 người đang chờ duyệt.
-        $this->assertSame(1, $data['summary']['awaiting_approval']);
+        $this->assertSame('in_progress', $data['rows'][0]['status']);
+        $this->assertSame(1, $data['summary']['in_progress']);
+        $this->assertSame(1, $data['summary']['present']);
     }
 
     // "Đang trong ca" phải thắng "Vắng" khi gộp theo nhân viên (2026-09-23,
@@ -276,31 +311,34 @@ class AttendanceOverviewTest extends TestCase
     // đụng tới — "đang trong ca" là sự thật NGAY LÚC NÀY, phải ưu tiên hơn).
     public function test_summary_prioritizes_in_progress_shift_over_absent_shift(): void
     {
+        $today = now()->toDateString();
         $morning = $this->makeWorkShift(['start_time' => '06:00', 'end_time' => '12:00']);
         $afternoon = $this->makeWorkShift(['start_time' => '13:00', 'end_time' => '18:00']);
         $employee = $this->makeEmployee();
-        $this->assignShift($employee, $morning, '2026-01-01');
-        $this->assignShift($employee, $afternoon, '2026-01-01');
-        // Ca sáng đang trong ca (chưa chấm công ra), ca chiều chưa ai đụng tới -> vắng.
-        $this->makeAttendance($employee, $morning, '2026-01-05', [
-            'last_check_out_at' => null, 'actual_work_minutes' => 0, 'status' => 'pending',
+        $this->assignShift($employee, $morning, now()->subMonth()->toDateString());
+        $this->assignShift($employee, $afternoon, now()->subMonth()->toDateString());
+        // Ca sáng đang làm (đã duyệt, chưa chấm công ra), ca chiều chưa ai đụng tới -> vắng.
+        $this->makeAttendance($employee, $morning, $today, [
+            'first_check_in_at' => $today.' 06:00:00', 'last_check_out_at' => null,
+            'actual_work_minutes' => 0, 'status' => 'pending', 'approval_status' => 'approved',
         ]);
         $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
 
-        $data = $this->getJson($this->overviewUrl(['date' => '2026-01-05']), ['Authorization' => 'Bearer '.$hrToken])
+        $data = $this->getJson($this->overviewUrl(['date' => $today]), ['Authorization' => 'Bearer '.$hrToken])
             ->assertStatus(200)->json('data');
 
         $this->assertCount(2, $data['rows']);
         $this->assertSame(1, $data['summary']['total']);
-        $this->assertSame(1, $data['summary']['pending']);
+        $this->assertSame(1, $data['summary']['in_progress']);
         $this->assertSame(0, $data['summary']['absent']);
     }
 
     // Thẻ tổng quan đếm theo NHÂN VIÊN, không theo CA (2026-09-23, theo phản
     // hồi người dùng): 1 người có 2 ca cùng ngày (mục 14) chỉ tính 1 lần,
-    // rơi vào nhóm ĐÁNG CHÚ Ý HƠN theo thứ tự ưu tiên needs_review > absent >
-    // pending > completed > on_leave. Bảng `rows` vẫn 1 dòng/ca như cũ (test
-    // employee_with_two_shifts_same_day_produces_two_rows ở trên).
+    // rơi vào nhóm ĐÁNG CHÚ Ý HƠN theo EMPLOYEE_STATUS_PRIORITY (từ chối >
+    // chờ duyệt > thiếu công > đi muộn > đang làm > vắng > đủ công > nghỉ
+    // phép). Bảng `rows` vẫn 1 dòng/ca như cũ (test
+    // employee_with_two_shifts_same_day_produces_two_rows ở dưới).
     public function test_summary_counts_employees_not_shifts_when_one_employee_has_multiple_shifts(): void
     {
         $morning = $this->makeWorkShift(['start_time' => '06:00', 'end_time' => '12:00']);
@@ -311,18 +349,19 @@ class AttendanceOverviewTest extends TestCase
         $this->assignShift($bothAbsent, $morning, '2026-01-01');
         $this->assignShift($bothAbsent, $afternoon, '2026-01-01');
 
-        // Ca sáng hoàn tất, ca chiều vắng -> "vắng" thắng vì đáng chú ý hơn.
-        $mixedAbsentCompleted = $this->makeEmployee();
-        $this->assignShift($mixedAbsentCompleted, $morning, '2026-01-01');
-        $this->assignShift($mixedAbsentCompleted, $afternoon, '2026-01-01');
-        $this->makeAttendance($mixedAbsentCompleted, $morning, '2026-01-05');
+        // Ca sáng đủ công (đã duyệt), ca chiều vắng -> "vắng" thắng vì đáng chú ý hơn.
+        $mixedAbsentFull = $this->makeEmployee();
+        $this->assignShift($mixedAbsentFull, $morning, '2026-01-01');
+        $this->assignShift($mixedAbsentFull, $afternoon, '2026-01-01');
+        $this->makeAttendance($mixedAbsentFull, $morning, '2026-01-05', ['approval_status' => 'approved']);
 
-        // Ca sáng cần xem lại, ca chiều hoàn tất -> "cần xem lại" thắng (ưu tiên cao nhất).
-        $mixedNeedsReviewCompleted = $this->makeEmployee();
-        $this->assignShift($mixedNeedsReviewCompleted, $morning, '2026-01-01');
-        $this->assignShift($mixedNeedsReviewCompleted, $afternoon, '2026-01-01');
-        $this->makeAttendance($mixedNeedsReviewCompleted, $morning, '2026-01-05', ['status' => 'needs_review']);
-        $this->makeAttendance($mixedNeedsReviewCompleted, $afternoon, '2026-01-05');
+        // Ca sáng chấm sai vị trí và chưa duyệt, ca chiều đủ công -> "chờ duyệt"
+        // thắng, đồng thời được đếm vào location_mismatch.
+        $mixedPendingFull = $this->makeEmployee();
+        $this->assignShift($mixedPendingFull, $morning, '2026-01-01');
+        $this->assignShift($mixedPendingFull, $afternoon, '2026-01-01');
+        $this->makeAttendance($mixedPendingFull, $morning, '2026-01-05', ['status' => 'needs_review']);
+        $this->makeAttendance($mixedPendingFull, $afternoon, '2026-01-05', ['approval_status' => 'approved']);
 
         // Cả 2 ca đều nghỉ phép -> "nghỉ phép" (chỉ khi TẤT CẢ ca đều nghỉ phép).
         $bothOnLeave = $this->makeEmployee();
@@ -335,16 +374,16 @@ class AttendanceOverviewTest extends TestCase
             ->assertStatus(200)->json('data');
 
         // 4 người x 2 ca = 8 dòng ở bảng, nhưng tổng quan chỉ đếm 4 người —
-        // $bothAbsent VÀ $mixedAbsentCompleted đều rơi vào "vắng" (ca còn lại
-        // của $mixedAbsentCompleted đã hoàn tất, nhưng "vắng" đáng chú ý hơn
-        // nên thắng) -> absent = 2, không phải 4 (nếu đếm theo ca sẽ ra 4).
+        // $bothAbsent VÀ $mixedAbsentFull đều rơi vào "vắng" -> absent = 2,
+        // không phải 4 (nếu đếm theo ca sẽ ra 4).
         $this->assertCount(8, $data['rows']);
         $this->assertSame(4, $data['summary']['total']);
         $this->assertSame(2, $data['summary']['absent']);
-        $this->assertSame(1, $data['summary']['needs_review']);
+        $this->assertSame(1, $data['summary']['pending_approval']);
         $this->assertSame(1, $data['summary']['on_leave']);
-        $this->assertSame(0, $data['summary']['completed']);
-        $this->assertSame(0, $data['summary']['pending']);
+        $this->assertSame(0, $data['summary']['full']);
+        $this->assertSame(1, $data['summary']['location_mismatch']);
+        $this->assertSame(2, $data['summary']['present']);
     }
 
     public function test_filters_by_department(): void

@@ -19,15 +19,17 @@ const props = defineProps({
 
 const theme = useTheme();
 const isDark = computed(() => theme.global.current.value.dark);
+// design.md: biểu đồ dùng màu brand (primary của theme).
 const accent = computed(() => theme.global.current.value.colors.primary);
 const axisColor = computed(() =>
-    isDark.value ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.6)",
+    isDark.value ? "#9E9FA0" : "#667085",
 );
 
 const series = computed(() => [{ name: "Tỷ lệ đi làm", data: props.data }]);
 
 const options = computed(() => ({
     chart: {
+        fontFamily: "'Lexend Variable', Lexend, sans-serif",
         toolbar: { show: false },
         background: "transparent",
         zoom: { enabled: false },
@@ -35,8 +37,8 @@ const options = computed(() => ({
     theme: { mode: isDark.value ? "dark" : "light" },
     colors: [accent.value],
     dataLabels: { enabled: false },
-    stroke: { curve: "smooth", width: 3 },
-    markers: { size: 4, strokeWidth: 0 },
+    stroke: { curve: "smooth", width: 2 },
+    markers: { size: 0, hover: { size: 4 } },
     fill: {
         type: "gradient",
         gradient: {
@@ -47,10 +49,9 @@ const options = computed(() => ({
         },
     },
     grid: {
-        borderColor: isDark.value
-            ? "rgba(255,255,255,0.08)"
-            : "rgba(0,0,0,0.06)",
-        strokeDashArray: 4,
+        borderColor: isDark.value ? "#353537" : "#E4E7EC",
+        strokeDashArray: 0,
+        yaxis: { lines: { show: true } },
     },
     xaxis: {
         categories: props.categories,

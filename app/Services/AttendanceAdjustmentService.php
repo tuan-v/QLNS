@@ -6,6 +6,7 @@ use App\Events\ResourceChanged;
 use App\Models\Attendance;
 use App\Models\AttendanceAdjustment;
 use App\Models\Employee;
+use App\Models\User;
 use App\Models\WorkShift;
 use App\Repositories\AttendanceAdjustmentRepository;
 use Carbon\Carbon;
@@ -16,11 +17,20 @@ use Illuminate\Validation\ValidationException;
 
 class AttendanceAdjustmentService
 {
+    private const TYPE_LABELS = [
+        'correction' => 'điều chỉnh công',
+        'supplement' => 'bổ sung chấm công',
+        'excuse' => 'miễn trừ đi muộn',
+        'overtime' => 'duyệt OT',
+        'extra_shift' => 'làm ngoài lịch',
+    ];
+
     public function __construct(
         private readonly AttendanceAdjustmentRepository $attendanceAdjustmentRepository,
         private readonly AttendanceService $attendanceService,
         private readonly EmployeeShiftAssignmentService $employeeShiftAssignmentService,
         private readonly WorkShiftService $workShiftService,
+        private readonly NotificationService $notificationService,
     ) {
     }
 
@@ -144,8 +154,27 @@ class AttendanceAdjustmentService
         $adjustment = $this->attendanceAdjustmentRepository->create($data);
 
         ResourceChanged::dispatch('attendance_adjustments');
+        $this->notifyApprovers($employee, $adjustment, $requestedBy);
 
         return $adjustment;
+    }
+
+    // Đơn mới nộp -> báo mọi người có quyền duyệt (attendance.adjust, cùng
+    // quyền gate route PUT /attendances/adjustments/{id}). Bỏ qua chính người
+    // nộp — HR/Admin tự nộp đơn của mình thì không cần tự báo cho mình.
+    private function notifyApprovers(Employee $employee, AttendanceAdjustment $adjustment, int $requestedBy): void
+    {
+        $label = self::TYPE_LABELS[$adjustment->type] ?? 'điều chỉnh công';
+        $date = Carbon::parse($adjustment->attendance_date)->format('d/m/Y');
+        $title = 'Đơn điều chỉnh công mới cần duyệt';
+        $message = "{$employee->full_name} vừa gửi đơn xin {$label} ngày {$date}.";
+        $data = ['attendance_adjustment_id' => $adjustment->id];
+
+        $approvers = User::withPermission('attendance.adjust')->where('id', '!=', $requestedBy)->get();
+
+        foreach ($approvers as $approver) {
+            $this->notificationService->send($approver, 'attendance_adjustment.pending', $title, $message, $data);
+        }
     }
 
     // 'extra_shift' (2026-09-23): ĐĂNG KÝ TRƯỚC cho 1 ngày/ca KHÔNG có

@@ -1,1 +1,36 @@
-@forward 'vuetify/settings';
+// Biến SASS của Vuetify (nạp qua vite.config.js → vuetify({ styles.configFile })).
+// Design system: demo.tailadmin.com-DESIGN.md — font Lexend (thay Outfit vì
+// Outfit không có tiếng Việt), thang chữ: 36/30/18/16/14/12px, letter-spacing 0.
+// Đặt font ở ĐÂY (không chỉ ở app.css) vì các class .text-h*, .text-body-*,
+// .text-caption của Vuetify tự khai font-family riêng (mặc định Roboto).
+$qlns-font: ('Lexend Variable', 'Lexend', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+
+@use 'vuetify/settings' with (
+    $body-font-family: $qlns-font,
+    $heading-font-family: $qlns-font,
+    $field-font-size: 14px,
+    // Bo góc kiểu TailAdmin: nút/input 8px ('lg'), ô con 12px ('md'),
+    // card/bảng/dialog 16px ('xl' — rounded-2xl của TailAdmin).
+    $rounded: (
+        'sm': 4px,
+        null: 6px,
+        'md': 12px,
+        'lg': 8px,
+        'xl': 16px,
+    ),
+    $typography: (
+        'h1': ('size': 3rem, 'weight': 600, 'line-height': 1.2, 'letter-spacing': 0),
+        'h2': ('size': 2.5rem, 'weight': 600, 'line-height': 1.25, 'letter-spacing': 0),
+        'h3': ('size': 2.25rem, 'weight': 600, 'line-height': 1.5, 'letter-spacing': 0),
+        'h4': ('size': 1.875rem, 'weight': 700, 'line-height': 1.27, 'letter-spacing': 0),
+        'h5': ('size': 1.5rem, 'weight': 600, 'line-height': 1.33, 'letter-spacing': 0),
+        'h6': ('size': 1.125rem, 'weight': 600, 'line-height': 1.56, 'letter-spacing': 0),
+        'subtitle-1': ('size': 1rem, 'weight': 500, 'line-height': 1.5, 'letter-spacing': 0),
+        'subtitle-2': ('size': .875rem, 'weight': 500, 'line-height': 1.43, 'letter-spacing': 0),
+        'body-1': ('size': 1rem, 'weight': 400, 'line-height': 1.5, 'letter-spacing': 0),
+        'body-2': ('size': .875rem, 'weight': 400, 'line-height': 1.43, 'letter-spacing': 0),
+        'button': ('size': .875rem, 'weight': 500, 'line-height': 1.43, 'letter-spacing': 0, 'text-transform': none),
+        'caption': ('size': .75rem, 'weight': 400, 'line-height': 1.5, 'letter-spacing': 0),
+        'overline': ('size': .75rem, 'weight': 500, 'line-height': 1.67, 'letter-spacing': 0, 'text-transform': uppercase),
+    )
+);

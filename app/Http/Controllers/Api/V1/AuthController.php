@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 // "OA" chỉ là BÍ DANH (alias) do `use ... as OA` tự đặt cho thư viện swagger-php
 // (namespace OpenApi\Attributes) — để bên dưới viết ngắn #[OA\Post(...)] thay vì
 // #[OpenApi\Attributes\Post(...)]. Chữ OA viết tắt của OpenAPI, chuẩn mô tả REST
@@ -127,7 +128,7 @@ class AuthController extends Controller
         tags: ['Auth'],
         security: [['bearerAuth' => []]],
         responses: [
-        new OA\Response(response: 200, description: 'Thông tin user, roles, permissions'),
+        new OA\Response(response: 200, description: 'Thông tin user, roles, permissions, avatar_url'),
         new OA\Response(response: 401, description: 'Chưa đăng nhập hoặc token không hợp lệ'),
     ],
     )]
@@ -135,7 +136,8 @@ class AuthController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $user->load('roles');
+        $user->load(['roles', 'employee']);
+        $avatar = $user->employee?->avatar;
 
         return response()->json([
             'id' => $user->id,
@@ -144,6 +146,9 @@ class AuthController extends Controller
             'status' => $user->status,
             'roles' => $user->roles->pluck('name'),
             'permissions' => $user->permissionCodes(),
+            // Ảnh đại diện nằm ở hồ sơ Employee (không phải User) — null nếu
+            // tài khoản chưa gắn hồ sơ hoặc chưa có ảnh; Header tự rơi về chữ cái đầu.
+            'avatar_url' => $avatar ? Storage::disk('public')->url($avatar) : null,
         ]);
     }
 

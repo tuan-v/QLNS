@@ -29,7 +29,8 @@ const { mobile } = useDisplay();
 // NGAY LÚC KHAI BÁO thay vì hằng số cố định, và tự đồng bộ lại mỗi khi
 // `mobile` đổi (resize qua lại breakpoint) — không dựa vào cơ chế ngầm của
 // Vuetify nữa.
-const rail = ref(true);
+// Desktop mặc định MỞ đủ nhãn (theo design system mới); bấm hamburger để thu gọn.
+const rail = ref(false);
 const drawerOpen = ref(!mobile.value);
 
 watch(mobile, (isMobile) => {
@@ -49,8 +50,8 @@ function toggleSidebar() {
     <AppHeader @toggle-sidebar="toggleSidebar" />
     <AppSidebar v-model="drawerOpen" v-model:rail="rail" />
     <v-main style="background: rgb(var(--v-theme-background))">
-        <v-container fluid class="pa-3 pa-md-6">
-            <AppBreadcrumbs class="mb-4" />
+        <v-container fluid class="pa-4 pa-md-6" style="max-width: 1600px">
+            <AppBreadcrumbs class="mb-2" />
             <slot />
         </v-container>
     </v-main>

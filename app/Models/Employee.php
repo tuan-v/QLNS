@@ -100,6 +100,10 @@ class Employee extends Model
     {
         return $this->hasMany(LeaveRequest::class);
     }
+    public function resignationRequests()
+    {
+        return $this->hasMany(ResignationRequest::class);
+    }
     // "Nghỉ phép năm" hiện tại (2026-09-24) — dùng để hiện cột "Nghỉ phép" ở
     // danh sách nhân viên. Đúng 1 loại phép có quỹ theo năm tại 1 thời điểm
     // (`annual_entitlement_days > 0` — hiện chỉ có "annual", 2 loại còn lại
