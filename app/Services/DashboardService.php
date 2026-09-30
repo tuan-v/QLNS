@@ -211,7 +211,7 @@ class DashboardService
         $days = array_reverse($days);
 
         $presentCounts = Attendance::whereIn('attendance_date', $days)
-            ->whereIn('status', ['completed', 'pending', 'needs_review'])
+            ->whereIn('status', ['completed', 'pending'])
             ->select('attendance_date', DB::raw('count(distinct employee_id) as cnt'))
             ->groupBy('attendance_date')
             ->pluck('cnt', 'attendance_date');

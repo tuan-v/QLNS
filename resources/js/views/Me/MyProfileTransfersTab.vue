@@ -55,6 +55,7 @@
 // Chỉ đọc lịch sử luân chuyển của chính mình, không có thao tác nào.
 import { onMounted, ref } from "vue";
 import employeeService from "../../services/employeeService";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 function formatDate(value) {
     if (!value) {
@@ -67,8 +68,11 @@ const transfers = ref([]);
 const transfersLoading = ref(false);
 const transfersError = ref("");
 
-async function loadTransfers() {
-    transfersLoading.value = true;
+async function loadTransfers(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        transfersLoading.value = true;
+    }
     transfersError.value = "";
     try {
         const response = await employeeService.myTransfers();
@@ -80,6 +84,8 @@ async function loadTransfers() {
         transfersLoading.value = false;
     }
 }
+
+useRealtimeRefresh(loadTransfers, { mine: ["transfers"] });
 
 onMounted(() => {
     loadTransfers();

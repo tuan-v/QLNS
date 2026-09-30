@@ -8,6 +8,10 @@ export default {
     create(payload) {
         return axios.post(API_BASE, payload);
     },
+    // Số ngày báo trước tối thiểu + ngày làm việc cuối sớm nhất để chỉ cần "thông báo".
+    policy() {
+        return axios.get(`${API_BASE}/policy`);
+    },
     mine() {
         return axios.get(`${API_BASE}/me`);
     },

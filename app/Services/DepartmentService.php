@@ -9,6 +9,7 @@ use App\Repositories\DepartmentRepository;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Support\Realtime;
 
 class DepartmentService
 {
@@ -114,6 +115,12 @@ class DepartmentService
             Employee::whereKey($newManagerId)->update([
                 'position_id' => $this->positionService->ensureHeadPosition($department)->id,
             ]);
+        }
+
+        // ->update() hàng loạt không phát event Eloquent — báo realtime tay.
+        Realtime::shared('employees');
+        foreach (array_filter([$oldManagerId, $newManagerId]) as $employeeId) {
+            Realtime::forEmployee((int) $employeeId, 'profile');
         }
     }
 

@@ -24,9 +24,6 @@ class PermissionSeeder extends Seeder
             ['code' => 'shift.view', 'name' => 'Xem ca làm việc'],
             ['code' => 'shift.manage', 'name' => 'Quản lý ca làm việc'],
 
-            // Attendance Location
-            ['code' => 'location.view', 'name' => 'Xem điểm chấm công'],
-            ['code' => 'location.manage', 'name' => 'Quản lý điểm chấm công'],
 
             // Attendance
             ['code' => 'attendance.check', 'name' => 'Chấm công (check-in/out)'],

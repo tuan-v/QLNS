@@ -12,7 +12,6 @@ use App\Models\Role;
 use App\Models\User;
 use App\Models\WorkShift;
 use App\Services\AttendanceAdjustmentService;
-use App\Services\AttendanceLocationService;
 use App\Services\DepartmentService;
 use App\Services\EmployeeService;
 use App\Services\PayrollService;
@@ -111,7 +110,7 @@ class ResourceSyncTest extends TestCase
     {
         $token = $this->adminToken();
 
-        foreach (['departments', 'positions', 'roles', 'payrolls', 'employees', 'work_shifts', 'attendance_locations', 'attendance_adjustments'] as $resource) {
+        foreach (['departments', 'positions', 'roles', 'payrolls', 'employees', 'work_shifts', 'attendance_adjustments'] as $resource) {
             $this->assertChannelAuthorized($resource, $token);
         }
     }
@@ -120,7 +119,7 @@ class ResourceSyncTest extends TestCase
     {
         $token = $this->loginAs($this->makeEmployeeWithLogin('Employee')->email, 'Secret@123');
 
-        foreach (['departments', 'positions', 'roles', 'payrolls', 'employees', 'work_shifts', 'attendance_locations', 'attendance_adjustments'] as $resource) {
+        foreach (['departments', 'positions', 'roles', 'payrolls', 'employees', 'work_shifts', 'attendance_adjustments'] as $resource) {
             $this->assertChannelForbidden($resource, $token);
         }
     }
@@ -184,21 +183,6 @@ class ResourceSyncTest extends TestCase
         app(WorkShiftService::class)->delete($workShift);
 
         Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'work_shifts');
-        Event::assertDispatchedTimes(ResourceChanged::class, 3);
-    }
-
-    public function test_attendance_location_mutations_dispatch_resource_changed(): void
-    {
-        Event::fake([ResourceChanged::class]);
-        $location = app(AttendanceLocationService::class)->create([
-            'name' => 'Van phong test', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
-
-        app(AttendanceLocationService::class)->update($location, ['name' => 'Da doi ten', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32']);
-        app(AttendanceLocationService::class)->delete($location);
-
-        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'attendance_locations');
-        Event::assertDispatchedTimes(ResourceChanged::class, 3);
     }
 
     public function test_attendance_adjustment_request_and_decision_dispatch_resource_changed(): void
@@ -227,7 +211,6 @@ class ResourceSyncTest extends TestCase
         app(AttendanceAdjustmentService::class)->decide($adjustment, 'approved', null, $hr->id);
 
         Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'attendance_adjustments');
-        Event::assertDispatchedTimes(ResourceChanged::class, 2);
     }
 
     public function test_employee_update_and_delete_dispatch_resource_changed(): void
@@ -239,7 +222,6 @@ class ResourceSyncTest extends TestCase
         app(EmployeeService::class)->delete($employee);
 
         Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'employees');
-        Event::assertDispatchedTimes(ResourceChanged::class, 2);
     }
 
     public function test_payroll_close_and_mark_as_paid_dispatch_resource_changed(): void
@@ -255,6 +237,5 @@ class ResourceSyncTest extends TestCase
         app(PayrollService::class)->markAsPaid($payroll->fresh());
 
         Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'payrolls');
-        Event::assertDispatchedTimes(ResourceChanged::class, 2);
     }
 }

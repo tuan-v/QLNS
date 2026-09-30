@@ -166,7 +166,6 @@ class AttendanceOverviewTest extends TestCase
         // Đã chấm công nhưng HR chưa duyệt -> "Chờ duyệt" (2026-09-29, bộ
         // trạng thái dùng chung với Lịch sử chấm công — xem displayStatusFor()).
         $this->assertSame('pending_approval', $byEmployee[$checkedIn->id]['status']);
-        $this->assertFalse($byEmployee[$checkedIn->id]['location_mismatch']);
         $this->assertSame('absent', $byEmployee[$absent->id]['status']);
         $this->assertNull($byEmployee[$absent->id]['attendance']);
         $this->assertSame('on_leave', $byEmployee[$onLeave->id]['status']);
@@ -355,12 +354,11 @@ class AttendanceOverviewTest extends TestCase
         $this->assignShift($mixedAbsentFull, $afternoon, '2026-01-01');
         $this->makeAttendance($mixedAbsentFull, $morning, '2026-01-05', ['approval_status' => 'approved']);
 
-        // Ca sáng chấm sai vị trí và chưa duyệt, ca chiều đủ công -> "chờ duyệt"
-        // thắng, đồng thời được đếm vào location_mismatch.
+        // Ca sáng chưa duyệt, ca chiều đủ công -> "chờ duyệt" thắng.
         $mixedPendingFull = $this->makeEmployee();
         $this->assignShift($mixedPendingFull, $morning, '2026-01-01');
         $this->assignShift($mixedPendingFull, $afternoon, '2026-01-01');
-        $this->makeAttendance($mixedPendingFull, $morning, '2026-01-05', ['status' => 'needs_review']);
+        $this->makeAttendance($mixedPendingFull, $morning, '2026-01-05');
         $this->makeAttendance($mixedPendingFull, $afternoon, '2026-01-05', ['approval_status' => 'approved']);
 
         // Cả 2 ca đều nghỉ phép -> "nghỉ phép" (chỉ khi TẤT CẢ ca đều nghỉ phép).
@@ -382,7 +380,6 @@ class AttendanceOverviewTest extends TestCase
         $this->assertSame(1, $data['summary']['pending_approval']);
         $this->assertSame(1, $data['summary']['on_leave']);
         $this->assertSame(0, $data['summary']['full']);
-        $this->assertSame(1, $data['summary']['location_mismatch']);
         $this->assertSame(2, $data['summary']['present']);
     }
 

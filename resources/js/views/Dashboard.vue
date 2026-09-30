@@ -127,7 +127,12 @@
                                 <div
                                     v-for="item in notificationStore.notifications.slice(0, 5)"
                                     :key="item.id"
-                                    class="px-5 py-3 border-b"
+                                    class="notification-row px-5 py-3 border-b"
+                                    :class="{ 'notification-row--link': canOpen(item) }"
+                                    :role="canOpen(item) ? 'link' : undefined"
+                                    :tabindex="canOpen(item) ? 0 : undefined"
+                                    @click="openNotification(item)"
+                                    @keydown.enter="openNotification(item)"
                                 >
                                     <div class="d-flex ga-2">
                                         <span
@@ -306,7 +311,12 @@
                                 <div
                                     v-for="item in notificationStore.notifications.slice(0, 6)"
                                     :key="item.id"
-                                    class="px-5 py-3 border-b"
+                                    class="notification-row px-5 py-3 border-b"
+                                    :class="{ 'notification-row--link': canOpen(item) }"
+                                    :role="canOpen(item) ? 'link' : undefined"
+                                    :tabindex="canOpen(item) ? 0 : undefined"
+                                    @click="openNotification(item)"
+                                    @keydown.enter="openNotification(item)"
                                 >
                                     <div class="d-flex ga-2">
                                         <span
@@ -344,6 +354,8 @@ import { useAttendanceFeedStore } from "../stores/useAttendanceFeedStore";
 import { useLeaveFeedStore } from "../stores/useLeaveFeedStore";
 import { useResourceSyncStore } from "../stores/useResourceSyncStore";
 import { formatDate } from "../composables/useCheckIn";
+import { useRealtimeRefresh } from "../composables/useRealtimeRefresh";
+import { useNotificationNavigation } from "../composables/useNotificationNavigation";
 import PageHeader from "../components/common/PageHeader.vue";
 import StatCards from "../components/dashboard/StatCards.vue";
 import GaugeChart from "../components/dashboard/GaugeChart.vue";
@@ -382,6 +394,7 @@ function formatMoney(value) {
 const router = useRouter();
 const auth = useAuthStore();
 const notificationStore = useNotificationStore();
+const { openNotification, canOpen } = useNotificationNavigation();
 const attendanceFeed = useAttendanceFeedStore();
 const leaveFeed = useLeaveFeedStore();
 const resourceSync = useResourceSyncStore();
@@ -475,6 +488,28 @@ watch(
 
 watch(statsDate, loadDashboard);
 
+// Realtime cho MỌI vai trò (mục 50 CODE_MAP) — dữ liệu của chính mình (mine)
+// + số liệu công ty theo đúng quyền xem (shared). Các tín hiệu duyệt/đơn phép/
+// điều chỉnh công ở watch() phía trên vẫn giữ nguyên cho khối "Cần bạn xử lý".
+useRealtimeRefresh(loadDashboard, {
+    mine: [
+        "attendance",
+        "attendance_adjustments",
+        "leave_requests",
+        "leave_balances",
+        "payslips",
+        "shift_assignments",
+        "profile",
+        "resignations",
+    ],
+    shared: [
+        { resource: "employees", permission: "employee.view" },
+        { resource: "attendances", permission: "attendance.view_all" },
+        { resource: "leave_requests", permission: ["leave.approve_manager", "leave.approve_hr", "leave.view_all"] },
+        "work_shifts_public",
+    ],
+});
+
 onMounted(() => {
     loadDashboard();
     notificationStore.fetchList();
@@ -489,6 +524,15 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.notification-row--link {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+.notification-row--link:hover,
+.notification-row--link:focus-visible {
+    background: rgba(var(--v-theme-primary), 0.08);
+    outline: none;
+}
 .action-item-card {
     cursor: pointer;
     min-width: 220px;

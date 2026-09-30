@@ -3,11 +3,18 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BroadcastsChanges;
 use Illuminate\Database\Eloquent\Model;
 
 class LeaveRequest extends Model
 {
     use Auditable;
+    use BroadcastsChanges;
+
+    protected array $realtimeShared = ['leave_requests'];
+
+    protected array $realtimeOwn = ['leave_requests'];
+
     protected $fillable = [
         'employee_id',
         'leave_type_id',

@@ -302,6 +302,7 @@ import InputDate from "../../components/common/InputDate.vue";
 import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import StatCards from "../../components/dashboard/StatCards.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 const toast = useToastStore();
 const { mobile } = useDisplay();
@@ -392,8 +393,11 @@ const myRequests = ref([]);
 const loadingList = ref(true);
 const loadError = ref("");
 
-async function loadMine() {
-    loadingList.value = true;
+async function loadMine(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        loadingList.value = true;
+    }
     try {
         const response = await leaveRequestService.mine();
         myRequests.value = response.data;
@@ -626,6 +630,10 @@ async function submit() {
         submitting.value = false;
     }
 }
+
+useRealtimeRefresh((opts) => Promise.all([loadBalances(), loadMine(opts)]), {
+    mine: ["leave_requests", "leave_balances"],
+});
 
 onMounted(() => {
     loadMine();

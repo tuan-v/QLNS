@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\EmployeeContract;
 use Illuminate\Console\Command;
+use App\Support\Realtime;
 
 // Chạy hằng ngày (đăng ký lịch ở routes/console.php) — chuyển hợp đồng đã
 // qua end_date nhưng vẫn còn "active" (HR quên/chưa kịp xử lý tay) sang
@@ -19,11 +20,22 @@ class ExpireEmployeeContracts extends Command
 
     public function handle(): int
     {
-        $count = EmployeeContract::query()
+        $expiring = EmployeeContract::query()
             ->where('status', 'active')
             ->whereNotNull('end_date')
-            ->whereDate('end_date', '<', now()->toDateString())
-            ->update(['status' => 'expired']);
+            ->whereDate('end_date', '<', now()->toDateString());
+
+        $employeeIds = (clone $expiring)->pluck('employee_id')->unique();
+        $count = $expiring->update(['status' => 'expired']);
+
+        // ->update() hàng loạt không phát event Eloquent — báo realtime tay.
+        if ($count > 0) {
+            Realtime::shared('employee_contracts');
+            Realtime::shared('employees');
+            foreach ($employeeIds as $employeeId) {
+                Realtime::forEmployee((int) $employeeId, 'contracts');
+            }
+        }
 
         $this->info("Đã chuyển {$count} hợp đồng sang trạng thái expired.");
 

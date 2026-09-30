@@ -122,13 +122,6 @@
                 to="/work-shifts"
                 rounded="lg"
             /> -->
-            <!-- <v-list-item
-                v-if="can('location.view')"
-                prepend-icon="mdi-map-marker-outline"
-                title="Điểm chấm công"
-                to="/attendance-locations"
-                rounded="lg"
-            /> -->
             <v-list-item
                 v-if="can('attendance.check')"
                 prepend-icon="mdi-calendar-check-outline"
@@ -162,6 +155,13 @@
                 prepend-icon="mdi-calendar-check-outline"
                 title="Duyệt nghỉ phép"
                 to="/leave-management"
+                rounded="lg"
+            />
+            <v-list-item
+                v-if="can('leave.view_all')"
+                prepend-icon="mdi-calendar-month-outline"
+                title="Tổng hợp nghỉ phép"
+                to="/leave-overview"
                 rounded="lg"
             />
 

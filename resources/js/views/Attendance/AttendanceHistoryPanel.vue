@@ -207,6 +207,7 @@ import InputDate from "../../components/common/InputDate.vue";
 import AttendanceLogList from "../../components/attendance/AttendanceLogList.vue";
 import { APPROVAL_STATUS_MAP } from "../../composables/useCheckIn";
 import { ATTENDANCE_STATUS_MAP, ATTENDANCE_STATUS_OPTIONS } from "../../composables/attendanceStatus";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 const props = defineProps({
     employeeId: {
@@ -353,8 +354,11 @@ const summaryStats = computed(() => [
     },
 ]);
 
-async function loadData() {
-    loading.value = true;
+async function loadData(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        loading.value = true;
+    }
     loadError.value = "";
     try {
         const params = {
@@ -386,6 +390,20 @@ function openDetail(row) {
 }
 
 watch([dateFrom, dateTo, workShiftId, statusFilter], loadData);
+
+useRealtimeRefresh(loadData, {
+    // Xem của CHÍNH MÌNH: tín hiệu riêng; xem theo nhân viên (HR/Manager): tín hiệu trang quản lý.
+    mine: () =>
+        props.employeeId ? [] : ["attendance", "attendance_adjustments", "leave_requests", "shift_assignments"],
+    shared: () =>
+        props.employeeId
+            ? [
+                  { resource: "attendances", permission: "attendance.view_all" },
+                  { resource: "leave_requests", permission: ["leave.approve_manager", "leave.approve_hr", "leave.view_all"] },
+                  { resource: "employee_shift_assignments", permission: "shift.view" },
+              ]
+            : ["work_shifts_public"],
+});
 
 onMounted(() => {
     loadShiftOptions();

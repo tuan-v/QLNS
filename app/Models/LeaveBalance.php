@@ -3,11 +3,18 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BroadcastsChanges;
 use Illuminate\Database\Eloquent\Model;
 
 class LeaveBalance extends Model
 {
     use Auditable;
+    use BroadcastsChanges;
+
+    protected array $realtimeShared = ['employees'];
+
+    protected array $realtimeOwn = ['leave_balances'];
+
     protected $fillable = [
         'employee_id',
         'leave_type_id',

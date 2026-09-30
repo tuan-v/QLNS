@@ -28,7 +28,7 @@ class AttendanceController extends Controller
         abort_if(! $employee, 404, 'Tài khoản này chưa liên kết với hồ sơ nhân viên nào.');
 
         $log = $this->attendanceService->checkIn($employee, $request->validated());
-        $log->load(['attendance.workShift', 'attendanceLocation']);
+        $log->load(['attendance.workShift']);
 
         return response()->json($log, 201);
     }
@@ -40,7 +40,7 @@ class AttendanceController extends Controller
         abort_if(! $employee, 404, 'Tài khoản này chưa liên kết với hồ sơ nhân viên nào.');
 
         $log = $this->attendanceService->checkOut($employee, $request->validated());
-        $log->load(['attendance.workShift', 'attendanceLocation']);
+        $log->load(['attendance.workShift']);
 
         return response()->json($log, 201);
     }
@@ -85,7 +85,7 @@ class AttendanceController extends Controller
             $request->validated('decision_note'),
             $request->user()->id,
         );
-        $attendance->load(['employee', 'workShift', 'logs.attendanceLocation', 'approvedBy']);
+        $attendance->load(['employee', 'workShift', 'logs', 'approvedBy']);
 
         return response()->json($attendance);
     }

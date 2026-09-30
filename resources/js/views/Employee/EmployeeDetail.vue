@@ -129,6 +129,7 @@ import EmployeeDocumentsTab from "./EmployeeDocumentsTab.vue";
 import EmployeeTransfersTab from "./EmployeeTransfersTab.vue";
 import EmployeeShiftAssignmentsTab from "./EmployeeShiftAssignmentsTab.vue";
 import EmployeeSalaryLeaveTab from "./EmployeeSalaryLeaveTab.vue";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 const props = defineProps({
     id: {
@@ -186,6 +187,10 @@ function openPreview(url, name) {
     previewFile.value = { url, name };
     previewDialog.value = true;
 }
+
+useRealtimeRefresh(loadEmployee, {
+    shared: [{ resource: "employees", permission: "employee.view" }],
+});
 
 onMounted(() => {
     loadEmployee();

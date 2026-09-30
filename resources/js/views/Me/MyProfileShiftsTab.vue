@@ -128,6 +128,7 @@
 import { onMounted, ref } from "vue";
 import { useDisplay } from "vuetify";
 import employeeService from "../../services/employeeService";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 const { mobile } = useDisplay();
 
@@ -162,8 +163,11 @@ const shifts = ref([]);
 const shiftsLoading = ref(false);
 const shiftsError = ref("");
 
-async function loadShifts() {
-    shiftsLoading.value = true;
+async function loadShifts(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        shiftsLoading.value = true;
+    }
     shiftsError.value = "";
     try {
         const response = await employeeService.myShiftAssignments();
@@ -175,6 +179,8 @@ async function loadShifts() {
         shiftsLoading.value = false;
     }
 }
+
+useRealtimeRefresh(loadShifts, { mine: ["shift_assignments"], shared: ["work_shifts_public"] });
 
 onMounted(() => {
     loadShifts();

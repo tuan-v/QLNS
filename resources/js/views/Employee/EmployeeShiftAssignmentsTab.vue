@@ -200,6 +200,7 @@ import workShiftService from "../../services/workShiftService";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate from "../../components/common/InputDate.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 const props = defineProps({
     employeeId: {
@@ -247,8 +248,11 @@ const shiftAssignmentsLoading = ref(false);
 const shiftAssignmentsError = ref("");
 const deletingAssignmentId = ref(null);
 
-async function loadShiftAssignments() {
-    shiftAssignmentsLoading.value = true;
+async function loadShiftAssignments(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        shiftAssignmentsLoading.value = true;
+    }
     shiftAssignmentsError.value = "";
     try {
         const response = await employeeService.shiftAssignments(props.employeeId);
@@ -365,6 +369,10 @@ async function submitAssignShift() {
         assignShiftSubmitting.value = false;
     }
 }
+
+useRealtimeRefresh(loadShiftAssignments, {
+    shared: [{ resource: "employee_shift_assignments", permission: "shift.view" }],
+});
 
 onMounted(() => {
     loadShiftAssignments();

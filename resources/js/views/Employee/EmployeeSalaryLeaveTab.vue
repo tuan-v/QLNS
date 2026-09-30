@@ -168,6 +168,7 @@ import employeeService from "../../services/employeeService";
 import leaveRequestService from "../../services/leaveRequestService";
 import StatusChip from "../../components/common/StatusChip.vue";
 import PayrollPayslipDialog from "../Payroll/PayrollPayslipDialog.vue";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 const props = defineProps({
     employeeId: {
@@ -200,8 +201,11 @@ function allocatedTotal(balance) {
 const balances = ref([]);
 const balancesLoading = ref(false);
 
-async function loadBalances() {
-    balancesLoading.value = true;
+async function loadBalances(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        balancesLoading.value = true;
+    }
     try {
         const response = await leaveRequestService.balancesForEmployee(
             props.employeeId,
@@ -218,8 +222,11 @@ async function loadBalances() {
 const payslips = ref([]);
 const payslipsLoading = ref(false);
 
-async function loadPayslips() {
-    payslipsLoading.value = true;
+async function loadPayslips(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        payslipsLoading.value = true;
+    }
     try {
         const response = await employeeService.payslips(props.employeeId);
         payslips.value = response.data.data;
@@ -238,6 +245,13 @@ function openPayslip(detail) {
     selectedDetail.value = detail;
     payslipDialog.value = true;
 }
+
+useRealtimeRefresh((opts) => Promise.all([loadBalances(opts), loadPayslips(opts)]), {
+    shared: [
+        { resource: "employees", permission: "employee.view" },
+        { resource: "payrolls", permission: "payroll.view_all" },
+    ],
+});
 
 onMounted(() => {
     loadBalances();

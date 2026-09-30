@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Events\ResourceChanged;
 use App\Models\WorkShift;
 use App\Repositories\WorkShiftRepository;
 use Carbon\Carbon;
@@ -43,7 +42,6 @@ class WorkShiftService
             return $this->workShiftRepository->create($data);
         });
 
-        ResourceChanged::dispatch('work_shifts');
 
         return $workShift;
     }
@@ -153,7 +151,6 @@ class WorkShiftService
             return $updated;
         });
 
-        ResourceChanged::dispatch('work_shifts');
 
         return $updated;
     }
@@ -178,6 +175,5 @@ class WorkShiftService
             $this->workShiftRepository->delete($workShift);
         });
 
-        ResourceChanged::dispatch('work_shifts');
     }
 }

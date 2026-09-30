@@ -18,7 +18,6 @@ class AttendanceLog extends Model
     protected $fillable = [
         'employee_id',
         'attendance_id',
-        'attendance_location_id',
         'event_type',
         'occurred_at',
         'method',
@@ -29,7 +28,6 @@ class AttendanceLog extends Model
         'ip_address',
         'device_name',
         'user_agent',
-        'qr_reference',
         'raw_data',
     ];
 
@@ -52,8 +50,4 @@ class AttendanceLog extends Model
         return $this->belongsTo(Attendance::class);
     }
 
-    public function attendanceLocation()
-    {
-        return $this->belongsTo(AttendanceLocation::class);
-    }
 }

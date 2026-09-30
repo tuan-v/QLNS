@@ -228,8 +228,9 @@
                         }}</strong>
                     </div>
                     <!-- Lương đóng BHXH LUÔN bằng lương thỏa thuận (2026-09-24,
-                    theo yêu cầu người dùng — xem EmployeeContractsTab.vue) —
-                    chỉ hiện 1 dòng. -->
+                    theo yêu cầu người dùng: "lương đóng bh sẽ tính là lương cb
+                    luôn không tách ra") — chỉ hiện 1 dòng, không hiện 2 số
+                    giống hệt nhau gây rối mắt. -->
                     <div class="d-flex justify-space-between">
                         <span class="text-medium-emphasis"
                             >Lương thỏa thuận (= lương đóng BHXH)</span
@@ -266,6 +267,7 @@ import { onMounted, ref } from "vue";
 import { useDisplay } from "vuetify";
 import employeeService from "../../services/employeeService";
 import StatusChip from "../../components/common/StatusChip.vue";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 defineEmits(["preview"]);
 
@@ -305,8 +307,11 @@ const contractsLoading = ref(false);
 const contractsError = ref("");
 const downloadingId = ref(null);
 
-async function loadContracts() {
-    contractsLoading.value = true;
+async function loadContracts(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        contractsLoading.value = true;
+    }
     contractsError.value = "";
     try {
         const response = await employeeService.myContracts();
@@ -350,6 +355,8 @@ function openDetailDialog(contract) {
     detailContract.value = contract;
     detailDialog.value = true;
 }
+
+useRealtimeRefresh(loadContracts, { mine: ["contracts"] });
 
 onMounted(() => {
     loadContracts();

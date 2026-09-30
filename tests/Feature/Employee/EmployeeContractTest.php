@@ -498,4 +498,5 @@ class EmployeeContractTest extends TestCase
 
         $response->assertStatus(403);
     }
+
 }

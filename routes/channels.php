@@ -59,18 +59,40 @@ Broadcast::channel('leave-requests.live-feed', function (User $user) {
 // nhầm quyền xem tín hiệu làm mới, dù dữ liệu thật vẫn do API REST bảo vệ
 // riêng (kênh này không tự trả dữ liệu, chỉ báo "có gì đó vừa đổi").
 Broadcast::channel('resource-sync.{resource}', function (User $user, string $resource) {
-    $requiredPermission = match ($resource) {
+    // null = mọi user đã đăng nhập; mảng = có BẤT KỲ quyền nào trong danh sách.
+    $required = match ($resource) {
         'departments', 'positions' => 'department.view',
         'roles' => 'rbac.manage',
         'payrolls' => 'payroll.view_all',
-        'employees' => 'employee.view',
-        'work_shifts' => 'shift.view',
-        'attendance_locations' => 'location.view',
+        'employees', 'employee_contracts', 'employee_documents', 'employee_transfers' => 'employee.view',
+        'work_shifts', 'employee_shift_assignments' => 'shift.view',
         'attendance_adjustments' => 'attendance.adjust',
+        'attendances' => 'attendance.view_all',
+        'leave_requests' => ['leave.approve_manager', 'leave.approve_hr', 'leave.view_all'],
         // Đơn nghỉ việc (2026-09-29) — trang "Đơn nghỉ việc" của HR/Manager.
         'resignations' => 'resignation.approve',
-        default => null,
+        // Giờ/ngày của Ca làm việc ảnh hưởng mọi nhân viên (Chấm công, Dashboard)
+        // nên ai đăng nhập cũng được nghe tín hiệu này (không mang dữ liệu).
+        'work_shifts_public' => null,
+        default => false,
     };
 
-    return $requiredPermission !== null && in_array($requiredPermission, $user->cachedPermissionCodes(), true);
+    if ($required === false) {
+        return false;
+    }
+
+    if ($required === null) {
+        return true;
+    }
+
+    $permissions = $user->cachedPermissionCodes();
+
+    return count(array_intersect((array) $required, $permissions)) > 0;
+});
+
+// "Dữ liệu CỦA BẠN vừa đổi" — kênh riêng cho MỖI user, chỉ chính chủ nghe được
+// (xem UserDataChanged + App\Support\Realtime). Giúp trang tự phục vụ (Dashboard,
+// Chấm công, Nghỉ phép, Hồ sơ của tôi...) tự làm mới cho cả nhân viên thường.
+Broadcast::channel('user-sync.{userId}', function (User $user, int $userId) {
+    return (int) $user->id === $userId;
 });

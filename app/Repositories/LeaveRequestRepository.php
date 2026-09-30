@@ -50,6 +50,42 @@ class LeaveRequestRepository
             ->sum('total_days');
     }
 
+    // ---- "Tổng hợp nghỉ phép" (2026-09-30): số liệu gộp cho NHIỀU nhân viên ----
+
+    // Tổng ngày nghỉ ĐÃ DUYỆT trong năm (theo from_date), gộp theo nhân viên + loại phép.
+    /** @return Collection<int, Collection> keyed by employee_id */
+    public function approvedDaysByEmployee(array $employeeIds, int $year): Collection
+    {
+        return LeaveRequest::whereIn('employee_id', $employeeIds)
+            ->where('status', 'approved')
+            ->whereYear('from_date', $year)
+            ->selectRaw('employee_id, leave_type_id, sum(total_days) as days')
+            ->groupBy('employee_id', 'leave_type_id')
+            ->get()
+            ->groupBy('employee_id');
+    }
+
+    /** @return Collection<int, int> số đơn đang chờ duyệt (pending/manager_approved), keyed by employee_id */
+    public function pendingRequestCounts(array $employeeIds): Collection
+    {
+        return LeaveRequest::whereIn('employee_id', $employeeIds)
+            ->whereIn('status', ['pending', 'manager_approved'])
+            ->selectRaw('employee_id, count(*) as cnt')
+            ->groupBy('employee_id')
+            ->pluck('cnt', 'employee_id');
+    }
+
+    /** @return Collection<int, LeaveRequest> đơn ĐÃ DUYỆT còn hiệu lực từ $today trở đi (đang nghỉ hoặc sắp nghỉ), sớm nhất trước */
+    public function upcomingApproved(array $employeeIds, string $today): Collection
+    {
+        return LeaveRequest::whereIn('employee_id', $employeeIds)
+            ->where('status', 'approved')
+            ->where('to_date', '>=', $today)
+            ->with('leaveType')
+            ->orderBy('from_date')
+            ->get();
+    }
+
     public function paginate(int $perPage = 15, array $filters = []): LengthAwarePaginator
     {
         return LeaveRequest::with(['employee', 'leaveType'])

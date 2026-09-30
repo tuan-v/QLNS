@@ -2,10 +2,23 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BroadcastsChanges;
 use Illuminate\Database\Eloquent\Model;
 
 class Payroll extends Model
 {
+    use BroadcastsChanges;
+
+    protected array $realtimeShared = ['payrolls'];
+
+    protected array $realtimeOwn = ['payslips'];
+
+    /** @return array<int, int> */
+    protected function realtimeEmployeeIds(): array
+    {
+        return PayrollDetail::where('payroll_id', $this->id)->pluck('employee_id')->map(fn ($id) => (int) $id)->all();
+    }
+
     protected $fillable = [
         'period_month',
         'period_year',

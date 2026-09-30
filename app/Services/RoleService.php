@@ -11,6 +11,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Support\Realtime;
 
 class RoleService
 {
@@ -85,6 +86,11 @@ class RoleService
             Cache::forget("permission:{$user->id}");
         }
         Cache::forget("permission:{$actor->id}");
+
+        // Quyền của họ vừa đổi — phiên đang mở tự nạp lại menu/quyền, không F5.
+        foreach ($affectedUsers as $user) {
+            Realtime::forUser((int) $user->id, 'account');
+        }
 
         ResourceChanged::dispatch('roles');
 

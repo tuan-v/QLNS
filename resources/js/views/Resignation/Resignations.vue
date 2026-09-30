@@ -139,6 +139,33 @@
                             </v-col>
                         </v-row>
 
+                        <!-- Báo trước đủ ngày theo luật -> chỉ thông báo, không cần duyệt -->
+                        <v-alert
+                            v-if="detail.status === 'notified' || (detail.status === 'cancelled' && !detail.requires_approval)"
+                            type="info"
+                            variant="tonal"
+                            density="compact"
+                            class="mt-4"
+                        >
+                            Đơn này <strong>chỉ để thông báo</strong>: nhân viên báo trước
+                            {{ detail.notice_days_given }} ngày (tối thiểu {{ detail.notice_days_required }} ngày theo
+                            quy định) nên không cần duyệt.
+                            <template v-if="detail.status === 'notified'">
+                                {{ detail.applied_at ? "Nhân viên đã được chuyển sang “Đã nghỉ việc”." : "Nhân viên sẽ tự chuyển sang “Đã nghỉ việc” sau ngày làm việc cuối." }}
+                            </template>
+                            <template v-else>Nhân viên đã rút thông báo.</template>
+                        </v-alert>
+                        <v-alert
+                            v-else-if="detail.notice_days_required !== null && detail.status === 'pending'"
+                            type="warning"
+                            variant="tonal"
+                            density="compact"
+                            class="mt-4"
+                        >
+                            Nhân viên chỉ báo trước {{ detail.notice_days_given }} ngày, thiếu so với mức tối thiểu
+                            {{ detail.notice_days_required }} ngày — cần HR/quản lý xem xét.
+                        </v-alert>
+
                         <!-- Đã xử lý -->
                         <v-alert
                             v-if="detail.decided_at"

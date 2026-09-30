@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Events\ResourceChanged;
 use App\Models\Employee;
 use App\Repositories\EmployeeRepository;
 use Illuminate\Http\UploadedFile;
@@ -86,7 +85,6 @@ class EmployeeService
             return $employee;
         });
 
-        ResourceChanged::dispatch('employees');
 
         return $employee;
     }
@@ -111,7 +109,6 @@ class EmployeeService
         $employee = $this->employeeRepository->update($employee, $data);
         $this->reportingLineService->syncEmployee($employee);
 
-        ResourceChanged::dispatch('employees');
 
         return $employee;
     }
@@ -127,7 +124,6 @@ class EmployeeService
             $this->employeeRepository->delete($employee);
         });
 
-        ResourceChanged::dispatch('employees');
     }
 
 

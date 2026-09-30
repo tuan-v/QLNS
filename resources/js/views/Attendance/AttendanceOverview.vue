@@ -130,12 +130,6 @@
                 <template #item.device="{ item }">
                     <template v-if="firstLog(item)">
                         <div>{{ firstLog(item).device_name ?? "—" }}</div>
-                        <!-- <div class="text-caption" style="opacity: 0.6">
-                            {{
-                                firstLog(item).attendance_location?.name ??
-                                "Không khớp điểm nào"
-                            }}
-                        </div> -->
                     </template>
                     <span v-else style="opacity: 0.5">—</span>
                 </template>
@@ -145,19 +139,6 @@
                             :status="item.status"
                             :map="ATTENDANCE_STATUS_MAP"
                         />
-                        <!-- Trước đây là nhãn riêng "Cần xem lại" — giờ là cờ
-                             cảnh báo cạnh trạng thái (lý do cần xem kỹ trước khi
-                             duyệt, không phải kết quả ngày công). -->
-                        <v-icon
-                            v-if="item.location_mismatch"
-                            icon="mdi-map-marker-alert-outline"
-                            color="warning"
-                            size="18"
-                        >
-                            <v-tooltip activator="parent" location="top">
-                                Chấm công không khớp điểm chấm công nào (sai vị trí/wifi) — cần xem kỹ trước khi duyệt
-                            </v-tooltip>
-                        </v-icon>
                     </div>
                     <div
                         v-if="
@@ -254,6 +235,7 @@ import {
     ATTENDANCE_STATUS_OPTIONS,
 } from "../../composables/attendanceStatus";
 import { useToastStore } from "../../stores/useToastStore";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 const toast = useToastStore();
 const auth = useAuthStore();
@@ -359,8 +341,11 @@ const summaryStats = computed(() => [
         })),
 ]);
 
-async function loadData() {
-    loading.value = true;
+async function loadData(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        loading.value = true;
+    }
     loadError.value = "";
     try {
         const response = await attendanceService.dailyOverview({
@@ -586,6 +571,13 @@ watch(
     () => attendanceFeed.approvalSignal,
     () => loadData(),
 );
+
+useRealtimeRefresh(loadData, {
+    shared: [
+        { resource: "attendances", permission: "attendance.view_all" },
+        { resource: "leave_requests", permission: ["leave.approve_manager", "leave.approve_hr", "leave.view_all"] },
+    ],
+});
 
 onMounted(() => {
     departmentStore.fetchTree();

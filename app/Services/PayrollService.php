@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Events\ResourceChanged;
 use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\Holiday;
@@ -108,7 +107,6 @@ class PayrollService
             return $payroll;
         });
 
-        ResourceChanged::dispatch('payrolls');
 
         return $payroll;
     }
@@ -307,7 +305,6 @@ class PayrollService
             return $payroll;
         });
 
-        ResourceChanged::dispatch('payrolls');
 
         return $payroll;
     }
@@ -326,7 +323,6 @@ class PayrollService
             return $payroll;
         });
 
-        ResourceChanged::dispatch('payrolls');
 
         return $payroll;
     }

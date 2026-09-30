@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Events\ResourceChanged;
 use App\Models\Attendance;
 use App\Models\AttendanceAdjustment;
 use App\Models\Employee;
@@ -153,7 +152,6 @@ class AttendanceAdjustmentService
 
         $adjustment = $this->attendanceAdjustmentRepository->create($data);
 
-        ResourceChanged::dispatch('attendance_adjustments');
         $this->notifyApprovers($employee, $adjustment, $requestedBy);
 
         return $adjustment;
@@ -322,7 +320,6 @@ class AttendanceAdjustmentService
             return $adjustment;
         });
 
-        ResourceChanged::dispatch('attendance_adjustments');
 
         return $adjustment;
     }

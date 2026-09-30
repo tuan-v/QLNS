@@ -172,6 +172,13 @@ function formatDate(value) {
     return new Date(value).toLocaleDateString("vi-VN");
 }
 
+function formatCurrency(value) {
+    if (value === null || value === undefined) {
+        return null;
+    }
+    return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(value);
+}
+
 const profileFields = computed(() => {
     const e = props.employee;
     return [
@@ -193,6 +200,7 @@ const profileFields = computed(() => {
         { label: "Chức vụ", value: e.position?.name },
         { label: "Quản lý trực tiếp", value: e.manager?.full_name },
         { label: "Ngày vào làm", value: formatDate(e.hire_date) },
+        { label: "Lương", value: formatCurrency(e.agreed_salary) },
     ];
 });
 

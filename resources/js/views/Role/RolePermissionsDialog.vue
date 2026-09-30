@@ -120,7 +120,6 @@ const GROUP_LABELS = {
     employee: "Nhân viên",
     department: "Phòng ban",
     shift: "Ca làm việc",
-    location: "Điểm chấm công",
     attendance: "Chấm công",
     leave: "Nghỉ phép",
     payroll: "Lương",

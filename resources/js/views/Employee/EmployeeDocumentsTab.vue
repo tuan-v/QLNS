@@ -240,6 +240,7 @@ import { onMounted, reactive, ref } from "vue";
 import employeeService from "../../services/employeeService";
 import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 const props = defineProps({
     employeeId: {
@@ -287,8 +288,11 @@ const documentsLoading = ref(false);
 const documentsError = ref("");
 const downloadingDocumentId = ref(null);
 
-async function loadDocuments() {
-    documentsLoading.value = true;
+async function loadDocuments(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        documentsLoading.value = true;
+    }
     documentsError.value = "";
     try {
         const response = await employeeService.documents(props.employeeId);
@@ -419,6 +423,10 @@ async function submitDeleteDocument() {
         deletingSubmitting.value = false;
     }
 }
+
+useRealtimeRefresh(loadDocuments, {
+    shared: [{ resource: "employee_documents", permission: "employee.view" }],
+});
 
 onMounted(() => {
     loadDocuments();

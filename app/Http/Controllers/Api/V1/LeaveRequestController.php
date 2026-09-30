@@ -58,6 +58,26 @@ class LeaveRequestController extends Controller
         return response()->json($this->leaveRequestService->list($filters, $perPage));
     }
 
+    // "Tổng hợp nghỉ phép" của HR/Manager — xem LeaveRequestService::overview().
+    public function overview(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'year' => ['nullable', 'integer', 'between:2000,2100'],
+            'department_id' => ['nullable', 'integer', 'exists:departments,id'],
+            'search' => ['nullable', 'string', 'max:100'],
+            'per_page' => ['nullable', 'integer', 'between:1,100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        return response()->json($this->leaveRequestService->overview(
+            (int) ($data['year'] ?? now()->year),
+            isset($data['department_id']) ? (int) $data['department_id'] : null,
+            $data['search'] ?? null,
+            (int) ($data['per_page'] ?? 10),
+            (int) ($data['page'] ?? 1),
+        ));
+    }
+
     // Quỹ phép còn lại của CHÍNH MÌNH, theo từng loại phép, năm hiện tại.
     public function balancesMine(Request $request): JsonResponse
     {

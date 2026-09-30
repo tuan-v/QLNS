@@ -3,13 +3,20 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BroadcastsChanges;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class AttendanceAdjustment extends Model
 {
     use Auditable;
+    use BroadcastsChanges;
     use SoftDeletes;
+
+    protected array $realtimeShared = ['attendance_adjustments'];
+
+    protected array $realtimeOwn = ['attendance_adjustments'];
+
 
     protected $fillable = [
         'type',

@@ -3,11 +3,18 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BroadcastsChanges;
 use Illuminate\Database\Eloquent\Model;
 
 class EmployeeTransfer extends Model
 {
     use Auditable;
+    use BroadcastsChanges;
+
+    protected array $realtimeShared = ['employee_transfers', 'employees'];
+
+    protected array $realtimeOwn = ['transfers', 'profile'];
+
 
     // Lịch sử luân chuyển là bản ghi sự kiện đã xảy ra — không xóa mềm vì
     // không có khái niệm "xóa 1 lần luân chuyển trong quá khứ", giống hợp

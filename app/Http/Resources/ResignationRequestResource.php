@@ -14,6 +14,10 @@ class ResignationRequestResource extends JsonResource
             'status' => $this->status,
             'last_working_date' => $this->last_working_date?->toDateString(),
             'reason' => $this->reason,
+            // Đủ ngày báo trước theo luật -> chỉ là thông báo, không cần duyệt.
+            'requires_approval' => (bool) $this->requires_approval,
+            'notice_days_required' => $this->notice_days_required,
+            'notice_days_given' => $this->notice_days_given,
             'decision_note' => $this->decision_note,
             'decided_at' => $this->decided_at,
             'applied_at' => $this->applied_at,

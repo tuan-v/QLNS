@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Attendance;
 
-use App\Models\AttendanceLocation;
 use App\Models\AttendanceLog;
 use App\Models\Department;
 use App\Models\Employee;
@@ -149,124 +148,6 @@ class AttendanceTest extends TestCase
         $response->assertStatus(422)->assertJsonValidationErrors('work_shift_id');
     }
 
-    public function test_check_in_via_wifi_matches_location_and_creates_attendance(): void
-    {
-        [$employee, $user] = $this->makeEmployeeWithLogin();
-        $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
-        $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'Van phong', 'method' => 'wifi',
-            'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
-        $this->travelToMonday('08:00');
-        $token = $this->loginAs($user->email, 'Secret@123');
-
-        $response = $this->postJson('/api/v1/attendances/check-in', [
-            'work_shift_id' => $workShift->id,
-        ], ['Authorization' => 'Bearer '.$token]);
-
-        $response->assertStatus(201);
-        $response->assertJsonPath('event_type', 'check_in');
-        $this->assertDatabaseHas('attendances', [
-            'employee_id' => $employee->id,
-            'work_shift_id' => $workShift->id,
-            'status' => 'pending',
-            'late_minutes' => 0,
-            // Mọi bản ghi chấm công mới đều phải chờ HR duyệt (2026-09-21).
-            'approval_status' => 'pending',
-        ]);
-    }
-
-    public function test_check_in_via_gps_within_radius_matches_location(): void
-    {
-        [$employee, $user] = $this->makeEmployeeWithLogin();
-        $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
-        $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'Cong truong', 'method' => 'gps',
-            'latitude' => 10.7769, 'longitude' => 106.7009, 'radius_meters' => 200,
-        ]);
-        $this->fakeNominatim();
-        $this->travelToMonday('08:00');
-        $token = $this->loginAs($user->email, 'Secret@123');
-
-        $response = $this->postJson('/api/v1/attendances/check-in', [
-            'work_shift_id' => $workShift->id,
-            'latitude' => 10.7770,
-            'longitude' => 106.7010,
-        ], ['Authorization' => 'Bearer '.$token]);
-
-        $response->assertStatus(201);
-        $this->assertDatabaseHas('attendances', ['employee_id' => $employee->id, 'status' => 'pending']);
-        $this->assertDatabaseHas('attendance_logs', ['employee_id' => $employee->id, 'method' => 'gps']);
-    }
-
-    public function test_check_in_outside_gps_radius_needs_review(): void
-    {
-        [$employee, $user] = $this->makeEmployeeWithLogin();
-        $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
-        $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'Cong truong', 'method' => 'gps',
-            'latitude' => 10.7769, 'longitude' => 106.7009, 'radius_meters' => 200,
-        ]);
-        $this->fakeNominatim('Ha Noi');
-        $this->travelToMonday('08:00');
-        $token = $this->loginAs($user->email, 'Secret@123');
-
-        // Hà Nội, cách công trường cả ngàn km — vẫn ghi nhận nhưng cần xem lại.
-        $this->postJson('/api/v1/attendances/check-in', [
-            'work_shift_id' => $workShift->id,
-            'latitude' => 21.0285,
-            'longitude' => 105.8542,
-        ], ['Authorization' => 'Bearer '.$token])->assertStatus(201);
-
-        $this->assertDatabaseHas('attendances', ['employee_id' => $employee->id, 'status' => 'needs_review']);
-        $this->assertDatabaseHas('attendance_logs', [
-            'employee_id' => $employee->id,
-            'attendance_location_id' => null,
-            'method' => 'device',
-            'address' => 'Ha Noi',
-        ]);
-    }
-
-    public function test_check_in_via_qr_matches_location(): void
-    {
-        [$employee, $user] = $this->makeEmployeeWithLogin();
-        $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
-        $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'Le tan', 'method' => 'qr', 'qr_secret' => 'SECRET-XYZ',
-        ]);
-        $this->travelToMonday('08:00');
-        $token = $this->loginAs($user->email, 'Secret@123');
-
-        $response = $this->postJson('/api/v1/attendances/check-in', [
-            'work_shift_id' => $workShift->id,
-            'qr_reference' => 'SECRET-XYZ',
-        ], ['Authorization' => 'Bearer '.$token]);
-
-        $response->assertStatus(201);
-        $this->assertDatabaseHas('attendances', ['employee_id' => $employee->id, 'status' => 'pending']);
-    }
-
-    public function test_check_in_without_matching_location_still_succeeds_but_needs_review(): void
-    {
-        [$employee, $user] = $this->makeEmployeeWithLogin();
-        $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
-        $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        // Khong tao AttendanceLocation nao ca -> khong the khop.
-        $this->travelToMonday('08:00');
-        $token = $this->loginAs($user->email, 'Secret@123');
-
-        $response = $this->postJson('/api/v1/attendances/check-in', [
-            'work_shift_id' => $workShift->id,
-        ], ['Authorization' => 'Bearer '.$token]);
-
-        $response->assertStatus(201);
-        $this->assertDatabaseHas('attendances', ['employee_id' => $employee->id, 'status' => 'needs_review']);
-    }
-
     /* ---- 2026-09-21: tự ghi IP + địa chỉ + tên thiết bị của thiết bị chấm công ---- */
 
     public function test_check_in_records_device_ip_address_and_device_name_automatically(): void
@@ -274,9 +155,6 @@ class AttendanceTest extends TestCase
         [$employee, $user] = $this->makeEmployeeWithLogin();
         $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
         $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'Van phong', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
         $this->fakeNominatim('So 1 Le Loi, Quan 1, TP. Ho Chi Minh');
         $this->travelToMonday('08:00');
         $token = $this->loginAs($user->email, 'Secret@123');
@@ -296,9 +174,8 @@ class AttendanceTest extends TestCase
         $this->assertSame('So 1 Le Loi, Quan 1, TP. Ho Chi Minh', $log->address);
         $this->assertEqualsWithDelta(10.7770, $log->latitude, 0.00001);
         $this->assertEqualsWithDelta(106.7010, $log->longitude, 0.00001);
-        // Khớp điểm Wifi qua IP dù client không nói gì về Wifi.
-        $this->assertSame('wifi', $log->method);
-        $this->assertNotNull($log->attendance_location_id);
+        // Không còn đối chiếu điểm chấm công — chỉ ghi dữ liệu của thiết bị.
+        $this->assertSame('device', $log->method);
     }
 
     public function test_check_in_without_location_permission_still_records_ip_and_device(): void
@@ -306,9 +183,6 @@ class AttendanceTest extends TestCase
         [$employee, $user] = $this->makeEmployeeWithLogin();
         $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
         $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'Van phong', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
         $this->travelToMonday('08:00');
         $token = $this->loginAs($user->email, 'Secret@123');
 
@@ -366,73 +240,11 @@ class AttendanceTest extends TestCase
         $this->assertDatabaseMissing('attendances', ['employee_id' => $employee->id]);
     }
 
-    public function test_check_in_from_ip_outside_wifi_range_without_location_needs_review(): void
-    {
-        [$employee, $user] = $this->makeEmployeeWithLogin();
-        $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
-        $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        // Dải IP công ty khác hẳn IP của request test (127.0.0.1).
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'Van phong', 'method' => 'wifi', 'allowed_ip_cidr' => '192.168.1.0/24',
-        ]);
-        $this->travelToMonday('08:00');
-        $token = $this->loginAs($user->email, 'Secret@123');
-
-        $this->postJson('/api/v1/attendances/check-in', [
-            'work_shift_id' => $workShift->id,
-        ], ['Authorization' => 'Bearer '.$token])->assertStatus(201);
-
-        $this->assertDatabaseHas('attendances', ['employee_id' => $employee->id, 'status' => 'needs_review']);
-        $this->assertDatabaseHas('attendance_logs', [
-            'employee_id' => $employee->id,
-            'attendance_location_id' => null,
-            'method' => 'device',
-            'ip_address' => '127.0.0.1',
-        ]);
-    }
-
-    public function test_check_in_prefers_qr_match_over_wifi_and_gps(): void
-    {
-        [$employee, $user] = $this->makeEmployeeWithLogin();
-        $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
-        $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        // Cả 3 loại điểm đều khớp cùng lúc — QR (nhân viên chủ động quét) thắng.
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'Wifi VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
-        AttendanceLocation::create([
-            'code' => 'DD002', 'name' => 'GPS VP', 'method' => 'gps',
-            'latitude' => 10.7769, 'longitude' => 106.7009, 'radius_meters' => 200,
-        ]);
-        $qrLocation = AttendanceLocation::create([
-            'code' => 'DD003', 'name' => 'QR le tan', 'method' => 'qr', 'qr_secret' => 'SECRET-XYZ',
-        ]);
-        $this->fakeNominatim();
-        $this->travelToMonday('08:00');
-        $token = $this->loginAs($user->email, 'Secret@123');
-
-        $this->postJson('/api/v1/attendances/check-in', [
-            'work_shift_id' => $workShift->id,
-            'latitude' => 10.7770,
-            'longitude' => 106.7010,
-            'qr_reference' => 'SECRET-XYZ',
-        ], ['Authorization' => 'Bearer '.$token])->assertStatus(201);
-
-        $this->assertDatabaseHas('attendance_logs', [
-            'employee_id' => $employee->id,
-            'attendance_location_id' => $qrLocation->id,
-            'method' => 'qr',
-        ]);
-    }
-
     public function test_check_out_also_records_device_info(): void
     {
         [$employee, $user] = $this->makeEmployeeWithLogin();
         $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
         $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'Van phong', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
         $this->fakeNominatim('Van phong cong ty');
         $token = $this->loginAs($user->email, 'Secret@123');
 
@@ -462,9 +274,6 @@ class AttendanceTest extends TestCase
         [$employee, $user] = $this->makeEmployeeWithLogin();
         $workShift = $this->makeWorkShift('CA001', '08:00', '17:00', ['late_grace_minutes' => 5]);
         $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
         // 8:20 - ca bat dau 8:00, cham chuoc 5 phut -> tre 15 phut.
         $this->travelToMonday('08:20');
         $token = $this->loginAs($user->email, 'Secret@123');
@@ -481,9 +290,6 @@ class AttendanceTest extends TestCase
         [$employee, $user] = $this->makeEmployeeWithLogin();
         $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
         $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
         $this->travelToMonday('08:00');
         $token = $this->loginAs($user->email, 'Secret@123');
 
@@ -509,9 +315,6 @@ class AttendanceTest extends TestCase
         $afternoon = $this->makeWorkShift('CA002', '13:00', '18:00');
         $this->assignShift($employee, $morning, [1, 2, 3, 4, 5]);
         $this->assignShift($employee, $afternoon, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
         $token = $this->loginAs($user->email, 'Secret@123');
 
         $this->travelToMonday('06:00');
@@ -564,9 +367,6 @@ class AttendanceTest extends TestCase
         [$employee, $user] = $this->makeEmployeeWithLogin();
         $workShift = $this->makeWorkShift('CA001', '13:00', '18:00');
         $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
         $this->travelToMonday('12:30');
         $token = $this->loginAs($user->email, 'Secret@123');
 
@@ -600,9 +400,6 @@ class AttendanceTest extends TestCase
         [$employee, $user] = $this->makeEmployeeWithLogin();
         $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
         $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
         $this->travelToMonday('17:00');
         $token = $this->loginAs($user->email, 'Secret@123');
 
@@ -633,9 +430,6 @@ class AttendanceTest extends TestCase
         [$employee, $user] = $this->makeEmployeeWithLogin();
         $workShift = $this->makeWorkShift('CA001', '08:00', '17:00', ['standard_work_minutes' => 480]);
         $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
         $token = $this->loginAs($user->email, 'Secret@123');
 
         $this->travelToMonday('08:00');
@@ -669,9 +463,6 @@ class AttendanceTest extends TestCase
             'standard_work_minutes' => 480, 'break_start_time' => '12:00', 'break_end_time' => '13:00',
         ]);
         $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
         $token = $this->loginAs($user->email, 'Secret@123');
 
         $this->travelToMonday('08:00');
@@ -696,9 +487,6 @@ class AttendanceTest extends TestCase
             'standard_work_minutes' => 480, 'break_start_time' => '12:00', 'break_end_time' => '13:00',
         ]);
         $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
         $token = $this->loginAs($user->email, 'Secret@123');
 
         $this->travelToMonday('08:00');
@@ -723,9 +511,6 @@ class AttendanceTest extends TestCase
         [$employee, $user] = $this->makeEmployeeWithLogin();
         $workShift = $this->makeWorkShift('CA001', '08:00', '17:00', ['standard_work_minutes' => 480]);
         $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
         $token = $this->loginAs($user->email, 'Secret@123');
 
         $this->travelToMonday('08:00');
@@ -753,9 +538,6 @@ class AttendanceTest extends TestCase
         [$employee, $user] = $this->makeEmployeeWithLogin();
         $workShift = $this->makeWorkShift('CA001', '08:00', '17:00', ['standard_work_minutes' => 480]);
         $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'VP', 'method' => 'wifi', 'allowed_ip_cidr' => '127.0.0.1/32',
-        ]);
         $token = $this->loginAs($user->email, 'Secret@123');
 
         $this->travelToMonday('08:00');

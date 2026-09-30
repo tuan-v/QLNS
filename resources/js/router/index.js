@@ -117,13 +117,6 @@ const routes = [
         component: () => import("../views/Settings/Settings.vue"),
     },
     {
-        path: "/attendance-locations",
-        name: "attendance-locations",
-        meta: { title: "Điểm chấm công", permission: "location.view" },
-        component: () =>
-            import("../views/AttendanceLocation/AttendanceLocations.vue"),
-    },
-    {
         path: "/check-in",
         name: "check-in",
         meta: { title: "Chấm công", permission: "attendance.check" },
@@ -165,6 +158,12 @@ const routes = [
         name: "leave-management",
         meta: { title: "Duyệt nghỉ phép", permission: "leave.view_all" },
         component: () => import("../views/Leave/LeaveManagement.vue"),
+    },
+    {
+        path: "/leave-overview",
+        name: "leave-overview",
+        meta: { title: "Tổng hợp nghỉ phép", permission: "leave.view_all" },
+        component: () => import("../views/Leave/LeaveOverview.vue"),
     },
 ];
 

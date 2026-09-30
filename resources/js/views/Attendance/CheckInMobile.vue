@@ -52,18 +52,6 @@
                 cập vị trí — nên cho phép để lượt chấm công có địa chỉ.
             </div>
 
-            <div class="text-body-2 font-weight-medium mt-4 mb-1">
-                Mã QR tại điểm chấm công (không bắt buộc)
-            </div>
-            <v-text-field
-                v-model="qrReference"
-                placeholder="Quét hoặc dán nội dung mã QR nếu nơi làm việc có"
-                variant="outlined"
-                density="comfortable"
-                rounded="lg"
-                hide-details
-            />
-
             <v-alert
                 v-if="submitError"
                 type="error"
@@ -987,7 +975,6 @@ const {
     loadError,
     history,
     loadingHistory,
-    qrReference,
     submitting,
     submittingShiftId,
     submitError,

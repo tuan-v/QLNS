@@ -3,13 +3,20 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BroadcastsChanges;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class EmployeeContract extends Model
 {
     use Auditable;
+    use BroadcastsChanges;
     use SoftDeletes;
+
+    protected array $realtimeShared = ['employee_contracts', 'employees'];
+
+    protected array $realtimeOwn = ['contracts'];
+
     protected $fillable = [
         'employee_id',
         'contract_number',

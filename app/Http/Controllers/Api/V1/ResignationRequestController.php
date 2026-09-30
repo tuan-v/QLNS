@@ -39,6 +39,17 @@ class ResignationRequestController extends Controller
         return (new ResignationRequestResource($resignation))->response()->setStatusCode(201);
     }
 
+    // Nhân viên xem TRƯỚC khi nộp: phải báo trước tối thiểu bao nhiêu ngày và
+    // ngày làm việc cuối sớm nhất để đơn chỉ cần "thông báo" (không cần duyệt).
+    public function policy(Request $request): JsonResponse
+    {
+        $employee = $request->user()->employee;
+
+        abort_if(! $employee, 404, 'Tài khoản này chưa liên kết với hồ sơ nhân viên nào.');
+
+        return response()->json($this->resignationService->noticePolicy($employee));
+    }
+
     public function mine(Request $request): AnonymousResourceCollection
     {
         $employee = $request->user()->employee;

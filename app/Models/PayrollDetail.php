@@ -2,10 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BroadcastsChanges;
 use Illuminate\Database\Eloquent\Model;
 
 class PayrollDetail extends Model
 {
+    use BroadcastsChanges;
+
+    protected array $realtimeShared = ['payrolls'];
+
+    protected array $realtimeOwn = ['payslips'];
+
     protected $fillable = [
         'payroll_id',
         'employee_id',

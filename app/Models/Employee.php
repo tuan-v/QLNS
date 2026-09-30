@@ -3,13 +3,26 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BroadcastsChanges;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Employee extends Model
 {
     use Auditable;
+    use BroadcastsChanges;
     use SoftDeletes;
+
+    protected array $realtimeShared = ['employees'];
+
+    protected array $realtimeOwn = ['profile'];
+
+    /** @return array<int, int> */
+    protected function realtimeEmployeeIds(): array
+    {
+        return [(int) $this->id];
+    }
+
     protected $fillable = [
         'user_id',
         'department_id',

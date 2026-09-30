@@ -71,6 +71,7 @@ import DataTable from "../../components/common/DataTable.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
 import PayrollPayslipDialog from "./PayrollPayslipDialog.vue";
 import { formatMinutesAsHours } from "../../composables/useCheckIn.js";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 const route = useRoute();
 
@@ -102,8 +103,11 @@ function formatMoney(value) {
     return new Intl.NumberFormat("vi-VN").format(Number(value)) + " ₫";
 }
 
-async function loadData() {
-    loading.value = true;
+async function loadData(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        loading.value = true;
+    }
     loadError.value = "";
     try {
         const response = await payrollService.show(route.params.id);
@@ -154,6 +158,8 @@ async function exportExcel() {
         `bang-luong-${payroll.value.period_month}-${payroll.value.period_year}.xlsx`,
     );
 }
+
+useRealtimeRefresh(loadData, { shared: [{ resource: "payrolls", permission: "payroll.view_all" }] });
 
 onMounted(loadData);
 </script>

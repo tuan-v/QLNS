@@ -217,4 +217,115 @@ class ResignationTest extends TestCase
         $this->putJson("/api/v1/resignations/{$request->id}/decide", ['status' => 'rejected', 'note' => 'x'], $this->auth($token))
             ->assertStatus(422);
     }
+
+    // ---- Báo trước ĐỦ ngày theo BLLĐ 2019 Điều 35 -> chỉ thông báo, không cần duyệt (2026-09-30) ----
+
+    private function giveContract(Employee $employee, string $type, ?string $start, ?string $end): void
+    {
+        EmployeeContract::create([
+            'employee_id' => $employee->id, 'contract_number' => 'HD-'.uniqid(), 'contract_type' => $type,
+            'start_date' => $start ?? now()->subYear()->toDateString(), 'end_date' => $end,
+            'agreed_salary' => 10000000, 'insurance_salary' => 10000000, 'status' => 'active',
+        ]);
+    }
+
+    private function submit(User $user, int $daysAhead): \Illuminate\Testing\TestResponse
+    {
+        return $this->postJson('/api/v1/resignations', [
+            'last_working_date' => now()->addDays($daysAhead)->toDateString(),
+            'reason' => 'Chuyen cong tac',
+        ], $this->auth($this->loginAs($user->email)));
+    }
+
+    public function test_indefinite_contract_with_45_days_notice_is_only_a_notice(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $this->giveContract($employee, 'chinh_thuc', null, null);
+        $hr = $this->makeHr();
+
+        $this->submit($user, 45)->assertStatus(201)
+            ->assertJsonPath('data.status', 'notified')
+            ->assertJsonPath('data.requires_approval', false)
+            ->assertJsonPath('data.notice_days_required', 45)
+            ->assertJsonPath('data.notice_days_given', 45);
+
+        // HR vẫn được BÁO (loại thông báo riêng), nhưng không có gì để duyệt.
+        $this->assertDatabaseHas('notifications', ['user_id' => $hr->id, 'type' => 'resignation.notice']);
+        $this->assertDatabaseMissing('notifications', ['user_id' => $hr->id, 'type' => 'resignation.pending']);
+    }
+
+    public function test_indefinite_contract_with_short_notice_waits_for_approval(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $this->giveContract($employee, 'chinh_thuc', null, null);
+        $hr = $this->makeHr();
+
+        $this->submit($user, 44)->assertStatus(201)
+            ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('data.requires_approval', true)
+            ->assertJsonPath('data.notice_days_required', 45);
+
+        $this->assertDatabaseHas('notifications', ['user_id' => $hr->id, 'type' => 'resignation.pending']);
+    }
+
+    public function test_fixed_term_contract_notice_days_follow_the_contract_length(): void
+    {
+        [$twoYear, $userA] = $this->makeEmployeeWithLogin();
+        $this->giveContract($twoYear, 'chinh_thuc', now()->subMonths(2)->toDateString(), now()->addMonths(22)->subDay()->toDateString());
+        [$sixMonth, $userB] = $this->makeEmployeeWithLogin();
+        $this->giveContract($sixMonth, 'chinh_thuc', now()->subMonth()->toDateString(), now()->addMonths(5)->subDay()->toDateString());
+
+        $this->submit($userA, 30)->assertJsonPath('data.status', 'notified')->assertJsonPath('data.notice_days_required', 30);
+        $this->submit($userB, 3)->assertJsonPath('data.status', 'notified')->assertJsonPath('data.notice_days_required', 3);
+    }
+
+    public function test_probation_contract_needs_no_advance_notice(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin('Employee', ['employment_status' => 'probation']);
+        $this->giveContract($employee, 'thu_viec', now()->subMonth()->toDateString(), now()->addMonths(2)->toDateString());
+
+        $this->submit($user, 0)->assertStatus(201)
+            ->assertJsonPath('data.status', 'notified')
+            ->assertJsonPath('data.notice_days_required', 0);
+    }
+
+    public function test_policy_endpoint_tells_the_employee_the_earliest_last_working_date(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $this->giveContract($employee, 'chinh_thuc', null, null);
+
+        $this->getJson('/api/v1/resignations/policy', $this->auth($this->loginAs($user->email)))
+            ->assertStatus(200)
+            ->assertJsonPath('required_days', 45)
+            ->assertJsonPath('earliest_last_working_date', now()->addDays(45)->toDateString());
+    }
+
+    public function test_notice_only_request_cannot_be_decided_but_can_be_withdrawn(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $this->giveContract($employee, 'chinh_thuc', null, null);
+        $id = $this->submit($user, 45)->json('data.id');
+        $hr = $this->makeHr();
+
+        $this->putJson("/api/v1/resignations/{$id}/decide", ['status' => 'approved'], $this->auth($this->loginAs($hr->email)))
+            ->assertStatus(422)->assertJsonValidationErrors('status');
+
+        $this->postJson("/api/v1/resignations/{$id}/cancel", [], $this->auth($this->loginAs($user->email)))
+            ->assertStatus(200)->assertJsonPath('data.status', 'cancelled');
+    }
+
+    public function test_notice_only_request_makes_the_employee_resigned_after_the_last_day(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $this->giveContract($employee, 'chinh_thuc', null, null);
+        $this->submit($user, 45)->assertStatus(201);
+
+        $this->assertSame(0, app(\App\Services\ResignationService::class)->applyAllDue());
+        $this->travel(46)->days();
+        $this->assertSame(1, app(\App\Services\ResignationService::class)->applyAllDue());
+
+        $employee->refresh();
+        $this->assertSame('resigned', $employee->employment_status);
+        $this->assertSame(now()->subDay()->toDateString(), $employee->termination_date->toDateString());
+    }
 }

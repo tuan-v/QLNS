@@ -204,6 +204,7 @@ import { useDisplay } from "vuetify";
 import employeeService from "../../services/employeeService";
 import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 defineEmits(["preview"]);
 
@@ -245,8 +246,11 @@ const documents = ref([]);
 const documentsLoading = ref(false);
 const documentsError = ref("");
 
-async function loadDocuments() {
-    documentsLoading.value = true;
+async function loadDocuments(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        documentsLoading.value = true;
+    }
     documentsError.value = "";
     try {
         const response = await employeeService.myDocuments();
@@ -313,6 +317,8 @@ async function submitUpload() {
         uploading.value = false;
     }
 }
+
+useRealtimeRefresh(loadDocuments, { mine: ["documents"] });
 
 onMounted(() => {
     loadDocuments();

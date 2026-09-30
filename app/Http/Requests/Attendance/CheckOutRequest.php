@@ -22,7 +22,6 @@ class CheckOutRequest extends FormRequest
             'latitude' => ['nullable', 'numeric', 'between:-90,90', 'required_with:longitude'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180', 'required_with:latitude'],
             'accuracy_meters' => ['nullable', 'numeric', 'min:0'],
-            'qr_reference' => ['nullable', 'string', 'max:255'],
         ];
     }
 

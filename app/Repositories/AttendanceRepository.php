@@ -45,14 +45,14 @@ class AttendanceRepository
             ->get();
     }
 
-    // Dùng cho báo cáo "Lịch sử chấm công" (mục 18) — nạp cả logs.attendanceLocation
+    // Dùng cho báo cáo "Lịch sử chấm công" (mục 18) — nạp cả logs
     // để trang xem chi tiết (phía Admin) không phải gọi thêm request riêng,
     // dữ liệu 1 tháng chỉ vài chục dòng nên không đáng lo hiệu năng.
     public function listForEmployeeInRange(Employee $employee, string $from, string $to): Collection
     {
         return Attendance::where('employee_id', $employee->id)
             ->whereBetween('attendance_date', [$from, $to])
-            ->with(['workShift', 'logs.attendanceLocation'])
+            ->with(['workShift', 'logs'])
             ->get();
     }
 
@@ -80,7 +80,7 @@ class AttendanceRepository
 
     // Bản ghi chấm công của TOÀN CÔNG TY trong đúng 1 ngày, keyBy employee_id+
     // work_shift_id để dailyOverview() tra cứu O(1) theo từng ca đã gán ở trên.
-    // Nạp logs.attendanceLocation + approvedBy để màn tổng hợp không phải gọi
+    // Nạp logs + approvedBy để màn tổng hợp không phải gọi
     // thêm request khi xem chi tiết 1 dòng.
     public function listAttendancesForDate(string $date): Collection
     {
@@ -96,7 +96,7 @@ class AttendanceRepository
             ->with([
                 'employee.department',
                 'workShift' => fn ($query) => $query->withTrashed(),
-                'logs.attendanceLocation',
+                'logs',
                 'approvedBy',
             ])
             ->get()
@@ -105,10 +105,10 @@ class AttendanceRepository
 
     public function paginate(int $perPage = 15, array $filters = []): LengthAwarePaginator
     {
-        // Nạp cả logs (kèm điểm chấm công) và người duyệt để màn "Duyệt chấm
+        // Nạp cả logs và người duyệt để màn "Duyệt chấm
         // công" của HR xem được IP/địa chỉ/thiết bị của từng lượt mà không phải
         // gọi thêm request — mỗi trang chỉ vài chục dòng nên không đáng lo hiệu năng.
-        return Attendance::with(['employee', 'workShift', 'logs.attendanceLocation', 'approvedBy'])
+        return Attendance::with(['employee', 'workShift', 'logs', 'approvedBy'])
             ->when($filters['employee_id'] ?? null, fn ($query, $id) => $query->where('employee_id', $id))
             ->when($filters['date_from'] ?? null, fn ($query, $date) => $query->where('attendance_date', '>=', $date))
             ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->where('attendance_date', '<=', $date))

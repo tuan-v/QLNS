@@ -1,10 +1,16 @@
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 import axios from 'axios';
+import { ref } from 'vue';
 
 window.Pusher = Pusher;
 
 let echoInstance = null;
+
+// Tăng mỗi lần WebSocket KẾT NỐI LẠI sau khi rớt mạng — trong lúc rớt, các
+// tín hiệu realtime đã bị bỏ lỡ nên mọi trang phải tự tải lại 1 lần
+// (useRealtimeRefresh() theo dõi biến này).
+export const reconnectSignal = ref(0);
 
 /**
  * Echo được tạo lười (chỉ kết nối khi thật sự có người gọi getEcho() lần đầu)
@@ -39,6 +45,14 @@ export function getEcho() {
                     .catch((error) => callback(true, error));
             },
         }),
+    });
+
+    let wasConnected = false;
+    echoInstance.connector.pusher.connection.bind('connected', () => {
+        if (wasConnected) {
+            reconnectSignal.value++;
+        }
+        wasConnected = true;
     });
 
     return echoInstance;

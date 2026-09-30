@@ -16,13 +16,16 @@ export const useResourceSyncStore = defineStore("resourceSync", () => {
     // nhận tín hiệu. Tăng dần (không phải boolean/timestamp) để watch() ở
     // trang LUÔN bắt được, kể cả 2 lần bắn liên tiếp trong cùng 1 tick.
     const signals = reactive({});
-    const joined = new Set();
+    // resource -> số component đang dùng; chỉ rời kênh khi không còn ai dùng
+    // (vd Dashboard và 1 component con cùng nghe 'employees').
+    const joined = new Map();
 
     function connect(resource) {
         if (joined.has(resource)) {
+            joined.set(resource, joined.get(resource) + 1);
             return;
         }
-        joined.add(resource);
+        joined.set(resource, 1);
         if (!(resource in signals)) {
             signals[resource] = 0;
         }
@@ -39,6 +42,11 @@ export const useResourceSyncStore = defineStore("resourceSync", () => {
 
     function disconnect(resource) {
         if (!joined.has(resource)) {
+            return;
+        }
+        const remaining = joined.get(resource) - 1;
+        if (remaining > 0) {
+            joined.set(resource, remaining);
             return;
         }
         joined.delete(resource);

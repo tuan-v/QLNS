@@ -17,6 +17,10 @@ export default {
     list(params = {}) {
         return axios.get(API_BASE, { params });
     },
+    // Tổng hợp nghỉ phép của MỌI nhân viên — params: year, department_id, search, per_page, page.
+    overview(params = {}) {
+        return axios.get(`${API_BASE}/overview`, { params });
+    },
     decide(id, payload) {
         return axios.put(`${API_BASE}/${id}/decide`, payload);
     },

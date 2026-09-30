@@ -10,6 +10,7 @@ import { useNotificationStore } from './stores/useNotificationStore';
 import { useAttendanceFeedStore } from './stores/useAttendanceFeedStore';
 import { useLeaveFeedStore } from './stores/useLeaveFeedStore';
 import { useResourceSyncStore } from './stores/useResourceSyncStore';
+import { useMySyncStore } from './stores/useMySyncStore';
 import { disconnectEcho } from './echo';
 
 const route = useRoute();
@@ -19,6 +20,7 @@ const notifications = useNotificationStore();
 const attendanceFeed = useAttendanceFeedStore();
 const leaveFeed = useLeaveFeedStore();
 const resourceSync = useResourceSyncStore();
+const mySync = useMySyncStore();
 
 onMounted(() => {
     if (auth.accessToken && !auth.user) {
@@ -48,6 +50,7 @@ watch(
             notifications.disconnect();
             attendanceFeed.disconnect();
             leaveFeed.disconnect();
+            mySync.disconnect();
             // resourceSync là store PAGE-SCOPED (mỗi trang tự connect/
             // disconnect theo vòng đời mounted/unmounted của chính nó,
             // xem useResourceSyncStore.js) — resetAll() chỉ để dọn sạch
@@ -70,9 +73,17 @@ watch(
             notifications.connect(user.id);
             attendanceFeed.connect(auth.permissions);
             leaveFeed.connect(auth.permissions);
+            mySync.connect(user.id);
         }
     },
     { immediate: true },
+);
+
+// Quyền/vai trò của chính mình vừa đổi (HR sửa phân quyền) — nạp lại menu và
+// quyền ngay, không cần F5 (mục 50 CODE_MAP).
+watch(
+    () => mySync.signals.account,
+    () => auth.fetchMe(),
 );
 </script>
 

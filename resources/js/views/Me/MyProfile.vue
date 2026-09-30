@@ -116,7 +116,7 @@
                 <div class="d-flex align-center flex-wrap ga-3">
                     <div class="flex-grow-1">{{ resignationBanner.text }}</div>
                     <v-btn
-                        v-if="latestResignation?.status === 'pending'"
+                        v-if="['pending', 'notified'].includes(latestResignation?.status)"
                         size="small"
                         variant="outlined"
                         :loading="cancellingResignation"
@@ -131,10 +131,18 @@
                 <v-card rounded="xl">
                     <v-card-title class="text-h6 font-weight-bold pt-5 px-6">Nộp đơn xin nghỉ việc</v-card-title>
                     <v-card-text class="px-6">
-                        <p class="text-body-2 text-medium-emphasis mb-4">
-                            Đơn sẽ được gửi tới HR và quản lý trực tiếp của bạn. Thời hạn báo trước tùy loại hợp
-                            đồng theo Bộ luật Lao động — liên hệ HR nếu chưa rõ.
+                        <p class="text-body-2 text-medium-emphasis mb-2">
+                            Đơn được gửi tới HR và quản lý trực tiếp của bạn.
                         </p>
+                        <v-alert v-if="resignationPolicy" type="info" variant="tonal" density="compact" class="mb-4">
+                            {{ resignationPolicy.basis }}
+                            <template v-if="resignationPolicy.required_days > 0">
+                                Nếu ngày làm việc cuối từ
+                                <strong>{{ formatDateVi(resignationPolicy.earliest_last_working_date) }}</strong>
+                                trở đi thì đơn chỉ là <strong>thông báo</strong> (không cần duyệt); sớm hơn thì phải chờ
+                                HR/quản lý đồng ý.
+                            </template>
+                        </v-alert>
                         <div class="text-body-2 font-weight-medium mb-1">
                             Ngày làm việc cuối cùng <span class="text-error">*</span>
                         </div>
@@ -143,6 +151,15 @@
                             :min="todayIso()"
                             :error-messages="resignationErrors.last_working_date"
                         />
+                        <v-alert
+                            v-if="resignationOutcome"
+                            :type="resignationOutcome.enough ? 'success' : 'warning'"
+                            variant="tonal"
+                            density="compact"
+                            class="mt-2"
+                        >
+                            {{ resignationOutcome.text }}
+                        </v-alert>
                         <div class="text-body-2 font-weight-medium mb-1 mt-4">
                             Lý do nghỉ việc <span class="text-error">*</span>
                         </div>
@@ -160,7 +177,7 @@
                             Hủy
                         </v-btn>
                         <v-btn color="primary" :loading="submittingResignation" @click="submitResignation">
-                            Gửi đơn
+                            {{ resignationOutcome?.enough ? "Gửi thông báo" : "Gửi đơn" }}
                         </v-btn>
                     </v-card-actions>
                 </v-card>
@@ -261,6 +278,7 @@ import MyProfilePayslipsTab from "./MyProfilePayslipsTab.vue";
 import { EMPLOYMENT_STATUS_MAP } from "../../composables/employmentStatus";
 import resignationService from "../../services/resignationService";
 import InputDate, { todayIso } from "../../components/common/InputDate.vue";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 function formatDate(value) {
     if (!value) {
@@ -342,8 +360,11 @@ const quickStats = computed(() => {
     ];
 });
 
-async function loadProfile() {
-    loading.value = true;
+async function loadProfile(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        loading.value = true;
+    }
     loadError.value = "";
     try {
         const response = await employeeService.me();
@@ -374,6 +395,23 @@ watch(tab, (value) => {
         tabsOpened[value] = true;
     }
 });
+
+// Vào thẳng bằng ?tab=payslips (vd từ Dashboard) thì tab đã được chọn ngay lúc
+// khởi tạo nên watch(tab) ở trên KHÔNG chạy — phải tự đánh dấu "đã mở", nếu
+// không nội dung tab (v-if="tabsOpened.x") không bao giờ được dựng = tab trống.
+if (tab.value in tabsOpened) {
+    tabsOpened[tab.value] = true;
+}
+
+// Đang ở sẵn trang này mà bấm link ?tab=... khác (vd thông báo) thì đổi tab.
+watch(
+    () => route.query.tab,
+    (value) => {
+        if (VALID_TABS.includes(value)) {
+            tab.value = value;
+        }
+    },
+);
 
 // --- Tự đổi ảnh đại diện (POST /employees/me/avatar). Kiểm tra loại/dung
 // lượng ngay ở đây để báo lỗi tức thì, Backend vẫn kiểm tra lại (cùng luật).
@@ -443,7 +481,9 @@ const latestResignation = computed(() => resignations.value[0] ?? null);
 // Còn đơn đang chờ duyệt / đã duyệt mà chưa tới hạn thì không cho nộp thêm
 // (Backend cũng chặn — ResignationService::create()).
 const hasOpenResignation = computed(() =>
-    resignations.value.some((r) => r.status === "pending" || (r.status === "approved" && !r.applied_at)),
+    resignations.value.some(
+        (r) => r.status === "pending" || (["approved", "notified"].includes(r.status) && !r.applied_at),
+    ),
 );
 
 const canSubmitResignation = computed(
@@ -465,6 +505,13 @@ const resignationBanner = computed(() => {
     const lastDay = formatDateVi(r.last_working_date);
     if (r.status === "pending") {
         return { type: "warning", icon: "mdi-clock-outline", text: `Đơn xin nghỉ việc của bạn (ngày làm việc cuối ${lastDay}) đang chờ duyệt.` };
+    }
+    if (r.status === "notified" && !r.applied_at) {
+        return {
+            type: "info",
+            icon: "mdi-bell-check-outline",
+            text: `Bạn đã thông báo nghỉ việc (báo trước ${r.notice_days_given} ngày, đủ theo quy định) — ngày làm việc cuối là ${lastDay}. Đơn không cần duyệt; sau ngày đó bạn sẽ tự chuyển sang "Đã nghỉ việc".`,
+        };
     }
     if (r.status === "approved" && !r.applied_at) {
         return {
@@ -501,19 +548,51 @@ const resignationErrors = ref({});
 const submittingResignation = ref(false);
 const cancellingResignation = ref(false);
 
-function openResignationDialog() {
+// Quy định báo trước theo hợp đồng (BLLĐ 2019 Điều 35) — Backend tự tính, đây chỉ
+// để hiện trước cho nhân viên biết đơn sẽ "chỉ thông báo" hay "phải chờ duyệt".
+const resignationPolicy = ref(null);
+
+const resignationOutcome = computed(() => {
+    const policy = resignationPolicy.value;
+    const date = resignationForm.last_working_date;
+    if (!policy || !date) {
+        return null;
+    }
+    const given = Math.round((new Date(date) - new Date(todayIso())) / 86400000);
+    if (given >= policy.required_days) {
+        return {
+            enough: true,
+            text: `Báo trước ${given} ngày, đủ theo quy định — đơn chỉ là thông báo cho công ty, không cần duyệt.`,
+        };
+    }
+    return {
+        enough: false,
+        text: `Báo trước ${given} ngày, chưa đủ ${policy.required_days} ngày tối thiểu — đơn sẽ phải chờ HR/quản lý xem xét và đồng ý.`,
+    };
+});
+
+async function openResignationDialog() {
     resignationForm.last_working_date = "";
     resignationForm.reason = "";
     resignationErrors.value = {};
     resignationDialog.value = true;
+    try {
+        resignationPolicy.value = (await resignationService.policy()).data;
+    } catch {
+        resignationPolicy.value = null;
+    }
 }
 
 async function submitResignation() {
     resignationErrors.value = {};
     submittingResignation.value = true;
     try {
-        await resignationService.create({ ...resignationForm });
-        toast.success("Đã gửi đơn xin nghỉ việc.");
+        const response = await resignationService.create({ ...resignationForm });
+        toast.success(
+            response.data.data.status === "notified"
+                ? "Đã gửi thông báo nghỉ việc cho công ty."
+                : "Đã gửi đơn xin nghỉ việc, đang chờ duyệt.",
+        );
         resignationDialog.value = false;
         await loadResignations();
     } catch (e) {
@@ -535,7 +614,7 @@ async function cancelResignation() {
     cancellingResignation.value = true;
     try {
         await resignationService.cancel(latestResignation.value.id);
-        toast.success("Đã rút đơn xin nghỉ việc.");
+        toast.success("Đã rút đơn nghỉ việc.");
         await loadResignations();
     } catch (e) {
         toast.error(e.response?.data?.errors?.status?.[0] ?? e.response?.data?.message ?? "Không thể rút đơn.");
@@ -543,6 +622,9 @@ async function cancelResignation() {
         cancellingResignation.value = false;
     }
 }
+
+useRealtimeRefresh(loadProfile, { mine: ["profile", "leave_balances", "contracts"] });
+useRealtimeRefresh(loadResignations, { mine: ["resignations"] });
 
 onMounted(() => {
     loadProfile();

@@ -10,11 +10,11 @@ import employeeService from "../services/employeeService";
 import workShiftService from "../services/workShiftService";
 import { todayIso } from "../components/common/InputDate.vue";
 import { useToastStore } from "../stores/useToastStore";
+import { useRealtimeRefresh } from "./useRealtimeRefresh";
 
 export const ATTENDANCE_STATUS_MAP = {
     pending: { label: "Đang trong ca", color: "info" },
     completed: { label: "Hoàn tất", color: "success" },
-    needs_review: { label: "Cần xem lại", color: "warning" },
 };
 
 // Bước HR duyệt chấm công (2026-09-21) — TÁCH khỏi ATTENDANCE_STATUS_MAP ở
@@ -37,9 +37,9 @@ export const MERGED_ATTENDANCE_STATUS_MAP = {
     ...ATTENDANCE_STATUS_MAP,
 };
 
-// Chưa duyệt (kể cả đang needs_review) -> "Chờ duyệt", che trạng thái ca bên
+// Chưa duyệt -> "Chờ duyệt", che trạng thái ca bên
 // dưới. Bị từ chối -> hiện rõ, không rơi vào "Chờ duyệt". Đã duyệt -> hiện
-// đúng trạng thái ca (pending/completed/needs_review). `attendance` null (ca
+// đúng trạng thái ca (pending/completed). `attendance` null (ca
 // chưa ai chấm công) -> trả null, nơi gọi tự lo hiện gì (không thuộc phạm vi
 // hàm này).
 export function mergedAttendanceStatus(attendance) {
@@ -89,8 +89,11 @@ export function useCheckIn() {
     const loadingToday = ref(true);
     const loadError = ref("");
 
-    async function loadToday() {
-        loadingToday.value = true;
+    async function loadToday(opts) {
+        const silent = opts?.silent === true;
+        if (!silent) {
+            loadingToday.value = true;
+        }
         try {
             const response = await attendanceService.today();
             todayShifts.value = response.data.data;
@@ -104,8 +107,11 @@ export function useCheckIn() {
     const history = ref([]);
     const loadingHistory = ref(true);
 
-    async function loadHistory() {
-        loadingHistory.value = true;
+    async function loadHistory(opts) {
+        const silent = opts?.silent === true;
+        if (!silent) {
+            loadingHistory.value = true;
+        }
         try {
             const response = await attendanceService.myHistory();
             history.value = response.data;
@@ -120,7 +126,6 @@ export function useCheckIn() {
     // lượt bấm Chấm công tự ghi IP + vị trí + tên thiết bị của CHÍNH thiết bị
     // đang dùng. IP và tên thiết bị do backend tự đọc từ request; frontend chỉ
     // phải xin tọa độ từ trình duyệt. Mã QR là ô nhập TÙY CHỌN.
-    const qrReference = ref("");
     const submitting = ref(false);
     const submittingShiftId = ref(null);
     const submitError = ref("");
@@ -154,8 +159,7 @@ export function useCheckIn() {
             // Lấy vị trí là "cố gắng hết sức", KHÔNG chặn chấm công: nhân viên
             // từ chối quyền / trình duyệt không hỗ trợ / trang chạy http
             // (Geolocation chỉ chạy trên https hoặc localhost) thì vẫn chấm
-            // công được, chỉ là log không có địa chỉ và nếu IP cũng không
-            // khớp Wifi công ty thì backend đánh dấu "Cần xem lại".
+            // công được, chỉ là log không có địa chỉ.
             try {
                 const coords = await getGpsPosition();
                 payload.latitude = coords.latitude;
@@ -165,10 +169,6 @@ export function useCheckIn() {
                 toast.warning(`${e.message} Lượt chấm công vẫn được ghi nhận nhưng không có địa chỉ.`);
             }
 
-            if (qrReference.value.trim()) {
-                payload.qr_reference = qrReference.value.trim();
-            }
-
             if (isCheckOut) {
                 await attendanceService.checkOut(payload);
                 toast.success("Đã chấm công ra.");
@@ -176,13 +176,11 @@ export function useCheckIn() {
                 await attendanceService.checkIn(payload);
                 toast.success("Đã chấm công vào.");
             }
-            qrReference.value = "";
             await Promise.all([loadToday(), loadHistory()]);
         } catch (e) {
             submitError.value =
                 e.response?.data?.errors?.work_shift_id?.[0] ??
                 e.response?.data?.errors?.latitude?.[0] ??
-                e.response?.data?.errors?.qr_reference?.[0] ??
                 e.response?.data?.message ??
                 "Không thể chấm công, vui lòng thử lại.";
         } finally {
@@ -489,8 +487,11 @@ export function useCheckIn() {
         }
     }
 
-    async function loadMyExtraShiftRequests() {
-        loadingMyExtraShiftRequests.value = true;
+    async function loadMyExtraShiftRequests(opts) {
+        const silent = opts?.silent === true;
+        if (!silent) {
+            loadingMyExtraShiftRequests.value = true;
+        }
         try {
             const response = await attendanceService.myAdjustments();
             // Gộp cả 2 tab vào CHUNG 1 danh sách "của tôi" — 'overtime' loại
@@ -642,6 +643,16 @@ export function useCheckIn() {
         }
     }
 
+    // Realtime (mục 50 CODE_MAP): HR duyệt/từ chối, đổi ca, đơn nghỉ phép/điều
+    // chỉnh được duyệt... đều tự làm mới thẻ hôm nay + lịch sử, không cần F5.
+    useRealtimeRefresh(
+        (opts) => Promise.all([loadToday(opts), loadHistory(opts), loadMyExtraShiftRequests(opts)]),
+        {
+            mine: ["attendance", "attendance_adjustments", "shift_assignments", "leave_requests"],
+            shared: ["work_shifts_public"],
+        },
+    );
+
     onMounted(() => {
         loadToday();
         loadHistory();
@@ -655,7 +666,6 @@ export function useCheckIn() {
         loadError,
         history,
         loadingHistory,
-        qrReference,
         submitting,
         submittingShiftId,
         submitError,

@@ -5,7 +5,6 @@ namespace Tests\Feature\Attendance;
 use App\Events\AttendanceApprovalDecided;
 use App\Events\AttendanceChecked;
 use App\Models\Attendance;
-use App\Models\AttendanceLocation;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeShiftAssignment;
@@ -126,10 +125,6 @@ class AttendanceLiveFeedTest extends TestCase
             'effective_from' => now()->subDay()->toDateString(),
             'work_days' => [1, 2, 3, 4, 5],
             'status' => 'active',
-        ]);
-        AttendanceLocation::create([
-            'code' => 'DD001', 'name' => 'Van phong', 'method' => 'wifi',
-            'allowed_ip_cidr' => '127.0.0.1/32',
         ]);
         $monday = Carbon::parse('next monday 08:00');
         $this->travelTo($monday);

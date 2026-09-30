@@ -16,9 +16,7 @@ import searchService from "../../services/searchService";
 // title/permission, không có icon lẫn từ khóa phụ (tiếng Anh/không dấu),
 // phải khai tay giống hệt cách AppSidebar.vue đang liệt kê menu (title/icon/
 // permission lặp lại ở đó, đây chỉ thêm 1 nơi thứ 3 theo ĐÚNG cùng quy ước,
-// không phải mẫu mới). Cố tình bỏ qua `attendance-locations` — AppSidebar.vue
-// đang comment ẩn menu này (chưa hoàn thiện), Quick Search giữ nhất quán,
-// không "lộ" trang qua cửa sau. `employee-detail`/`payroll-detail` cần id cụ
+// không phải mẫu mới). `employee-detail`/`payroll-detail` cần id cụ
 // thể — không nằm trong danh sách trang tĩnh, tìm được qua Phase 2 bên dưới
 // (nhân viên) hoặc gõ đúng trang danh sách trước.
 const ALL_ITEMS = [
@@ -119,6 +117,13 @@ const ALL_ITEMS = [
         icon: "mdi-calendar-check-outline",
         permission: "leave.view_all",
         keywords: ["leave", "duyet nghi phep"],
+    },
+    {
+        name: "leave-overview",
+        title: "Tổng hợp nghỉ phép",
+        icon: "mdi-calendar-month-outline",
+        permission: "leave.view_all",
+        keywords: ["leave", "tong hop nghi phep", "quy phep", "ngay phep con lai"],
     },
     {
         name: "payrolls",

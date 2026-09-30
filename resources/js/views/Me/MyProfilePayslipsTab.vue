@@ -131,6 +131,7 @@ import { useDisplay } from "vuetify";
 import payrollService from "../../services/payrollService";
 import StatusChip from "../../components/common/StatusChip.vue";
 import PayrollPayslipDialog from "../Payroll/PayrollPayslipDialog.vue";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 const { mobile } = useDisplay();
 
@@ -148,8 +149,11 @@ function formatMoney(value) {
     return new Intl.NumberFormat("vi-VN").format(Number(value)) + " ₫";
 }
 
-async function loadData() {
-    loading.value = true;
+async function loadData(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        loading.value = true;
+    }
     loadError.value = "";
     try {
         const response = await payrollService.mine();
@@ -169,6 +173,8 @@ function openPayslip(detail) {
     selectedDetail.value = detail;
     payslipDialog.value = true;
 }
+
+useRealtimeRefresh(loadData, { mine: ["payslips"] });
 
 onMounted(loadData);
 </script>

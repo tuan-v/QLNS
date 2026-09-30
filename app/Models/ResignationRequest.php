@@ -3,11 +3,18 @@
 namespace App\Models;
 
 use App\Models\Concerns\Auditable;
+use App\Models\Concerns\BroadcastsChanges;
 use Illuminate\Database\Eloquent\Model;
 
 class ResignationRequest extends Model
 {
     use Auditable;
+    use BroadcastsChanges;
+
+    protected array $realtimeShared = ['resignations'];
+
+    protected array $realtimeOwn = ['resignations'];
+
 
     public const STATUS_PENDING = 'pending';
 
@@ -17,10 +24,16 @@ class ResignationRequest extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    // Báo trước đủ ngày theo luật -> chỉ là thông báo, không cần duyệt.
+    public const STATUS_NOTIFIED = 'notified';
+
     protected $fillable = [
         'employee_id',
         'last_working_date',
         'reason',
+        'notice_days_required',
+        'notice_days_given',
+        'requires_approval',
         'status',
         'decided_by',
         'decided_at',
@@ -34,6 +47,7 @@ class ResignationRequest extends Model
         'last_working_date' => 'date:Y-m-d',
         'decided_at' => 'datetime',
         'applied_at' => 'datetime',
+        'requires_approval' => 'boolean',
     ];
 
     public function employee()

@@ -13,6 +13,7 @@ Route::middleware('auth:api')->prefix('leave-requests')->group(function (): void
     // route mọi nơi khác, không thì "me" bị hiểu nhầm thành 1 employee id.
     Route::get('/balances/{employee}', [LeaveRequestController::class, 'balances'])->middleware('permission:leave.view_all');
     Route::get('/', [LeaveRequestController::class, 'index'])->middleware('permission:leave.view_all');
+    Route::get('/overview', [LeaveRequestController::class, 'overview'])->middleware('permission:leave.view_all');
     // Duyệt HÀNG LOẠT (2026-09-25) — khai TRƯỚC '/{leaveRequest}/decide', cùng
     // quy ước "route cụ thể trước route tham số" xuyên suốt file này (2 route
     // này không cùng số đoạn URL nên thật ra không tranh chấp, chỉ theo quy

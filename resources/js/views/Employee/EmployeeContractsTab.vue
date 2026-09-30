@@ -340,10 +340,6 @@
                             />
                         </v-col>
                     </v-row>
-                    <!-- Lương đóng BHXH KHÔNG còn là ô nhập riêng (2026-09-24,
-                    theo yêu cầu người dùng: "lương đóng bh sẽ tính là lương cb
-                    luôn không tách ra") — Backend tự đặt bằng đúng Lương thỏa
-                    thuận (EmployeeContractService::create()). -->
                     <v-row dense>
                         <v-col cols="12">
                             <div class="text-body-2 font-weight-medium mb-1">
@@ -407,6 +403,7 @@ import StatusChip from "../../components/common/StatusChip.vue";
 import InputMoney from "../../components/common/InputMoney.vue";
 import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 const toast = useToastStore();
 const props = defineProps({
     employeeId: {
@@ -475,8 +472,11 @@ const contractsLoading = ref(false);
 const contractsError = ref("");
 const downloadingId = ref(null);
 
-async function loadContracts() {
-    contractsLoading.value = true;
+async function loadContracts(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        contractsLoading.value = true;
+    }
     contractsError.value = "";
     try {
         const response = await employeeService.contracts(props.employeeId);
@@ -642,6 +642,10 @@ async function submitTerminate() {
 }
 
 /* ------------------------------------------------------------------ Vòng đời */
+useRealtimeRefresh(loadContracts, {
+    shared: [{ resource: "employee_contracts", permission: "employee.view" }],
+});
+
 onMounted(() => {
     loadContracts();
 });

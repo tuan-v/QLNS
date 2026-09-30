@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Events\AttendanceApprovalDecided;
 use App\Events\AttendanceChecked;
 use App\Models\Attendance;
-use App\Models\AttendanceLocation;
 use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\EmployeeShiftAssignment;
@@ -278,10 +277,7 @@ class AttendanceService
     // history()/list() vốn trải dài nhiều tháng.
     //
     // $status (lọc) và `status` mỗi dòng dùng CHUNG bộ giá trị với history()
-    // — xem displayStatusFor(). `location_mismatch` = lượt chấm công không
-    // khớp điểm chấm công nào (attendances.status 'needs_review', trước đây là
-    // nhãn "Cần xem lại") — giờ là cờ riêng hiện cạnh trạng thái cho HR, vì nó
-    // là lý do CẦN XEM KỸ trước khi duyệt chứ không phải kết quả ngày công.
+    // — xem displayStatusFor().
     public function dailyOverview(string $date, ?int $departmentId, ?int $workShiftId, ?string $status, ?string $approvalStatus): array
     {
         $dayIso = Carbon::parse($date)->dayOfWeekIso;
@@ -310,7 +306,6 @@ class AttendanceService
                     'work_shift' => $assignment->workShift,
                     'attendance' => $attendance,
                     'status' => $this->displayStatusFor($attendance, $onLeaveEmployeeIds->contains($assignment->employee_id)),
-                    'location_mismatch' => $attendance?->status === 'needs_review',
                 ];
             })
             // Cùng lý do dedupe ở history(): 1 ca có thể bị lặp qua 2 lượt gán
@@ -341,7 +336,6 @@ class AttendanceService
                 'work_shift' => $attendance->workShift,
                 'attendance' => $attendance,
                 'status' => $this->displayStatusFor($attendance, false),
-                'location_mismatch' => $attendance->status === 'needs_review',
             ])
             ->values();
 
@@ -413,10 +407,6 @@ class AttendanceService
             'present' => $rowsByEmployee->filter(fn (Collection $employeeRows) => $employeeRows->contains(
                 fn (array $row) => $row['attendance']?->first_check_in_at !== null,
             ))->count(),
-            // Số người có lượt chấm công không khớp điểm chấm công nào.
-            'location_mismatch' => $rowsByEmployee->filter(
-                fn (Collection $employeeRows) => $employeeRows->contains('location_mismatch', true),
-            )->count(),
         ];
     }
 
@@ -529,9 +519,7 @@ class AttendanceService
             $data['overtime_minutes'] = $this->calculateOvertimeMinutes($workShift, $effectiveOut);
         }
 
-        // Đã qua HR duyệt thì coi như hết nghi vấn, kể cả nếu trước đó
-        // needs_review vì không khớp điểm chấm công lúc chấm thật. Chỉ
-        // 'completed' khi đã có ĐỦ cả giờ vào lẫn giờ ra hiệu lực — nếu yêu
+        // Chỉ 'completed' khi đã có ĐỦ cả giờ vào lẫn giờ ra hiệu lực — nếu yêu
         // cầu điều chỉnh chỉ sửa giờ vào (chưa chấm công ra), đánh dấu
         // 'completed' ngay sẽ sai vì nhân viên coi như còn đang làm việc.
         $data['status'] = ($effectiveIn && $effectiveOut) ? 'completed' : 'pending';
@@ -550,9 +538,9 @@ class AttendanceService
         return $this->attendanceRepository->findOrCreateForShift($employee, $workShift, $date);
     }
 
-    // Quyết định đã chốt (CODE_MAP mục 12): không khớp được điểm chấm công
-    // nào thì VẪN cho ghi nhận, không chặn cứng — đánh dấu status='needs_review'
-    // để HR xử lý sau (Điều chỉnh công — mục 17). Ca chấm công NÀY do
+    // Chấm công = ghi nhận IP/vị trí/thiết bị của CHÍNH người bấm (2026-09-30:
+    // đã bỏ hẳn "Điểm chấm công" của công ty — không còn đối chiếu/khớp điểm).
+    // Ca chấm công NÀY do
     // frontend gửi rõ work_shift_id (mỗi card ca có nút riêng, mục 16) —
     // không còn tự đoán "ca gần nhất" như bản trước.
     public function checkIn(Employee $employee, array $data): AttendanceLog
@@ -576,10 +564,9 @@ class AttendanceService
             ]);
         }
 
-        $matchedLocation = $this->matchLocation($data);
         $device = $this->captureDeviceContext($data);
 
-        $log = DB::transaction(function () use ($employee, $workShift, $matchedLocation, $device, $data, $now, $today) {
+        $log = DB::transaction(function () use ($employee, $workShift, $device, $data, $now, $today) {
             $attendance = $this->attendanceRepository->findOrCreateForShift($employee, $workShift, $today);
 
             $lateMinutes = $this->calculateLateMinutes($workShift, $now);
@@ -587,13 +574,12 @@ class AttendanceService
             $attendance->forceFill([
                 'first_check_in_at' => $now,
                 'late_minutes' => $lateMinutes,
-                'status' => $matchedLocation ? 'pending' : 'needs_review',
+                'status' => 'pending',
             ])->save();
 
             return $this->attendanceLogRepository->create($this->logPayload(
                 $employee,
                 $attendance,
-                $matchedLocation,
                 'check_in',
                 $now,
                 $data,
@@ -646,10 +632,9 @@ class AttendanceService
             ]);
         }
 
-        $matchedLocation = $this->matchLocation($data);
         $device = $this->captureDeviceContext($data);
 
-        $log = DB::transaction(function () use ($employee, $attendance, $workShift, $matchedLocation, $device, $data, $now) {
+        $log = DB::transaction(function () use ($employee, $attendance, $workShift, $device, $data, $now) {
             $earlyLeaveMinutes = $this->calculateEarlyLeaveMinutes($workShift, $now);
             $actualMinutes = $this->calculateActualWorkMinutes($attendance->first_check_in_at, $now, $workShift);
 
@@ -661,15 +646,12 @@ class AttendanceService
                 // sau end_time mới tính là làm thêm, không phải toàn bộ
                 // (tổng giờ làm - giờ chuẩn) như trước.
                 'overtime_minutes' => $this->calculateOvertimeMinutes($workShift, $now),
-                // Đã needs_review từ lúc check-in (không khớp điểm) thì giữ
-                // nguyên, không bị check-out (có khớp điểm) ghi đè thành completed.
-                'status' => ($attendance->status === 'needs_review' || ! $matchedLocation) ? 'needs_review' : 'completed',
+                'status' => 'completed',
             ])->save();
 
             return $this->attendanceLogRepository->create($this->logPayload(
                 $employee,
                 $attendance,
-                $matchedLocation,
                 'check_out',
                 $now,
                 $data,
@@ -703,18 +685,16 @@ class AttendanceService
         ];
     }
 
-    private function logPayload(Employee $employee, Attendance $attendance, ?AttendanceLocation $location, string $eventType, Carbon $now, array $data, array $device): array
+    private function logPayload(Employee $employee, Attendance $attendance, string $eventType, Carbon $now, array $data, array $device): array
     {
         return [
             'employee_id' => $employee->id,
             'attendance_id' => $attendance->id,
-            'attendance_location_id' => $location?->id,
             'event_type' => $eventType,
             'occurred_at' => $now,
-            // Cột method giờ nghĩa là "khớp điểm chấm công bằng cách nào"
-            // (wifi/gps/qr theo điểm đã khớp), không còn là lựa chọn của
-            // nhân viên. Không khớp điểm nào → 'device' (chỉ có dữ liệu thiết bị).
-            'method' => $location?->method ?? 'device',
+            // Cột method luôn là 'device' (dữ liệu của chính thiết bị đang bấm) —
+            // giữ lại cột để không phải đổi schema/lịch sử.
+            'method' => 'device',
             'latitude' => $data['latitude'] ?? null,
             'longitude' => $data['longitude'] ?? null,
             'accuracy_meters' => $data['accuracy_meters'] ?? null,
@@ -722,7 +702,6 @@ class AttendanceService
             'ip_address' => request()->ip(),
             'device_name' => $device['device_name'],
             'user_agent' => $device['user_agent'],
-            'qr_reference' => $data['qr_reference'] ?? null,
         ];
     }
 
@@ -758,93 +737,6 @@ class AttendanceService
     {
         return $this->listActiveAssignmentsForDate($employee, $date)
             ->first(fn (EmployeeShiftAssignment $assignment) => $assignment->work_shift_id === $workShift->id);
-    }
-
-    // Đối chiếu dữ liệu của thiết bị đang chấm công với các "Điểm chấm công" của
-    // công ty (2026-09-21: đổi từ "nhân viên chọn phương thức" sang "hệ thống tự
-    // thu IP + GPS + QR rồi tự khớp"). Mỗi điểm vẫn có method riêng quyết định
-    // NÓ được khớp bằng gì: điểm 'wifi' so IP của request với allowed_ip_cidr,
-    // điểm 'gps' so tọa độ với bán kính, điểm 'qr' so mã QR. Khớp được điểm nào
-    // → status 'pending' + ghi tên điểm; không khớp → 'needs_review' cho HR
-    // xem lại (quyết định đã chốt, không chặn cứng). Thứ tự ưu tiên khi khớp
-    // nhiều điểm: QR (nhân viên chủ động quét) > Wifi (IP) > GPS. Chỉ xét
-    // điểm đang is_active.
-    private function matchLocation(array $data): ?AttendanceLocation
-    {
-        $locations = AttendanceLocation::where('is_active', true)->get();
-
-        return $this->matchByQr($locations, $data['qr_reference'] ?? null)
-            ?? $this->matchByIp($locations, request()->ip())
-            ?? $this->matchByGps($locations, $data['latitude'] ?? null, $data['longitude'] ?? null);
-    }
-
-    private function matchByQr(Collection $locations, ?string $qrReference): ?AttendanceLocation
-    {
-        if ($qrReference === null || $qrReference === '') {
-            return null;
-        }
-
-        return $locations->first(fn (AttendanceLocation $loc) => $loc->method === 'qr' && $loc->qr_secret && $loc->qr_secret === $qrReference);
-    }
-
-    private function matchByIp(Collection $locations, ?string $ip): ?AttendanceLocation
-    {
-        if ($ip === null) {
-            return null;
-        }
-
-        return $locations->first(fn (AttendanceLocation $loc) => $loc->method === 'wifi' && $loc->allowed_ip_cidr && $this->ipInCidr($ip, $loc->allowed_ip_cidr));
-    }
-
-    // Không có tọa độ (nhân viên từ chối quyền vị trí / trình duyệt không hỗ
-    // trợ) thì bỏ qua GPS chứ không lỗi — vẫn có thể khớp bằng IP hoặc QR.
-    private function matchByGps(Collection $locations, mixed $latitude, mixed $longitude): ?AttendanceLocation
-    {
-        if ($latitude === null || $longitude === null) {
-            return null;
-        }
-
-        $lat = (float) $latitude;
-        $lng = (float) $longitude;
-
-        return $locations->first(function (AttendanceLocation $loc) use ($lat, $lng) {
-            if ($loc->method !== 'gps' || ! $loc->latitude || ! $loc->longitude || ! $loc->radius_meters) {
-                return false;
-            }
-
-            return $this->distanceMeters($lat, $lng, (float) $loc->latitude, (float) $loc->longitude) <= $loc->radius_meters;
-        });
-    }
-
-    private function ipInCidr(string $ip, string $cidr): bool
-    {
-        if (! str_contains($cidr, '/')) {
-            return $ip === $cidr;
-        }
-
-        [$subnet, $maskBits] = explode('/', $cidr);
-        $ipLong = ip2long($ip);
-        $subnetLong = ip2long($subnet);
-
-        if ($ipLong === false || $subnetLong === false) {
-            return false;
-        }
-
-        $mask = -1 << (32 - (int) $maskBits);
-
-        return ($ipLong & $mask) === ($subnetLong & $mask);
-    }
-
-    // Công thức Haversine — khoảng cách giữa 2 tọa độ GPS theo mét.
-    private function distanceMeters(float $lat1, float $lng1, float $lat2, float $lng2): float
-    {
-        $earthRadiusMeters = 6371000;
-        $dLat = deg2rad($lat2 - $lat1);
-        $dLng = deg2rad($lng2 - $lng1);
-        $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
-        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
-
-        return $earthRadiusMeters * $c;
     }
 
     private function shiftTimeToday(string $time, Carbon $referenceDate): Carbon

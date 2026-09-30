@@ -227,6 +227,7 @@ import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate from "../../components/common/InputDate.vue";
 import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 const props = defineProps({
     employeeId: {
@@ -261,8 +262,11 @@ const transfersLoading = ref(false);
 const transfersError = ref("");
 const downloadingTransferId = ref(null);
 
-async function loadTransfers() {
-    transfersLoading.value = true;
+async function loadTransfers(opts) {
+    const silent = opts?.silent === true;
+    if (!silent) {
+        transfersLoading.value = true;
+    }
     transfersError.value = "";
     try {
         const response = await employeeService.transfers(props.employeeId);
@@ -446,6 +450,10 @@ async function submitTransfer() {
         transferSubmitting.value = false;
     }
 }
+
+useRealtimeRefresh(loadTransfers, {
+    shared: [{ resource: "employee_transfers", permission: "employee.view" }],
+});
 
 onMounted(() => {
     loadTransfers();

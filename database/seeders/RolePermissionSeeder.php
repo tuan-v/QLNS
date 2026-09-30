@@ -23,8 +23,6 @@ class RolePermissionSeeder extends Seeder
                 'department.manage',
                 'shift.view',
                 'shift.manage',
-                'location.view',
-                'location.manage',
                 'attendance.view_all',
                 'attendance.adjust',
                 'attendance.approve',

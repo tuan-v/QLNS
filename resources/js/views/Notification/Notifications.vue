@@ -51,7 +51,14 @@
                         v-model:items-per-page="mine.perPage"
                     >
                         <template #item.title="{ item }">
-                            <div class="d-flex align-start ga-3 py-2">
+                            <div
+                                class="d-flex align-start ga-3 py-2"
+                                :class="{ 'notif-link': canOpen(item) }"
+                                :role="canOpen(item) ? 'link' : undefined"
+                                :tabindex="canOpen(item) ? 0 : undefined"
+                                @click="canOpen(item) && openMine(item)"
+                                @keydown.enter="canOpen(item) && openMine(item)"
+                            >
                                 <span
                                     class="notif-dot mt-2 flex-shrink-0"
                                     :class="item.read_at ? 'notif-dot--read' : 'bg-primary'"
@@ -148,11 +155,13 @@ import { useAuthStore } from "../../stores/authStore";
 import { useNotificationStore } from "../../stores/useNotificationStore";
 import DataTable from "../../components/common/DataTable.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
+import { useNotificationNavigation } from "../../composables/useNotificationNavigation";
 import SearchField from "../../components/common/SearchField.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
 
 const auth = useAuthStore();
 const notificationStore = useNotificationStore();
+const { openNotification, canOpen } = useNotificationNavigation();
 
 const canViewAll = computed(() => auth.permissions.includes("notification.view_all"));
 
@@ -165,6 +174,7 @@ const TYPE_LABELS = {
     "attendance.pending_approval": "Chấm công chờ duyệt",
     "attendance_adjustment.pending": "Đơn điều chỉnh công chờ duyệt",
     "resignation.pending": "Đơn nghỉ việc chờ duyệt",
+    "resignation.notice": "Thông báo nghỉ việc",
     "resignation.decided": "Kết quả duyệt đơn nghỉ việc",
 };
 const typeOptions = Object.entries(TYPE_LABELS).map(([value, title]) => ({ title, value }));
@@ -213,6 +223,13 @@ const mineHeaders = [
 
 const mineActions = computed(() => [
     {
+        icon: "mdi-open-in-new",
+        tooltip: "Mở nội dung được thông báo",
+        color: "primary",
+        hidden: (item) => !canOpen(item),
+        onClick: openMine,
+    },
+    {
         icon: "mdi-email-open-outline",
         tooltip: "Đánh dấu đã đọc",
         color: "primary",
@@ -235,6 +252,17 @@ async function fetchMine() {
     }
 }
 
+// Mở nội dung được thông báo + đồng bộ trạng thái đã đọc của DANH SÁCH RIÊNG
+// của trang (khác mảng trong store dùng cho chuông).
+function openMine(item) {
+    const wasUnread = !item.read_at;
+    openNotification(item);
+    if (wasUnread) {
+        item.read_at = new Date().toISOString();
+        mine.unreadCount = Math.max(0, mine.unreadCount - 1);
+    }
+}
+
 async function markMineRead(item) {
     await notificationStore.markRead(item.id);
     item.read_at = new Date().toISOString();
@@ -250,6 +278,16 @@ async function markAllMineRead() {
 }
 
 watch(() => mine.page, fetchMine);
+// Thông báo MỚI vừa tới qua WebSocket (store chèn lên đầu) — nếu đang xem
+// trang 1 của tab "Thông báo của tôi" thì làm mới danh sách, không cần F5.
+watch(
+    () => notificationStore.notifications[0]?.id,
+    () => {
+        if (mine.page === 1) {
+            fetchMine();
+        }
+    },
+);
 // Đổi "Số dòng" -> về lại trang 1 rồi tải, cùng mẫu Employees.vue (đứng
 // nguyên trang cũ dễ rơi vào trang trống nếu trang hiện tại vượt quá tổng số
 // trang mới sau khi tăng/giảm số dòng/trang).
@@ -331,6 +369,12 @@ fetchMine();
 }
 .notif-tabs :deep(.v-tab) {
     height: 56px !important;
+}
+.notif-link {
+    cursor: pointer;
+}
+.notif-link:hover .text-body-2 {
+    text-decoration: underline;
 }
 .notif-dot {
     width: 8px;

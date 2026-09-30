@@ -34,14 +34,6 @@
                         </template>
                     </span>
                 </span>
-
-                <!-- <span class="log-detail__label">Điểm chấm công</span>
-                <span>
-                    {{ log.attendance_location?.name ?? "Không khớp điểm nào" }}
-                    <span class="text-caption" style="opacity: 0.6">
-                        ({{ METHOD_LABEL[log.method] ?? log.method }})
-                    </span>
-                </span> -->
             </div>
         </div>
     </div>
@@ -62,13 +54,6 @@ defineProps({
 // Cột attendance_logs.method là "khớp điểm chấm công bằng cách nào" (không còn
 // là lựa chọn của nhân viên) — 'device' = không khớp điểm nào, chỉ có dữ liệu
 // thiết bị. wifi/gps/qr cũng gặp ở bản ghi cũ do nhân viên tự chọn.
-// const METHOD_LABEL = {
-//     wifi: "khớp theo Wifi/IP",
-//     gps: "khớp theo GPS",
-//     qr: "khớp theo mã QR",
-//     device: "chỉ ghi nhận thiết bị",
-// };
-
 function hasCoordinates(log) {
     return log.latitude !== null && log.latitude !== undefined && log.longitude !== null && log.longitude !== undefined;
 }

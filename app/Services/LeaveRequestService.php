@@ -225,6 +225,106 @@ class LeaveRequestService
         });
     }
 
+    // "Tổng hợp nghỉ phép" (2026-09-30, theo yêu cầu người dùng — để quản lý
+    // được khi có nhiều nhân sự): mỗi nhân viên 1 dòng gồm quỹ phép năm (cấp /
+    // đã dùng / chờ duyệt / còn lại — cùng công thức listBalancesForEmployee()),
+    // số ngày nghỉ khác + không lương đã duyệt trong năm, số đơn đang chờ duyệt
+    // và đợt nghỉ hiện tại/sắp tới. Phân trang phía server; `summary` tính trên
+    // TOÀN BỘ nhân viên khớp bộ lọc (không chỉ trang đang xem).
+    public function overview(int $year, ?int $departmentId, ?string $search, int $perPage, int $page): array
+    {
+        $today = now()->toDateString();
+
+        $query = Employee::query()
+            ->whereIn('employment_status', ['active', 'probation'])
+            ->when($departmentId, fn ($q, $id) => $q->where('department_id', $id))
+            ->when($search, fn ($q, $term) => $q->where(fn ($w) => $w
+                ->where('full_name', 'like', "%{$term}%")
+                ->orWhere('code', 'like', "%{$term}%")))
+            ->with('department:id,name');
+
+        $allIds = (clone $query)->pluck('id')->all();
+        $paginator = $query->orderBy('full_name')->paginate($perPage, ['*'], 'page', $page);
+        $pageIds = $paginator->getCollection()->pluck('id')->all();
+
+        $leaveTypeCodes = LeaveType::pluck('code', 'id');
+        $approvedByEmployee = $this->leaveRequestRepository->approvedDaysByEmployee($pageIds, $year);
+        $pendingCounts = $this->leaveRequestRepository->pendingRequestCounts($pageIds);
+        $upcoming = $this->leaveRequestRepository->upcomingApproved($pageIds, $today)->groupBy('employee_id');
+
+        $rows = $paginator->getCollection()->map(function (Employee $employee) use ($year, $today, $leaveTypeCodes, $approvedByEmployee, $pendingCounts, $upcoming) {
+            $annual = $this->listBalancesForEmployee($employee, $year)
+                ->first(fn (array $b) => (float) $b['leave_type']->annual_entitlement_days > 0);
+
+            $daysByCode = ($approvedByEmployee->get($employee->id) ?? collect())
+                ->mapWithKeys(fn ($row) => [$leaveTypeCodes->get($row->leave_type_id) => (float) $row->days]);
+
+            $next = $upcoming->get($employee->id)?->first();
+
+            return [
+                'employee' => [
+                    'id' => $employee->id,
+                    'code' => $employee->code,
+                    'full_name' => $employee->full_name,
+                    'avatar' => $employee->avatar,
+                    'department' => $employee->department?->name,
+                ],
+                'annual' => $annual === null ? null : [
+                    'allocated_days' => $annual['allocated_days'] + $annual['carried_forward_days'] + $annual['adjusted_days'],
+                    'used_days' => $annual['used_days'],
+                    'pending_days' => $annual['pending_days'],
+                    'remaining_days' => $annual['remaining_days'],
+                ],
+                'other_days' => $daysByCode->get('other', 0.0),
+                'unpaid_days' => $daysByCode->get('unpaid', 0.0),
+                'pending_requests' => (int) ($pendingCounts->get($employee->id) ?? 0),
+                'on_leave_today' => $next !== null && $next->from_date->toDateString() <= $today,
+                'next_leave' => $next === null ? null : [
+                    'from_date' => $next->from_date->toDateString(),
+                    'to_date' => $next->to_date->toDateString(),
+                    'leave_type' => $next->leaveType?->name,
+                ],
+            ];
+        })->values();
+
+        return [
+            'data' => $rows,
+            'meta' => [
+                'total' => $paginator->total(),
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'last_page' => $paginator->lastPage(),
+            ],
+            'summary' => $this->overviewSummary($allIds, $year, $today),
+        ];
+    }
+
+    private function overviewSummary(array $employeeIds, int $year, string $today): array
+    {
+        if ($employeeIds === []) {
+            return ['total_employees' => 0, 'on_leave_today' => 0, 'pending_requests' => 0, 'days_used' => 0.0];
+        }
+
+        $onLeaveToday = LeaveRequest::whereIn('employee_id', $employeeIds)
+            ->where('status', 'approved')
+            ->where('from_date', '<=', $today)
+            ->where('to_date', '>=', $today)
+            ->distinct()
+            ->count('employee_id');
+
+        return [
+            'total_employees' => count($employeeIds),
+            'on_leave_today' => $onLeaveToday,
+            'pending_requests' => LeaveRequest::whereIn('employee_id', $employeeIds)
+                ->whereIn('status', ['pending', 'manager_approved'])
+                ->count(),
+            'days_used' => (float) LeaveRequest::whereIn('employee_id', $employeeIds)
+                ->where('status', 'approved')
+                ->whereYear('from_date', $year)
+                ->sum('total_days'),
+        ];
+    }
+
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
     {
         return $this->leaveRequestRepository->paginate(perPage: $perPage, filters: $filters);

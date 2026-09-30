@@ -119,14 +119,14 @@
 
 <script setup>
 import { ref } from "vue";
-import { useRouter } from "vue-router";
 import { useNotificationStore } from "../../stores/useNotificationStore";
 import { usePresenceStore } from "../../stores/usePresenceStore";
 import { avatarColor, initials } from "../../composables/avatar";
+import { useNotificationNavigation } from "../../composables/useNotificationNavigation";
 
 const store = useNotificationStore();
 const presence = usePresenceStore();
-const router = useRouter();
+const { openNotification } = useNotificationNavigation();
 
 const open = ref(false);
 
@@ -138,27 +138,6 @@ function onToggle(isOpen) {
     }
 }
 
-// leave.decided -> nhân viên xem đơn CỦA MÌNH; leave.pending_manager/
-// leave.pending_hr -> người NHẬN thông báo là người phải DUYỆT, đưa thẳng
-// sang trang duyệt đơn (2 trang khác nhau, gate quyền khác nhau — không
-// dùng chung 1 route cho mọi loại thông báo nghỉ phép). attendance.pending_approval
-// (2026-09-25) -> người có quyền duyệt chấm công, đưa sang "Tổng hợp chấm công".
-const TYPE_ROUTES = {
-    "leave.decided": "leave-requests",
-    "leave.pending_manager": "leave-management",
-    "leave.pending_hr": "leave-management",
-    "attendance.pending_approval": "attendance-overview",
-    "attendance_adjustment.pending": "attendance-adjustments",
-    // Đơn nghỉ việc (2026-09-29): người duyệt -> mở thẳng đúng đơn (query id,
-    // xem TYPE_QUERY); người nộp -> "Hồ sơ của tôi" (nơi xem trạng thái đơn).
-    "resignation.pending": "resignations",
-    "resignation.decided": "my-profile",
-};
-
-const TYPE_QUERY = {
-    "resignation.pending": (item) => ({ id: item.data?.resignation_request_id }),
-};
-
 // Nhãn nhóm ở dòng phụ "Nhóm • thời gian" (giống mẫu người dùng gửi).
 const TYPE_CATEGORY = {
     "leave.pending_manager": "Nghỉ phép",
@@ -168,6 +147,7 @@ const TYPE_CATEGORY = {
     "attendance.checkout_reminder": "Nhắc nhở",
     "attendance_adjustment.pending": "Điều chỉnh công",
     "resignation.pending": "Nghỉ việc",
+    "resignation.notice": "Nghỉ việc",
     "resignation.decided": "Nghỉ việc",
 };
 
@@ -201,12 +181,8 @@ function messageParts(item) {
 }
 
 function onClickItem(item) {
-    if (!item.read_at) {
-        store.markRead(item.id);
-    }
-    if (TYPE_ROUTES[item.type]) {
+    if (openNotification(item)) {
         open.value = false;
-        router.push({ name: TYPE_ROUTES[item.type], query: TYPE_QUERY[item.type]?.(item) });
     }
 }
 
