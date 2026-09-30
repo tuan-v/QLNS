@@ -11,6 +11,7 @@ use App\Models\Employee;
 use App\Services\EmployeeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class EmployeeController extends Controller
@@ -31,6 +32,26 @@ class EmployeeController extends Controller
 
         return EmployeeResource::collection($this->employeeService->list($filters, $perPage));
     }
+    // Trùng dữ liệu định danh? (2026-09-30, theo yêu cầu người dùng: báo lỗi ngay
+    // khi nhập, không đợi bấm Lưu.) Đối chiếu ĐÚNG cách rule `unique:employees,...`
+    // của Store/UpdateEmployeeRequest — tính cả nhân viên đã xóa mềm; khi sửa thì
+    // bỏ qua chính nhân viên đang sửa (ignore_id). Backend vẫn kiểm tra lại lúc lưu.
+    public function checkUnique(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'field' => ['required', 'in:company_email,personal_email,phone,cccd,personal_tax_code'],
+            'value' => ['required', 'string', 'max:255'],
+            'ignore_id' => ['nullable', 'integer'],
+        ]);
+
+        $taken = DB::table('employees')
+            ->where($data['field'], $data['value'])
+            ->when($data['ignore_id'] ?? null, fn ($query, $id) => $query->where('id', '!=', $id))
+            ->exists();
+
+        return response()->json(['available' => ! $taken]);
+    }
+
     public function stats(): JsonResponse
     {
         return response()->json($this->employeeService->stats());

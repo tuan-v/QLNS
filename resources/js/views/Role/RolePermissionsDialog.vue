@@ -95,6 +95,7 @@ import { computed, reactive, ref, watch } from "vue";
 import roleService from "../../services/roleService";
 import { usePermissionStore } from "../../stores/usePermissionStore";
 import { useToastStore } from "../../stores/useToastStore";
+import { useChangeGuard } from "../../composables/useChangeGuard";
 import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
 
@@ -107,6 +108,7 @@ const emit = defineEmits(["update:modelValue", "saved"]);
 
 const permissionStore = usePermissionStore();
 const toast = useToastStore();
+const guard = useChangeGuard(() => [...selectedIds.value].sort((a, b) => a - b));
 
 const loading = ref(false);
 const error = ref("");
@@ -158,6 +160,7 @@ async function loadRolePermissions() {
             permissionStore.permissions.length ? Promise.resolve() : permissionStore.fetchList(),
         ]);
         selectedIds.value = (roleDetail.permissions ?? []).map((p) => p.id);
+        guard.takeSnapshot();
     } catch (e) {
         error.value = e.response?.data?.message ?? "Không thể tải dữ liệu quyền.";
     } finally {
@@ -180,6 +183,10 @@ function close() {
 }
 
 async function submit() {
+    if (guard.skipIfUnchanged()) {
+        close();
+        return;
+    }
     loading.value = true;
     error.value = "";
     try {

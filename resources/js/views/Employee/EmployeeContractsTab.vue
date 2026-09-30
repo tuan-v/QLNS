@@ -264,8 +264,8 @@
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     Thêm hợp đồng
                 </v-card-title>
-                <v-card-text
-                    class="px-5"
+                <v-form ref="contractFormRef" validate-on="blur invalid-input lazy" @submit.prevent="submitCreate"
+                    class="v-card-text px-5"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
                 >
                     <div>
@@ -296,7 +296,8 @@
                             variant="outlined"
                             density="comfortable"
                             rounded="lg"
-                            :error-messages="createErrors.contract_type"
+                            :rules="[notEmpty('Loại hợp đồng')]"
+                        :error-messages="createErrors.contract_type"
                         />
                     </div>
                     <v-row dense>
@@ -323,7 +324,8 @@
                                 variant="outlined"
                                 density="comfortable"
                                 rounded="lg"
-                                :error-messages="createErrors.start_date"
+                                :rules="[notEmpty('Ngày bắt đầu')]"
+                        :error-messages="createErrors.start_date"
                             />
                         </v-col>
                         <v-col cols="4">
@@ -336,7 +338,8 @@
                                 variant="outlined"
                                 density="comfortable"
                                 rounded="lg"
-                                :error-messages="createErrors.end_date"
+                                :rules="[(v) => !v || !createForm.start_date || v > createForm.start_date || 'Ngày kết thúc phải sau ngày bắt đầu']"
+                        :error-messages="createErrors.end_date"
                             />
                         </v-col>
                     </v-row>
@@ -348,7 +351,8 @@
                             </div>
                             <InputMoney
                                 v-model="createForm.agreed_salary"
-                                :error-messages="createErrors.agreed_salary"
+                                :rules="[notEmpty('Lương thỏa thuận')]"
+                        :error-messages="createErrors.agreed_salary"
                             />
                         </v-col>
                     </v-row>
@@ -359,7 +363,8 @@
                         <InputFile
                             v-model="createForm.contract_file"
                             :limit="UPLOAD_LIMITS.contract"
-                            :error-messages="createErrors.contract_file"
+                            :rules="[(v) => (Array.isArray(v) ? v.length > 0 : Boolean(v)) || 'Vui lòng đính kèm file PDF hợp đồng']"
+                        :error-messages="createErrors.contract_file"
                         />
                     </div>
                     <v-alert
@@ -370,7 +375,7 @@
                     >
                         {{ createGeneralError }}
                     </v-alert>
-                </v-card-text>
+                </v-form>
                 <v-card-actions class="px-5 pb-5">
                     <v-spacer />
                     <v-btn
@@ -404,6 +409,7 @@ import InputMoney from "../../components/common/InputMoney.vue";
 import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
+import { notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
 const toast = useToastStore();
 const props = defineProps({
     employeeId: {
@@ -560,7 +566,14 @@ function openCreateDialog() {
     createDialog.value = true;
 }
 
+const contractFormRef = ref(null);
+useClearErrorsOnEdit(createForm, () => createErrors.value);
+
 async function submitCreate() {
+    const { valid } = await contractFormRef.value.validate();
+    if (!valid) {
+        return;
+    }
     createErrors.value = {};
     createGeneralError.value = "";
     creating.value = true;

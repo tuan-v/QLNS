@@ -1,5 +1,6 @@
 <template>
     <FormDialog
+        :validation="false"
         :model-value="modelValue"
         eyebrow="HỒ SƠ NHÂN VIÊN"
         :title="isEdit ? 'Sửa nhân viên' : 'Thêm nhân viên'"
@@ -15,324 +16,336 @@
         @update:model-value="close"
         @submit="submit"
     >
-        <v-form ref="formRef">
-        <FormSection title="Thông tin cơ bản">
-            <v-row dense>
-                <v-col cols="12" sm="7">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Họ tên <span class="text-error">*</span>
-                    </div>
-                    <v-text-field
-                        v-model="form.full_name"
-                        :rules="rules.fullName"
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        placeholder="Nhập họ tên"
-                        :error-messages="store.errors.full_name"
-                    />
-                </v-col>
-
-                <v-col cols="12" sm="5">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Mã nhân viên
-                    </div>
-                    <v-text-field
-                        :model-value="
-                            isEdit ? employee.code : 'Tự động sau khi lưu'
-                        "
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        readonly
-                        prepend-inner-icon="mdi-auto-fix"
-                        :class="{ 'text-medium-emphasis': !isEdit }"
-                    />
-                </v-col>
-
-                <v-col cols="12" sm="7">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Email công ty <span class="text-error">*</span>
-                    </div>
-                    <v-text-field
-                        v-model="form.company_email"
-                        :rules="rules.companyEmail"
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        placeholder="ten@congty.com"
-                        :error-messages="store.errors.company_email"
-                    />
-                </v-col>
-
-                <v-col cols="12" sm="5">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Ngày vào làm <span class="text-error">*</span>
-                    </div>
-                    <InputDate
-                        v-model="form.hire_date"
-                        :rules="rules.hireDate"
-                        :error-messages="store.errors.hire_date"
-                    />
-                </v-col>
-            </v-row>
-        </FormSection>
-
-        <FormSection title="Thông tin cá nhân">
-            <v-row dense>
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Ngày sinh <span class="text-error">*</span>
-                    </div>
-                    <InputDate
-                        v-model="form.date_of_birth"
-                        :rules="rules.dateOfBirth"
-                        :max="maxBirthDate"
-                        :error-messages="store.errors.date_of_birth"
-                    />
-                </v-col>
-
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Giới tính <span class="text-error">*</span>
-                    </div>
-                    <v-select
-                        v-model="form.gender"
-                        :rules="rules.gender"
-                        :items="genderOptions"
-                        placeholder="Chưa chọn"
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        clearable
-                        persistent-placeholder
-                        :error-messages="store.errors.gender"
-                    />
-                </v-col>
-
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Điện thoại <span class="text-error">*</span>
-                    </div>
-                    <v-text-field
-                        v-model="form.phone"
-                        :rules="rules.phone"
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        :error-messages="store.errors.phone"
-                    />
-                </v-col>
-
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Email cá nhân <span class="text-error">*</span>
-                    </div>
-                    <v-text-field
-                        v-model="form.personal_email"
-                        :rules="rules.personalEmail"
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        :error-messages="store.errors.personal_email"
-                    />
-                </v-col>
-
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Căn cước công dân <span class="text-error">*</span>
-                    </div>
-                    <v-text-field
-                        v-model="form.cccd"
-                        :rules="rules.cccd"
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        :error-messages="store.errors.cccd"
-                    />
-                </v-col>
-
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Mã số thuế cá nhân <span class="text-error">*</span>
-                    </div>
-                    <v-text-field
-                        v-model="form.personal_tax_code"
-                        :rules="rules.personalTaxCode"
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        :error-messages="store.errors.personal_tax_code"
-                    />
-                </v-col>
-
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Tỉnh/Thành phố <span class="text-error">*</span>
-                    </div>
-                    <SearchSelect
-                        :model-value="form.province_code"
-                        :rules="rules.provinceCode"
-                        :items="provinceOptions"
-                        :loading="provincesLoading"
-                        clearable
-                        :error-messages="store.errors.province_code"
-                        @update:model-value="onProvinceChange"
-                    />
-                </v-col>
-
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Xã/Phường <span class="text-error">*</span>
-                    </div>
-                    <SearchSelect
-                        v-model="form.commune_code"
-                        :rules="rules.communeCode"
-                        :items="communeOptions"
-                        :loading="communesLoading"
-                        :disabled="!form.province_code"
-                        clearable
-                        :error-messages="store.errors.commune_code"
-                    />
-                </v-col>
-
-                <v-col cols="12">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Địa chỉ chi tiết <span class="text-error">*</span>
-                    </div>
-                    <v-text-field
-                        v-model="form.address_detail"
-                        :rules="rules.addressDetail"
-                        placeholder="Số nhà, tên đường..."
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        :error-messages="store.errors.address_detail"
-                    />
-                </v-col>
-            </v-row>
-        </FormSection>
-
-        <FormSection title="Tổ chức">
-            <v-row dense>
-                <v-col cols="12" sm="6">
-                    <div
-                        class="d-flex align-center justify-space-between mb-1"
-                    >
-                        <span class="text-body-2 font-weight-medium">
-                            Phòng ban <span class="text-error">*</span>
-                        </span>
-                        <v-btn
-                            v-if="canManageOrg"
-                            variant="text"
-                            size="x-small"
+        <v-form ref="formRef" validate-on="blur invalid-input lazy">
+            <FormSection title="Thông tin cơ bản">
+                <v-row dense>
+                    <v-col cols="12" sm="7">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Họ tên <span class="text-error">*</span>
+                        </div>
+                        <v-text-field
+                            v-model="form.full_name"
+                            :rules="rules.fullName"
+                            variant="outlined"
                             density="comfortable"
-                            prepend-icon="mdi-plus"
-                            class="px-1"
-                            @click="quickDepartmentOpen = true"
-                        >
-                            Tạo nhanh
-                        </v-btn>
-                    </div>
-                    <SearchSelect
-                        :model-value="form.department_id"
-                        :rules="rules.departmentId"
-                        :items="departmentOptions"
-                        clearable
-                        :error-messages="store.errors.department_id"
-                        @update:model-value="onDepartmentChange"
-                    />
-                </v-col>
+                            rounded="lg"
+                            placeholder="Nhập họ tên"
+                            :error-messages="store.errors.full_name"
+                        />
+                    </v-col>
 
-                <v-col cols="12" sm="6">
-                    <div
-                        class="d-flex align-center justify-space-between mb-1"
-                    >
-                        <span class="text-body-2 font-weight-medium">
-                            Chức vụ
-                        </span>
-                        <v-btn
-                            v-if="canManageOrg"
-                            variant="text"
-                            size="x-small"
+                    <v-col cols="12" sm="5">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Mã nhân viên
+                        </div>
+                        <v-text-field
+                            :model-value="
+                                isEdit ? employee.code : 'Tự động sau khi lưu'
+                            "
+                            variant="outlined"
                             density="comfortable"
-                            prepend-icon="mdi-plus"
-                            class="px-1"
-                            @click="quickPositionOpen = true"
-                        >
-                            Tạo nhanh
-                        </v-btn>
-                    </div>
-                    <SearchSelect
-                        :model-value="form.position_id"
-                        :items="positionOptions"
-                        clearable
-                        :error-messages="store.errors.position_id"
-                        @update:model-value="onPositionChange"
-                    />
-                </v-col>
+                            rounded="lg"
+                            readonly
+                            :class="{ 'text-medium-emphasis': !isEdit }"
+                        />
+                    </v-col>
 
-                <!-- Quản lý trực tiếp KHÔNG chọn tay (2026-09-29, theo yêu cầu
+                    <v-col cols="12" sm="7">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Email công ty <span class="text-error">*</span>
+                        </div>
+                        <v-text-field
+                            v-model="form.company_email"
+                            :rules="rules.companyEmail"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            placeholder="ten@congty.com"
+                            :error-messages="fieldErrors('company_email')"
+                            @blur="checkUnique('company_email')"
+                        />
+                    </v-col>
+
+                    <v-col cols="12" sm="5">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Ngày vào làm <span class="text-error">*</span>
+                        </div>
+                        <InputDate
+                            v-model="form.hire_date"
+                            :rules="rules.hireDate"
+                            :error-messages="store.errors.hire_date"
+                        />
+                    </v-col>
+                </v-row>
+            </FormSection>
+
+            <FormSection title="Thông tin cá nhân">
+                <v-row dense>
+                    <v-col cols="12" sm="6">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Ngày sinh <span class="text-error">*</span>
+                        </div>
+                        <InputDate
+                            v-model="form.date_of_birth"
+                            :rules="rules.dateOfBirth"
+                            :max="maxBirthDate"
+                            :error-messages="store.errors.date_of_birth"
+                        />
+                    </v-col>
+
+                    <v-col cols="12" sm="6">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Giới tính <span class="text-error">*</span>
+                        </div>
+                        <v-select
+                            v-model="form.gender"
+                            :rules="rules.gender"
+                            :items="genderOptions"
+                            placeholder="Chưa chọn"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            clearable
+                            persistent-placeholder
+                            :error-messages="store.errors.gender"
+                        />
+                    </v-col>
+
+                    <v-col cols="12" sm="6">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Điện thoại <span class="text-error">*</span>
+                        </div>
+                        <v-text-field
+                            v-model="form.phone"
+                            :rules="rules.phone"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            :error-messages="fieldErrors('phone')"
+                            @blur="checkUnique('phone')"
+                        />
+                    </v-col>
+
+                    <v-col cols="12" sm="6">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Email cá nhân <span class="text-error">*</span>
+                        </div>
+                        <v-text-field
+                            v-model="form.personal_email"
+                            :rules="rules.personalEmail"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            :error-messages="fieldErrors('personal_email')"
+                            @blur="checkUnique('personal_email')"
+                        />
+                    </v-col>
+
+                    <v-col cols="12" sm="6">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Căn cước công dân <span class="text-error">*</span>
+                        </div>
+                        <v-text-field
+                            v-model="form.cccd"
+                            :rules="rules.cccd"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            :error-messages="fieldErrors('cccd')"
+                            @blur="checkUnique('cccd')"
+                        />
+                    </v-col>
+
+                    <v-col cols="12" sm="6">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Mã số thuế cá nhân <span class="text-error">*</span>
+                        </div>
+                        <v-text-field
+                            v-model="form.personal_tax_code"
+                            :rules="rules.personalTaxCode"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            :error-messages="fieldErrors('personal_tax_code')"
+                            @blur="checkUnique('personal_tax_code')"
+                        />
+                    </v-col>
+
+                    <v-col cols="12" sm="6">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Tỉnh/Thành phố <span class="text-error">*</span>
+                        </div>
+                        <SearchSelect
+                            :model-value="form.province_code"
+                            :rules="rules.provinceCode"
+                            :items="provinceOptions"
+                            :loading="provincesLoading"
+                            clearable
+                            :error-messages="store.errors.province_code"
+                            @update:model-value="onProvinceChange"
+                        />
+                    </v-col>
+
+                    <v-col cols="12" sm="6">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Xã/Phường <span class="text-error">*</span>
+                        </div>
+                        <SearchSelect
+                            v-model="form.commune_code"
+                            :rules="rules.communeCode"
+                            :items="communeOptions"
+                            :loading="communesLoading"
+                            :disabled="!form.province_code"
+                            clearable
+                            :error-messages="store.errors.commune_code"
+                        />
+                    </v-col>
+
+                    <v-col cols="12">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Địa chỉ chi tiết <span class="text-error">*</span>
+                        </div>
+                        <v-text-field
+                            v-model="form.address_detail"
+                            :rules="rules.addressDetail"
+                            placeholder="Số nhà, tên đường..."
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            :error-messages="store.errors.address_detail"
+                        />
+                    </v-col>
+                </v-row>
+            </FormSection>
+
+            <FormSection title="Tổ chức">
+                <v-row dense>
+                    <v-col cols="12" sm="6">
+                        <div
+                            class="d-flex align-center justify-space-between mb-1"
+                        >
+                            <span class="text-body-2 font-weight-medium">
+                                Phòng ban <span class="text-error">*</span>
+                            </span>
+                            <v-btn
+                                v-if="canManageOrg"
+                                variant="text"
+                                size="x-small"
+                                density="comfortable"
+                                prepend-icon="mdi-plus"
+                                class="px-1"
+                                @click="quickDepartmentOpen = true"
+                            >
+                                Tạo nhanh
+                            </v-btn>
+                        </div>
+                        <SearchSelect
+                            :model-value="form.department_id"
+                            :rules="rules.departmentId"
+                            :items="departmentOptions"
+                            clearable
+                            :error-messages="store.errors.department_id"
+                            @update:model-value="onDepartmentChange"
+                        />
+                    </v-col>
+
+                    <v-col cols="12" sm="6">
+                        <div
+                            class="d-flex align-center justify-space-between mb-1"
+                        >
+                            <span class="text-body-2 font-weight-medium">
+                                Chức vụ
+                            </span>
+                            <v-btn
+                                v-if="canManageOrg"
+                                variant="text"
+                                size="x-small"
+                                density="comfortable"
+                                prepend-icon="mdi-plus"
+                                class="px-1"
+                                @click="quickPositionOpen = true"
+                            >
+                                Tạo nhanh
+                            </v-btn>
+                        </div>
+                        <SearchSelect
+                            :model-value="form.position_id"
+                            :items="positionOptions"
+                            clearable
+                            :error-messages="store.errors.position_id"
+                            @update:model-value="onPositionChange"
+                        />
+                    </v-col>
+
+                    <!-- Quản lý trực tiếp KHÔNG chọn tay (2026-09-29, theo yêu cầu
                      người dùng) — luôn là Trưởng phòng của phòng ban, Backend tự
                      tính (ReportingLineService); ô này chỉ xem trước kết quả. -->
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Quản lý trực tiếp
-                    </div>
-                    <v-text-field
-                        :model-value="predictedManagerName"
-                        readonly
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        prepend-inner-icon="mdi-account-tie-outline"
-                        hint="Tự động là Trưởng phòng của phòng ban"
-                        persistent-hint
-                    />
-                </v-col>
+                    <v-col cols="12" sm="6">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Quản lý trực tiếp
+                        </div>
+                        <v-text-field
+                            :model-value="predictedManagerName"
+                            readonly
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            prepend-inner-icon="mdi-account-tie-outline"
+                            hint="Tự động là Trưởng phòng của phòng ban"
+                            persistent-hint
+                        />
+                    </v-col>
 
-                <!-- Trạng thái nhân viên KHÔNG chọn tay (2026-09-29) — thêm mới thì
+                    <!-- Trạng thái nhân viên KHÔNG chọn tay (2026-09-29) — thêm mới thì
                      theo "Loại hợp đồng" ở mục bên dưới; sau đó tự đổi theo hợp
                      đồng mới/chấm dứt hợp đồng/đơn nghỉ việc. -->
-                <v-col v-if="isEdit" cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Trạng thái nhân viên
-                    </div>
-                    <div class="d-flex align-center flex-wrap ga-2" style="min-height: 48px">
-                        <StatusChip
-                            :status="employee?.employment_status"
-                            :map="EMPLOYMENT_STATUS_MAP"
-                        />
-                        <span
-                            v-if="employee?.termination_date"
-                            class="text-body-2 text-medium-emphasis"
+                    <v-col v-if="isEdit" cols="12" sm="6">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Trạng thái nhân viên
+                        </div>
+                        <div
+                            class="d-flex align-center flex-wrap ga-2"
+                            style="min-height: 48px"
                         >
-                            từ {{ formatDateVi(employee.termination_date) }}
-                        </span>
-                    </div>
-                    <div class="text-caption text-medium-emphasis">
-                        Tự đổi theo hợp đồng (tab "Hợp đồng") và đơn nghỉ việc.
-                    </div>
-                </v-col>
+                            <StatusChip
+                                :status="employee?.employment_status"
+                                :map="EMPLOYMENT_STATUS_MAP"
+                            />
+                            <span
+                                v-if="employee?.termination_date"
+                                class="text-body-2 text-medium-emphasis"
+                            >
+                                từ {{ formatDateVi(employee.termination_date) }}
+                            </span>
+                        </div>
+                        <div class="text-caption text-medium-emphasis">
+                            Tự đổi theo hợp đồng (tab "Hợp đồng") và đơn nghỉ
+                            việc.
+                        </div>
+                    </v-col>
 
-                <v-col
-                    v-if="isEdit ? employee?.employment_status === 'probation' : contractType === 'thu_viec'"
-                    cols="12"
-                    sm="6"
-                >
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Ngày kết thúc thử việc
-                    </div>
-                    <InputDate
-                        v-model="form.probation_end_date"
-                        :min="minAfterHireDate"
-                        :error-messages="store.errors.probation_end_date"
-                    />
-                </v-col>
-            </v-row>
-        </FormSection>
+                    <v-col
+                        v-if="
+                            isEdit
+                                ? employee?.employment_status === 'probation'
+                                : contractType === 'thu_viec'
+                        "
+                        cols="12"
+                        sm="6"
+                    >
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Ngày kết thúc thử việc
+                        </div>
+                        <InputDate
+                            v-model="form.probation_end_date"
+                            :min="minAfterHireDate"
+                            :error-messages="store.errors.probation_end_date"
+                        />
+                    </v-col>
+                </v-row>
+            </FormSection>
 
-        <!-- Chỉ hiện lúc Thêm mới (2026-09-24, theo yêu cầu người dùng) — Hợp
+            <!-- Chỉ hiện lúc Thêm mới (2026-09-24, theo yêu cầu người dùng) — Hợp
              đồng lao động ĐẦU TIÊN tự tạo LUÔN cùng lúc, không cần thao tác
              riêng ở tab "Hợp đồng" nữa (EmployeeService::create()). Muốn ký
              hợp đồng MỚI sau này (hết thử việc, tăng lương...) vẫn qua tab
@@ -343,77 +356,77 @@
              BHXH" nữa, backend tự đặt bằng đúng Lương cơ bản
              (EmployeeContractService::create()), áp dụng luôn cho cả tab
              "Hợp đồng" (EmployeeContractsTab.vue). -->
-        <FormSection v-if="!isEdit" title="Lương & Hợp đồng">
-            <p class="text-body-2 mb-4" style="opacity: 0.75">
-                Lưu là tạo luôn hợp đồng lao động đầu tiên (bắt đầu từ ngày vào
-                làm) với loại hợp đồng và mức lương này (cũng là lương đóng
-                BHXH). Trạng thái nhân viên đặt theo đúng loại hợp đồng:
-                "Thử việc" hoặc "Chính thức". File hợp đồng đã ký upload sau ở
-                tab "Hợp đồng".
-            </p>
-            <v-row dense>
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Loại hợp đồng <span class="text-error">*</span>
-                    </div>
-                    <v-select
-                        v-model="contractType"
-                        :items="CONTRACT_TYPE_OPTIONS"
-                        :rules="rules.contractType"
-                        placeholder="Chọn loại hợp đồng"
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        persistent-placeholder
-                        :error-messages="store.errors.contract_type"
-                    />
-                </v-col>
-                <v-col cols="12" sm="6">
-                    <div class="text-body-2 font-weight-medium mb-1">
-                        Lương cơ bản <span class="text-error">*</span>
-                    </div>
-                    <v-text-field
-                        v-model.number="agreedSalary"
-                        :rules="rules.agreedSalary"
-                        type="number"
-                        min="0"
-                        suffix="đ"
-                        variant="outlined"
-                        density="comfortable"
-                        rounded="lg"
-                        :error-messages="store.errors.agreed_salary"
-                    />
-                </v-col>
-            </v-row>
-        </FormSection>
+            <FormSection v-if="!isEdit" title="Lương & Hợp đồng">
+                <p class="text-body-2 mb-4" style="opacity: 0.75">
+                    Lưu là tạo luôn hợp đồng lao động đầu tiên (bắt đầu từ ngày
+                    vào làm) với loại hợp đồng và mức lương này (cũng là lương
+                    đóng BHXH). Trạng thái nhân viên đặt theo đúng loại hợp
+                    đồng: "Thử việc" hoặc "Chính thức". File hợp đồng đã ký
+                    upload sau ở tab "Hợp đồng".
+                </p>
+                <v-row dense>
+                    <v-col cols="12" sm="6">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Loại hợp đồng <span class="text-error">*</span>
+                        </div>
+                        <v-select
+                            v-model="contractType"
+                            :items="CONTRACT_TYPE_OPTIONS"
+                            :rules="rules.contractType"
+                            placeholder="Chọn loại hợp đồng"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            persistent-placeholder
+                            :error-messages="store.errors.contract_type"
+                        />
+                    </v-col>
+                    <v-col cols="12" sm="6">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Lương cơ bản <span class="text-error">*</span>
+                        </div>
+                        <v-text-field
+                            v-model.number="agreedSalary"
+                            :rules="rules.agreedSalary"
+                            type="number"
+                            min="0"
+                            suffix="đ"
+                            variant="outlined"
+                            density="comfortable"
+                            rounded="lg"
+                            :error-messages="store.errors.agreed_salary"
+                        />
+                    </v-col>
+                </v-row>
+            </FormSection>
 
-        <!-- Chỉ hiện lúc Thêm mới — sửa nhân viên đã có/chưa có tài khoản thì
+            <!-- Chỉ hiện lúc Thêm mới — sửa nhân viên đã có/chưa có tài khoản thì
              dùng nút "Tạo tài khoản đăng nhập" riêng ở EmployeeDetail.vue. -->
-        <FormSection v-if="!isEdit" title="Tài khoản đăng nhập">
-            <v-checkbox
-                v-model="createAccount"
-                label="Tạo tài khoản đăng nhập ngay sau khi lưu"
-                density="comfortable"
-                hide-details
-            />
-            <template v-if="createAccount">
-                <div class="text-body-2 font-weight-medium mb-1 mt-3">
-                    Role <span class="text-error">*</span>
-                </div>
-                <SearchSelect
-                    v-model="accountRoleIds"
-                    :items="roleOptions"
-                    multiple
-                    chips
-                    closable-chips
-                    :error-messages="accountError"
+            <FormSection v-if="!isEdit" title="Tài khoản đăng nhập">
+                <v-checkbox
+                    v-model="createAccount"
+                    label="Tạo tài khoản đăng nhập ngay sau khi lưu"
+                    density="comfortable"
+                    hide-details
                 />
-                <div class="text-caption mt-1" style="opacity: 0.65">
-                    Tự điền theo Chức vụ đang chọn, sửa được. Mật khẩu gửi qua
-                    email cho nhân viên tự đặt, không hiển thị ở đây.
-                </div>
-            </template>
-        </FormSection>
+                <template v-if="createAccount">
+                    <div class="text-body-2 font-weight-medium mb-1 mt-3">
+                        Role <span class="text-error">*</span>
+                    </div>
+                    <SearchSelect
+                        v-model="accountRoleIds"
+                        :items="roleOptions"
+                        multiple
+                        chips
+                        closable-chips
+                        :error-messages="accountError"
+                    />
+                    <div class="text-caption mt-1" style="opacity: 0.65">
+                        Tự điền theo Chức vụ đang chọn, sửa được. Mật khẩu gửi
+                        qua email cho nhân viên tự đặt, không hiển thị ở đây.
+                    </div>
+                </template>
+            </FormSection>
         </v-form>
 
         <!-- Tạo nhanh Phòng ban / Chức vụ ngay trong form nhân viên. Dùng lại
@@ -459,6 +472,8 @@ import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useChangeGuard } from "../../composables/useChangeGuard";
+import { isEmail, maxLength, minValue, notEmpty } from "../../composables/validationRules";
 import { useAuthStore } from "../../stores/authStore";
 import DepartmentFormDialog from "../Department/DepartmentForm.vue";
 import PositionFormDialog from "../Position/PositionForm.vue";
@@ -489,6 +504,7 @@ const emit = defineEmits(["update:modelValue", "saved"]);
 
 const store = useEmployeeStore();
 const toast = useToastStore();
+const guard = useChangeGuard(() => form);
 
 const isEdit = computed(() => props.employee !== null);
 
@@ -570,30 +586,19 @@ watch(createAccount, (enabled) => {
 // Rule phía client phản chiếu đúng Form Request của backend. Mục đích là báo lỗi
 // ngay khi người dùng rời ô, thay vì phải bấm Lưu rồi chờ 422 — backend vẫn là
 // nơi kiểm tra cuối cùng. Sửa rule ở backend thì phải sửa cả ở đây.
-const notEmpty = (label) => (value) =>
-    (value !== null && value !== undefined && String(value).trim() !== "") ||
-    `${label} không được để trống`;
-
-const maxLength = (limit, label) => (value) =>
-    !value ||
-    String(value).length <= limit ||
-    `${label} không được vượt quá ${limit} ký tự`;
-
-const isEmail = (label) => (value) =>
-    !value || /^\S+@\S+\.\S+$/.test(String(value)) || `${label} không đúng định dạng`;
-
-const minValue = (min, label) => (value) =>
-    value === null || value === undefined || value === "" ||
-    Number(value) >= min ||
-    `${label} không được nhỏ hơn ${min}`;
-
 const rules = {
     fullName: [notEmpty("Tên nhân viên"), maxLength(255, "Tên nhân viên")],
     companyEmail: [notEmpty("Email công ty"), isEmail("Email công ty")],
     hireDate: [notEmpty("Ngày vào làm")],
     dateOfBirth: [notEmpty("Ngày sinh")],
     gender: [notEmpty("Giới tính")],
-    phone: [notEmpty("Số điện thoại"), maxLength(10, "Số điện thoại")],
+    phone: [
+        notEmpty("Số điện thoại"),
+        (value) =>
+            !value ||
+            /^\d{10}$/.test(String(value)) ||
+            "Số điện thoại phải gồm đúng 10 chữ số",
+    ],
     personalEmail: [notEmpty("Email cá nhân"), isEmail("Email cá nhân")],
     cccd: [
         notEmpty("Số căn cước công dân"),
@@ -605,13 +610,80 @@ const rules = {
         notEmpty("Mã số thuế cá nhân"),
         maxLength(20, "Mã số thuế cá nhân"),
     ],
-    addressDetail: [notEmpty("Địa chỉ chi tiết"), maxLength(255, "Địa chỉ chi tiết")],
+    addressDetail: [
+        notEmpty("Địa chỉ chi tiết"),
+        maxLength(255, "Địa chỉ chi tiết"),
+    ],
     provinceCode: [notEmpty("Tỉnh/Thành phố")],
     communeCode: [notEmpty("Xã/Phường")],
     departmentId: [notEmpty("Phòng ban")],
     agreedSalary: [notEmpty("Lương cơ bản"), minValue(0, "Lương cơ bản")],
     contractType: [notEmpty("Loại hợp đồng")],
 };
+
+/* ------------- Kiểm tra tức thì (không đợi bấm Lưu) — 2026-09-30 ------------- */
+
+// Các ô phải là DUY NHẤT trong công ty — chỉ Backend biết có trùng hay không nên
+// hỏi API ngay khi rời ô (sau khi đúng định dạng), không đợi tới lúc Lưu.
+const UNIQUE_FIELDS = {
+    company_email: { label: "Email công ty", rule: () => rules.companyEmail },
+    personal_email: { label: "Email cá nhân", rule: () => rules.personalEmail },
+    phone: { label: "Số điện thoại", rule: () => rules.phone },
+    cccd: { label: "Số căn cước công dân", rule: () => rules.cccd },
+    personal_tax_code: {
+        label: "Mã số thuế cá nhân",
+        rule: () => rules.personalTaxCode,
+    },
+};
+const uniqueErrors = reactive({});
+
+// Lỗi hiển thị dưới ô: lỗi 422 của lần Lưu trước + lỗi "trùng" vừa kiểm tra.
+function fieldErrors(key) {
+    return [
+        ...(store.errors[key] ?? []),
+        ...(uniqueErrors[key] ? [uniqueErrors[key]] : []),
+    ];
+}
+
+async function checkUnique(key) {
+    const value = String(form[key] ?? "").trim();
+    const { label, rule } = UNIQUE_FIELDS[key];
+    uniqueErrors[key] = null;
+
+    // Sai định dạng thì để rule của ô báo trước, chưa cần hỏi Backend.
+    if (!value || rule().some((check) => check(value) !== true)) {
+        return;
+    }
+
+    try {
+        const response = await employeeService.checkUnique({
+            field: key,
+            value,
+            ignore_id: props.employee?.id,
+        });
+        // Người dùng đã sửa tiếp trong lúc chờ -> bỏ qua kết quả cũ.
+        if (
+            String(form[key] ?? "").trim() === value &&
+            !response.data.available
+        ) {
+            uniqueErrors[key] =
+                `${label} này đã được dùng cho một nhân viên khác`;
+        }
+    } catch {
+        // Kiểm tra sớm chỉ là tiện lợi — lỗi mạng thì để lúc Lưu Backend báo.
+    }
+}
+
+// Sửa ô nào thì lỗi cũ (422 lần Lưu trước / báo trùng) của đúng ô đó tự biến mất.
+for (const key of Object.keys(form)) {
+    watch(
+        () => form[key],
+        () => {
+            delete store.errors[key];
+            uniqueErrors[key] = null;
+        },
+    );
+}
 
 // Giới hạn của picker phản chiếu đúng rule trong StoreEmployeeRequest /
 // UpdateEmployeeRequest, để người dùng không chọn được ngày mà backend chắc
@@ -661,7 +733,11 @@ watch(
     (isOpen) => {
         if (isOpen) {
             store.resetErrors();
+            Object.keys(uniqueErrors).forEach(
+                (key) => delete uniqueErrors[key],
+            );
             fillForm();
+            guard.takeSnapshot();
             // Xóa lỗi đỏ còn sót của lần mở trước, tránh form vừa mở đã báo lỗi.
             formRef.value?.resetValidation();
             // Tài khoản đăng nhập chỉ áp dụng lúc Thêm mới — reset lại mỗi lần
@@ -693,7 +769,13 @@ async function submit() {
     // Chặn ngay ở client nếu còn ô chưa hợp lệ — v-form tự cuộn tới ô lỗi đầu tiên.
     const { valid } = await formRef.value.validate();
 
-    if (!valid) {
+    // Đang có ô bị báo trùng (kiểm tra lúc rời ô) — không gửi lên cho tốn 1 vòng 422.
+    if (!valid || Object.values(uniqueErrors).some(Boolean)) {
+        return;
+    }
+
+    if (isEdit.value && guard.skipIfUnchanged()) {
+        close();
         return;
     }
 
@@ -751,7 +833,9 @@ async function createAccountForNewEmployee(employeeId) {
         await employeeService.createAccount(employeeId, {
             role_ids: accountRoleIds.value,
         });
-        toast.success("Đã tạo tài khoản đăng nhập, email đặt mật khẩu đã được gửi.");
+        toast.success(
+            "Đã tạo tài khoản đăng nhập, email đặt mật khẩu đã được gửi.",
+        );
     } catch (e) {
         const message =
             e.response?.data?.errors?.role_ids?.[0] ??
@@ -880,7 +964,10 @@ const departmentNodesById = computed(() => {
     const map = new Map();
     const walk = (nodes, parentId = null) => {
         for (const node of nodes ?? []) {
-            map.set(node.id, { ...node, parent_id: node.parent_id ?? parentId });
+            map.set(node.id, {
+                ...node,
+                parent_id: node.parent_id ?? parentId,
+            });
             walk(node.children, node.id);
         }
     };

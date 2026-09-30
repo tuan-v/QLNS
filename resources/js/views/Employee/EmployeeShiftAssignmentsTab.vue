@@ -106,8 +106,8 @@
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     {{ editingAssignment ? "Sửa ca làm việc" : "Gán ca làm việc" }}
                 </v-card-title>
-                <v-card-text
-                    class="px-5"
+                <v-form ref="assignShiftFormRef" validate-on="blur invalid-input lazy" @submit.prevent="submitAssignShift"
+                    class="v-card-text px-5"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
                 >
                     <div>
@@ -117,7 +117,8 @@
                         <SearchSelect
                             v-model="assignShiftForm.work_shift_id"
                             :items="workShiftOptions"
-                            :error-messages="assignShiftErrors.work_shift_id"
+                            :rules="[notEmpty('Ca làm việc')]"
+                        :error-messages="assignShiftErrors.work_shift_id"
                         />
                     </div>
 
@@ -127,7 +128,8 @@
                         </div>
                         <InputDate
                             v-model="assignShiftForm.effective_from"
-                            :error-messages="assignShiftErrors.effective_from"
+                            :rules="[notEmpty('Ngày bắt đầu')]"
+                        :error-messages="assignShiftErrors.effective_from"
                         />
                     </div>
 
@@ -167,7 +169,7 @@
                     >
                         {{ assignShiftGeneralError }}
                     </v-alert>
-                </v-card-text>
+                </v-form>
                 <v-card-actions class="px-5 pb-5">
                     <v-spacer />
                     <v-btn
@@ -200,7 +202,9 @@ import workShiftService from "../../services/workShiftService";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate from "../../components/common/InputDate.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useChangeGuard } from "../../composables/useChangeGuard";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
+import { notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
 
 const props = defineProps({
     employeeId: {
@@ -214,6 +218,7 @@ const props = defineProps({
 });
 
 const toast = useToastStore();
+const guard = useChangeGuard(() => ({ ...assignShiftForm, work_days: [...assignShiftForm.work_days].sort((a, b) => a - b) }));
 
 function formatDate(value) {
     if (!value) {
@@ -316,6 +321,7 @@ function openAssignShiftDialog(assignment = null) {
     assignShiftErrors.value = {};
     assignShiftGeneralError.value = "";
     assignShiftDialog.value = true;
+    guard.takeSnapshot();
     loadWorkShiftOptions();
 }
 
@@ -323,7 +329,18 @@ function closeAssignShiftDialog() {
     assignShiftDialog.value = false;
 }
 
+const assignShiftFormRef = ref(null);
+useClearErrorsOnEdit(assignShiftForm, () => assignShiftErrors.value);
+
 async function submitAssignShift() {
+    const { valid } = await assignShiftFormRef.value.validate();
+    if (!valid) {
+        return;
+    }
+    if (editingAssignment.value && guard.skipIfUnchanged()) {
+        closeAssignShiftDialog();
+        return;
+    }
     assignShiftErrors.value = {};
     assignShiftGeneralError.value = "";
     assignShiftSubmitting.value = true;

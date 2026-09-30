@@ -46,7 +46,7 @@
                 {{ item.work_shift?.name ?? "—" }}
             </template>
             <template #item.attendance_date="{ item }">
-                {{ formatDate(item.attendance_date) }}
+                {{ formatDateRange(item.attendance_date, item.attendance_date_to) }}
             </template>
             <template #item.proposed="{ item }">
                 <div v-if="item.type === 'excuse'" style="opacity: 0.75">
@@ -72,7 +72,7 @@
                 </div>
                 <div v-if="item.type === 'extra_shift'" style="opacity: 0.75">
                     Đăng ký làm ca "{{ item.work_shift?.name ?? "—" }}" ngày
-                    {{ formatDate(item.attendance_date) }} — chưa chấm công
+                    {{ formatDateRange(item.attendance_date, item.attendance_date_to) }} — chưa chấm công
                     (đăng ký trước)
                 </div>
                 <div v-if="item.proposed_check_in_at">
@@ -137,11 +137,15 @@ const headers = [
     { title: "Loại", key: "type", width: 110 },
     { title: "Nhân viên", key: "employee" },
     { title: "Ca", key: "work_shift", width: 140 },
-    { title: "Ngày công", key: "attendance_date", width: 120 },
+    { title: "Ngày công", key: "attendance_date", width: 190 },
     { title: "Đề xuất", key: "proposed" },
     { title: "Lý do", key: "reason" },
     { title: "Trạng thái", key: "status", width: 130 },
 ];
+
+function formatDateRange(from, to) {
+    return to && to !== from ? `${formatDate(from)} – ${formatDate(to)}` : formatDate(from);
+}
 
 function formatDate(value) {
     if (!value) {
@@ -199,7 +203,7 @@ const actions = computed(() => [
             title: "Duyệt điều chỉnh công",
             message: (item) =>
                 item.type === "extra_shift"
-                    ? `Cho phép làm ca "${item.work_shift?.name ?? "—"}" ngày ${formatDate(item.attendance_date)}? Nhân viên sẽ tự chấm công vào/ra vào đúng ngày này.`
+                    ? `Cho phép làm ca "${item.work_shift?.name ?? "—"}" ngày ${formatDateRange(item.attendance_date, item.attendance_date_to)}? Nhân viên sẽ tự chấm công vào/ra vào đúng những ngày này.`
                     : `Áp dụng giờ đề xuất vào ngày công ${formatDate(item.attendance_date)}?`,
             confirmText: "Duyệt",
             input: { required: false, label: "Ghi chú (tùy chọn)" },

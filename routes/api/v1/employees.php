@@ -15,6 +15,8 @@ Route::middleware('auth:api')->prefix('employees')->group(function (): void {
     // Phải khai TRƯỚC "/{employee}" — Laravel khớp route theo thứ tự đăng ký,
     // nếu để sau thì "stats"/"me" bị chính "{employee}" nuốt mất (hiểu nhầm thành id).
     Route::get('/stats', [EmployeeController::class, 'stats'])->middleware('permission:employee.view');
+    // Kiểm tra trùng NGAY khi người dùng rời ô nhập (form Thêm/Sửa nhân viên) — khai TRƯỚC /{employee}.
+    Route::get('/check-unique', [EmployeeController::class, 'checkUnique'])->middleware('permission:employee.create,employee.update');
     // Nhóm "hồ sơ CHÍNH MÌNH" — cố tình không gắn permission:employee.view/
     // shift.view: xem thông tin bản thân không phụ thuộc mã quyền xem người
     // khác, xem EmployeeController::me() và các hàm mine() tương ứng.

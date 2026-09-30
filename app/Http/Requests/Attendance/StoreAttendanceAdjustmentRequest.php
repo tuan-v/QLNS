@@ -47,6 +47,8 @@ class StoreAttendanceAdjustmentRequest extends FormRequest
 
         if ($type === 'extra_shift') {
             $rules['attendance_date'] = ['required', 'date', 'after_or_equal:today'];
+            // Làm nhiều ngày liền nhau: tới ngày này (bỏ trống = chỉ 1 ngày).
+            $rules['attendance_date_to'] = ['nullable', 'date', 'after_or_equal:attendance_date'];
             $rules['work_shift_id'] = [
                 'nullable', 'integer', 'exists:work_shifts,id',
                 'required_without_all:custom_start_time,custom_end_time',
@@ -90,6 +92,8 @@ class StoreAttendanceAdjustmentRequest extends FormRequest
             'attendance_date.required' => 'Vui lòng chọn ngày',
             'attendance_date.before_or_equal' => 'Không thể bổ sung chấm công cho ngày trong tương lai',
             'attendance_date.after_or_equal' => 'Chỉ đăng ký được cho hôm nay hoặc ngày trong tương lai',
+            'attendance_date_to.date' => 'Đến ngày không đúng định dạng',
+            'attendance_date_to.after_or_equal' => 'Đến ngày không được trước Từ ngày',
             'work_shift_id.required_without_all' => 'Vui lòng chọn ca làm việc hoặc tự chọn giờ',
             'custom_start_time.date_format' => 'Giờ bắt đầu không đúng định dạng (HH:mm)',
             'custom_start_time.required_without' => 'Vui lòng nhập giờ bắt đầu',

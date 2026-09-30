@@ -121,6 +121,13 @@ body {
     height: 40px;
     padding: 0 16px;
 }
+/* Lịch chọn ngày (VDatePicker): nút "Tháng 9 ▾"/"2026 ▾" ở đầu lịch bị rule
+   padding 16px ở trên làm rộng thêm ~28px nên vượt bề rộng 328px của lịch —
+   cột "CN" và mũi tên chuyển năm bị cắt. Trả về padding gọn như mặc định Vuetify. */
+.v-date-picker-controls .v-btn.qlns-btn:not(.v-btn--icon) {
+    padding: 0 8px !important;
+    min-width: 0 !important;
+}
 .qlns-btn.v-btn--variant-flat:not([class*="bg-"]):not([class*="text-"]) {
     /* Nút flat KHÔNG truyền color = nút outline trắng (Button Primary Outline) */
     background: rgb(var(--v-theme-surface));

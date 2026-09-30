@@ -195,7 +195,7 @@
                                 }}
                             </v-chip>
                             {{ item.work_shift?.name ?? "—" }} ·
-                            {{ formatDate(item.attendance_date) }}
+                            {{ formatDateRange(item.attendance_date, item.attendance_date_to) }}
                         </div>
                         <div class="text-caption" style="opacity: 0.7">
                             {{ item.reason }}
@@ -371,7 +371,7 @@
                         @click="closeAdjustDialog"
                     />
                 </v-toolbar>
-                <v-card-text
+                <v-form class="v-card-text" ref="adjustFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(adjustFormRef, submitAdjustRequest)"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
                 >
                     <div class="text-body-2" style="opacity: 0.75">
@@ -390,6 +390,7 @@
                             </div>
                             <v-text-field
                                 v-model="adjustForm.checkInTime"
+ :rules="[(v) => Boolean(v) || Boolean(adjustForm.checkOutTime) || 'Nhập ít nhất giờ vào hoặc giờ ra đúng']"
                                 type="time"
                                 variant="outlined"
                                 density="comfortable"
@@ -402,6 +403,7 @@
                             </div>
                             <v-text-field
                                 v-model="adjustForm.checkOutTime"
+ :rules="[(v) => Boolean(v) || Boolean(adjustForm.checkInTime) || 'Nhập ít nhất giờ vào hoặc giờ ra đúng']"
                                 type="time"
                                 variant="outlined"
                                 density="comfortable"
@@ -416,6 +418,7 @@
                         </div>
                         <v-textarea
                             v-model="adjustForm.reason"
+ :rules="[notEmpty('Lý do'), maxLength(1000, 'Lý do')]"
                             rows="3"
                             variant="outlined"
                             density="comfortable"
@@ -432,7 +435,7 @@
                     >
                         {{ adjustGeneralError }}
                     </v-alert>
-                </v-card-text>
+                </v-form>
                 <v-card-actions class="px-4 pb-4">
                     <v-btn
                         color="primary"
@@ -440,7 +443,7 @@
                         block
                         size="large"
                         :loading="adjustSubmitting"
-                        @click="submitAdjustRequest"
+                        @click="validateThen(adjustFormRef, submitAdjustRequest)"
                     >
                         Gửi yêu cầu
                     </v-btn>
@@ -462,7 +465,7 @@
                         @click="closeSupplementDialog"
                     />
                 </v-toolbar>
-                <v-card-text
+                <v-form class="v-card-text" ref="supplementFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(supplementFormRef, submitSupplementRequest)"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
                 >
                     <div class="text-body-2" style="opacity: 0.75">
@@ -477,6 +480,7 @@
                         </div>
                         <InputDate
                             v-model="supplementForm.attendanceDate"
+ :rules="[notEmpty('Ngày')]"
                             :max="todayIso()"
                             :error-messages="supplementErrors.attendance_date"
                         />
@@ -488,6 +492,7 @@
                         </div>
                         <SearchSelect
                             v-model="supplementForm.workShiftId"
+ :rules="[notEmpty('Ca làm việc')]"
                             :items="shiftOptions"
                             placeholder="Chọn ca làm việc"
                             :error-messages="supplementErrors.work_shift_id"
@@ -501,6 +506,7 @@
                             </div>
                             <v-text-field
                                 v-model="supplementForm.checkInTime"
+ :rules="[notEmpty('Giờ vào')]"
                                 type="time"
                                 variant="outlined"
                                 density="comfortable"
@@ -513,6 +519,7 @@
                             </div>
                             <v-text-field
                                 v-model="supplementForm.checkOutTime"
+ :rules="[notEmpty('Giờ ra'), (v) => !v || !supplementForm.checkInTime || v > supplementForm.checkInTime || 'Giờ ra phải sau giờ vào']"
                                 type="time"
                                 variant="outlined"
                                 density="comfortable"
@@ -527,6 +534,7 @@
                         </div>
                         <v-textarea
                             v-model="supplementForm.reason"
+ :rules="[notEmpty('Lý do'), maxLength(1000, 'Lý do')]"
                             rows="3"
                             variant="outlined"
                             density="comfortable"
@@ -543,7 +551,7 @@
                     >
                         {{ supplementGeneralError }}
                     </v-alert>
-                </v-card-text>
+                </v-form>
                 <v-card-actions class="px-4 pb-4">
                     <v-btn
                         color="primary"
@@ -551,7 +559,7 @@
                         block
                         size="large"
                         :loading="supplementSubmitting"
-                        @click="submitSupplementRequest"
+                        @click="validateThen(supplementFormRef, submitSupplementRequest)"
                     >
                         Gửi yêu cầu
                     </v-btn>
@@ -582,7 +590,7 @@
                 </v-tabs>
                 <v-window v-model="extraShiftTab">
                     <v-window-item value="extra_shift">
-                        <v-card-text
+                        <v-form class="v-card-text" ref="extraShiftFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(extraShiftFormRef, submitExtraShiftRequest)"
                             style="
                                 display: flex;
                                 flex-direction: column;
@@ -606,12 +614,41 @@
                                 </div>
                                 <InputDate
                                     v-model="extraShiftForm.attendanceDate"
+ :rules="[notEmpty('Ngày muốn làm')]"
                                     :min="todayIso()"
                                     :error-messages="
                                         extraShiftErrors.attendance_date
                                     "
                                 />
                             </div>
+                            <div>
+                                <div
+                                    class="text-body-2 font-weight-medium mb-1"
+                                >
+                                    Đến ngày
+                                    <span style="opacity: 0.6"
+                                        >(nếu làm nhiều ngày liền nhau)</span
+                                    >
+                                </div>
+                                <InputDate
+                                    v-model="extraShiftForm.attendanceDateTo"
+                                    :min="
+                                        extraShiftForm.attendanceDate ||
+                                        todayIso()
+                                    "
+                                    :rules="[
+                                        (v) =>
+                                            !v ||
+                                            !extraShiftForm.attendanceDate ||
+                                            v >= extraShiftForm.attendanceDate ||
+                                            'Đến ngày không được trước ngày bắt đầu',
+                                    ]"
+                                    :error-messages="
+                                        extraShiftErrors.attendance_date_to
+                                    "
+                                />
+                            </div>
+
 
                             <v-btn-toggle
                                 v-model="extraShiftForm.mode"
@@ -638,6 +675,7 @@
                                 </div>
                                 <SearchSelect
                                     v-model="extraShiftForm.workShiftId"
+ :rules="[notEmpty('Ca làm việc')]"
                                     :items="allShiftOptions"
                                     placeholder="Chọn ca làm việc"
                                     :error-messages="
@@ -655,6 +693,7 @@
                                     </div>
                                     <v-text-field
                                         v-model="extraShiftForm.customStartTime"
+ :rules="[notEmpty('Giờ bắt đầu')]"
                                         type="time"
                                         variant="outlined"
                                         density="comfortable"
@@ -673,6 +712,7 @@
                                     </div>
                                     <v-text-field
                                         v-model="extraShiftForm.customEndTime"
+ :rules="[notEmpty('Giờ kết thúc'), (v) => !v || !extraShiftForm.customStartTime || v > extraShiftForm.customStartTime || 'Giờ kết thúc phải sau giờ bắt đầu']"
                                         type="time"
                                         variant="outlined"
                                         density="comfortable"
@@ -692,6 +732,7 @@
                                 </div>
                                 <v-textarea
                                     v-model="extraShiftForm.reason"
+ :rules="[notEmpty('Lý do'), maxLength(1000, 'Lý do')]"
                                     rows="3"
                                     variant="outlined"
                                     density="comfortable"
@@ -708,7 +749,7 @@
                             >
                                 {{ extraShiftGeneralError }}
                             </v-alert>
-                        </v-card-text>
+                        </v-form>
                         <v-card-actions class="px-4 pb-4">
                             <v-btn
                                 color="primary"
@@ -716,7 +757,7 @@
                                 block
                                 size="large"
                                 :loading="extraShiftSubmitting"
-                                @click="submitExtraShiftRequest"
+                                @click="validateThen(extraShiftFormRef, submitExtraShiftRequest)"
                             >
                                 Gửi yêu cầu
                             </v-btn>
@@ -724,7 +765,7 @@
                     </v-window-item>
 
                     <v-window-item value="overtime">
-                        <v-card-text
+                        <v-form class="v-card-text" ref="otRequestFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(otRequestFormRef, submitOtRequestFromToday)"
                             style="
                                 display: flex;
                                 flex-direction: column;
@@ -756,6 +797,7 @@
                                 </div>
                                 <SearchSelect
                                     v-model="otRequestForm.attendanceId"
+ :rules="[notEmpty('Ca cần xin OT')]"
                                     :items="otTodayOptions"
                                     placeholder="Chọn ca"
                                     :error-messages="
@@ -772,6 +814,7 @@
                                 </div>
                                 <v-textarea
                                     v-model="otRequestForm.reason"
+ :rules="[notEmpty('Lý do'), maxLength(1000, 'Lý do')]"
                                     rows="3"
                                     variant="outlined"
                                     density="comfortable"
@@ -788,7 +831,7 @@
                             >
                                 {{ otRequestGeneralError }}
                             </v-alert>
-                        </v-card-text>
+                        </v-form>
                         <v-card-actions class="px-4 pb-4">
                             <v-btn
                                 color="primary"
@@ -797,7 +840,7 @@
                                 size="large"
                                 :disabled="!otTodayOptions.length"
                                 :loading="otRequestSubmitting"
-                                @click="submitOtRequestFromToday"
+                                @click="validateThen(otRequestFormRef, submitOtRequestFromToday)"
                             >
                                 Gửi yêu cầu
                             </v-btn>
@@ -821,7 +864,7 @@
                         @click="closeExcuseDialog"
                     />
                 </v-toolbar>
-                <v-card-text
+                <v-form class="v-card-text" ref="excuseFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(excuseFormRef, submitExcuseRequest)"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
                 >
                     <div class="text-body-2" style="opacity: 0.75">
@@ -844,6 +887,7 @@
                         </div>
                         <v-textarea
                             v-model="excuseForm.reason"
+ :rules="[notEmpty('Lý do'), maxLength(1000, 'Lý do')]"
                             rows="3"
                             variant="outlined"
                             density="comfortable"
@@ -860,7 +904,7 @@
                     >
                         {{ excuseGeneralError }}
                     </v-alert>
-                </v-card-text>
+                </v-form>
                 <v-card-actions class="px-4 pb-4">
                     <v-btn
                         color="primary"
@@ -868,7 +912,7 @@
                         block
                         size="large"
                         :loading="excuseSubmitting"
-                        @click="submitExcuseRequest"
+                        @click="validateThen(excuseFormRef, submitExcuseRequest)"
                     >
                         Gửi yêu cầu
                     </v-btn>
@@ -890,7 +934,7 @@
                         @click="closeOtApprovalDialog"
                     />
                 </v-toolbar>
-                <v-card-text
+                <v-form class="v-card-text" ref="otApprovalFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(otApprovalFormRef, submitOtApprovalRequest)"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
                 >
                     <div class="text-body-2" style="opacity: 0.75">
@@ -914,6 +958,7 @@
                         </div>
                         <v-textarea
                             v-model="otApprovalForm.reason"
+ :rules="[notEmpty('Lý do'), maxLength(1000, 'Lý do')]"
                             rows="3"
                             variant="outlined"
                             density="comfortable"
@@ -930,7 +975,7 @@
                     >
                         {{ otApprovalGeneralError }}
                     </v-alert>
-                </v-card-text>
+                </v-form>
                 <v-card-actions class="px-4 pb-4">
                     <v-btn
                         color="primary"
@@ -938,7 +983,7 @@
                         block
                         size="large"
                         :loading="otApprovalSubmitting"
-                        @click="submitOtApprovalRequest"
+                        @click="validateThen(otApprovalFormRef, submitOtApprovalRequest)"
                     >
                         Gửi yêu cầu
                     </v-btn>
@@ -949,6 +994,7 @@
 </template>
 
 <script setup>
+import { ref } from "vue";
 // Ngày 44: giao diện MOBILE của trang Chấm công — toàn bộ state/logic đến
 // từ useCheckIn() (dùng CHUNG với CheckInDesktop.vue), file này chỉ còn phần
 // hiển thị: 1 cột duy nhất, danh sách thẻ thay bảng nhiều cột, dialog
@@ -958,6 +1004,7 @@ import {
     APPROVAL_STATUS_MAP,
     MERGED_ATTENDANCE_STATUS_MAP,
     formatDate,
+    formatDateRange,
     formatMinutesAsHours,
     formatTime,
     mergedAttendanceStatus,
@@ -967,6 +1014,14 @@ import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate from "../../components/common/InputDate.vue";
+import { maxLength, notEmpty, validateThen } from "../../composables/validationRules";
+
+const adjustFormRef = ref(null);
+const supplementFormRef = ref(null);
+const extraShiftFormRef = ref(null);
+const otRequestFormRef = ref(null);
+const excuseFormRef = ref(null);
+const otApprovalFormRef = ref(null);
 
 const {
     todayIso,

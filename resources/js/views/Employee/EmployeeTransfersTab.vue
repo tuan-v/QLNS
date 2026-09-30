@@ -101,8 +101,8 @@
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     Tạo luân chuyển
                 </v-card-title>
-                <v-card-text
-                    class="px-5"
+                <v-form ref="transferFormRef" validate-on="blur invalid-input lazy" @submit.prevent="submitTransfer"
+                    class="v-card-text px-5"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
                 >
                     <div>
@@ -112,7 +112,8 @@
                         <SearchSelect
                             :model-value="transferForm.to_department_id"
                             :items="transferDepartmentOptions"
-                            :error-messages="transferErrors.to_department_id"
+                            :rules="[notEmpty('Phòng ban mới')]"
+                        :error-messages="transferErrors.to_department_id"
                             clearable
                             @update:model-value="onTransferDepartmentChange"
                         />
@@ -154,7 +155,8 @@
                         </div>
                         <InputDate
                             v-model="transferForm.effective_date"
-                            :error-messages="transferErrors.effective_date"
+                            :rules="[notEmpty('Ngày hiệu lực')]"
+                        :error-messages="transferErrors.effective_date"
                         />
                     </div>
 
@@ -190,7 +192,7 @@
                     >
                         {{ transferGeneralError }}
                     </v-alert>
-                </v-card-text>
+                </v-form>
                 <v-card-actions class="px-5 pb-5">
                     <v-spacer />
                     <v-btn
@@ -228,6 +230,7 @@ import InputDate from "../../components/common/InputDate.vue";
 import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
+import { notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
 
 const props = defineProps({
     employeeId: {
@@ -406,7 +409,14 @@ function closeTransferDialog() {
     transferDialog.value = false;
 }
 
+const transferFormRef = ref(null);
+useClearErrorsOnEdit(transferForm, () => transferErrors.value);
+
 async function submitTransfer() {
+    const { valid } = await transferFormRef.value.validate();
+    if (!valid) {
+        return;
+    }
     transferErrors.value = {};
     transferGeneralError.value = "";
     transferSubmitting.value = true;

@@ -10,6 +10,7 @@ use App\Http\Resources\RoleResource;
 use App\Models\Role;
 use App\Services\RoleService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class RoleController extends Controller
 {
@@ -20,9 +21,17 @@ class RoleController extends Controller
     // Chỉ đọc, gate riêng "employee.update" — dùng để đổ danh sách Role vào ô
     // chọn khi tạo tài khoản đăng nhập cho nhân viên (xem EmployeeAccountController).
     // KHÔNG đụng route này khi thêm CRUD/quản lý quyền bên dưới (gate "rbac.manage").
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        return response()->json(Role::query()->orderBy('name')->get(['id', 'name', 'description']));
+        $query = Role::query()->orderBy('name');
+
+        // Người không có rbac.manage không được thấy/gán vai trò quản trị (Admin) —
+        // xem EmployeeAccountService::assertCanAssignRoles().
+        if (! $request->user()?->hasPermission('rbac.manage')) {
+            $query->whereDoesntHave('permissions', fn ($q) => $q->where('code', 'rbac.manage'));
+        }
+
+        return response()->json($query->get(['id', 'name', 'description']));
     }
 
     public function show(Role $role): JsonResponse

@@ -182,9 +182,11 @@ import { useResourceSyncStore } from "../../stores/useResourceSyncStore";
 import PageHeader from "../../components/common/PageHeader.vue";
 import FormSection from "../../components/common/FormSection.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useChangeGuard } from "../../composables/useChangeGuard";
 
 const auth = useAuthStore();
 const toast = useToastStore();
+const guard = useChangeGuard(() => ({ ...form, work_days: [...form.work_days].sort((a, b) => a - b) }));
 const resourceSync = useResourceSyncStore();
 const canManage = computed(() => auth.permissions.includes("shift.manage"));
 
@@ -264,6 +266,7 @@ async function loadData() {
         form.work_days = currentShift.value?.work_days?.length
             ? [...currentShift.value.work_days]
             : [1, 2, 3, 4, 5];
+        guard.takeSnapshot();
     } catch (e) {
         loadError.value = e.response?.data?.message ?? "Không thể tải cấu hình giờ làm việc.";
     } finally {
@@ -272,6 +275,10 @@ async function loadData() {
 }
 
 async function save() {
+    // Đã có ca mặc định mà chưa đổi gì thì không gọi API (lần cấu hình đầu tiên vẫn lưu).
+    if (currentShift.value && guard.skipIfUnchanged()) {
+        return;
+    }
     errors.value = {};
     saveError.value = "";
     saving.value = true;
@@ -311,6 +318,7 @@ async function save() {
 
         currentShift.value = response.data;
         toast.success("Đã lưu giờ làm việc mặc định.");
+        guard.takeSnapshot();
     } catch (e) {
         if (e.response?.status === 422) {
             errors.value = e.response.data.errors;

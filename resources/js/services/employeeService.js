@@ -5,6 +5,10 @@ export default {
     list(params = {}) {
         return axios.get(API_BASE, { params });
     },
+    // { field, value, ignore_id? } -> { available: boolean } — báo trùng ngay khi nhập.
+    checkUnique(params) {
+        return axios.get(`${API_BASE}/check-unique`, { params });
+    },
     stats() {
         return axios.get(`${API_BASE}/stats`);
     },

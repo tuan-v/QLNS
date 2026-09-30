@@ -30,8 +30,10 @@ use App\Support\Realtime;
 //     khi ngày đó đã qua thì áp dụng ngay (applyIfDue()).
 class ResignationService
 {
-    public function __construct(private readonly NotificationService $notificationService)
-    {
+    public function __construct(
+        private readonly NotificationService $notificationService,
+        private readonly EmployeeAccountService $employeeAccountService,
+    ) {
     }
 
     public function listForEmployee(Employee $employee): Collection
@@ -240,6 +242,9 @@ class ResignationService
         // ->update() hàng loạt ở trên không phát event Eloquent — báo tay.
         Realtime::shared('employee_contracts');
         Realtime::forEmployee((int) $request->employee_id, 'contracts');
+
+        // Đã nghỉ việc -> khóa tài khoản đăng nhập.
+        $this->employeeAccountService->deactivateAccountOf(Employee::findOrFail($request->employee_id));
 
         return true;
     }

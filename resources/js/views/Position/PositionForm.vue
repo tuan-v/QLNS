@@ -25,6 +25,7 @@
                     v-model="form.name"
                     density="comfortable"
                     placeholder="Nhập tên chức vụ"
+                    :rules="[notEmpty('Tên chức vụ'), maxLength(150, 'Tên chức vụ')]"
                     :error-messages="errors.name"
                 />
             </FormField>
@@ -46,6 +47,7 @@
                     item-title="title"
                     item-value="id"
                     placeholder="Chọn phòng ban"
+                    :rules="[notEmpty('Phòng ban')]"
                     :error-messages="errors.department_id"
                 />
             </FormField>
@@ -63,6 +65,7 @@
                     min="1"
                     density="comfortable"
                     placeholder="Ví dụ: 1"
+                    :rules="[isInteger('Cấp bậc'), minValue(1, 'Cấp bậc')]"
                     :error-messages="errors.level"
                 />
             </FormField>
@@ -105,6 +108,14 @@ import FormField from "../../components/common/FormField.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputMoney from "../../components/common/InputMoney.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useChangeGuard } from "../../composables/useChangeGuard";
+import {
+    isInteger,
+    maxLength,
+    minValue,
+    notEmpty,
+    useClearErrorsOnEdit,
+} from "../../composables/validationRules";
 
 const props = defineProps({
     modelValue: {
@@ -132,6 +143,7 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue", "saved"]);
 
 const toast = useToastStore();
+const guard = useChangeGuard(() => form);
 
 const isEdit = computed(() => props.position !== null);
 
@@ -168,15 +180,22 @@ watch(
             errors.value = {};
             loadError.value = "";
             fillForm();
+            guard.takeSnapshot();
         }
     },
 );
+
+useClearErrorsOnEdit(form, () => errors.value);
 
 function close() {
     emit("update:modelValue", false);
 }
 
 async function submit() {
+    if (isEdit.value && guard.skipIfUnchanged()) {
+        close();
+        return;
+    }
     errors.value = {};
     loadError.value = "";
     loading.value = true;

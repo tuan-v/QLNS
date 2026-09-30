@@ -264,6 +264,9 @@ async function handleLogin() {
         } else if (status === 401) {
             passwordError.value =
                 data?.message ?? "Email hoặc mật khẩu không đúng.";
+        } else if (status === 429) {
+            // Bị giới hạn số lần thử (chống dò mật khẩu) — hiện đúng thông báo của server.
+            passwordError.value = data?.message ?? "Bạn thao tác quá nhiều lần. Vui lòng thử lại sau ít phút.";
         } else {
             passwordError.value = "Có lỗi xảy ra, vui lòng thử lại.";
         }

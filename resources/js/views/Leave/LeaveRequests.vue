@@ -113,8 +113,8 @@
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     Tạo đơn xin nghỉ phép
                 </v-card-title>
-                <v-card-text
-                    class="px-5"
+                <v-form ref="leaveFormRef" validate-on="blur invalid-input lazy" @submit.prevent="submit"
+                    class="v-card-text px-5"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
                 >
                     <div>
@@ -125,7 +125,8 @@
                             v-model="form.leaveTypeId"
                             :items="leaveTypeOptions"
                             placeholder="Chọn loại phép"
-                            :error-messages="errors.leave_type_id"
+                            :rules="[notEmpty('Loại phép')]"
+                        :error-messages="errors.leave_type_id"
                         />
                         <div class="text-caption mt-1" style="opacity: 0.6">
                             Chỉ "Nghỉ phép năm" bị giới hạn số ngày trong năm (hết quỹ sẽ không chọn
@@ -140,7 +141,8 @@
                             </div>
                             <InputDate
                                 v-model="form.fromDate"
-                                :error-messages="errors.from_date"
+                                :rules="[notEmpty('Từ ngày')]"
+                        :error-messages="errors.from_date"
                             />
                         </v-col>
                         <v-col cols="6">
@@ -150,7 +152,8 @@
                             <InputDate
                                 v-model="form.toDate"
                                 :min="form.fromDate || undefined"
-                                :error-messages="errors.to_date"
+                                :rules="[notEmpty('Đến ngày'), (v) => !v || !form.fromDate || v >= form.fromDate || 'Đến ngày không được trước Từ ngày']"
+                        :error-messages="errors.to_date"
                             />
                         </v-col>
                     </v-row>
@@ -177,7 +180,8 @@
                                     variant="outlined"
                                     density="comfortable"
                                     rounded="lg"
-                                    :error-messages="errors.start_time"
+                                    :rules="[notEmpty('Giờ bắt đầu')]"
+                        :error-messages="errors.start_time"
                                 />
                             </v-col>
                             <v-col cols="6">
@@ -190,7 +194,8 @@
                                     variant="outlined"
                                     density="comfortable"
                                     rounded="lg"
-                                    :error-messages="errors.end_time"
+                                    :rules="[notEmpty('Giờ kết thúc'), (v) => !v || !form.startTime || v > form.startTime || 'Giờ kết thúc phải sau giờ bắt đầu']"
+                        :error-messages="errors.end_time"
                                 />
                             </v-col>
                         </v-row>
@@ -236,7 +241,8 @@
                             variant="outlined"
                             density="comfortable"
                             rounded="lg"
-                            :error-messages="errors.reason"
+                            :rules="[notEmpty('Lý do'), maxLength(1000, 'Lý do')]"
+                        :error-messages="errors.reason"
                         />
                     </div>
 
@@ -264,7 +270,7 @@
                     >
                         {{ generalError }}
                     </v-alert>
-                </v-card-text>
+                </v-form>
                 <v-card-actions class="px-5 pb-5">
                     <v-spacer />
                     <v-btn variant="text" :disabled="submitting" @click="closeDialog">
@@ -303,6 +309,7 @@ import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue"
 import StatCards from "../../components/dashboard/StatCards.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
+import { maxLength, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
 
 const toast = useToastStore();
 const { mobile } = useDisplay();
@@ -566,7 +573,14 @@ function pickedFile(value) {
     return Array.isArray(value) ? value[0] : value;
 }
 
+const leaveFormRef = ref(null);
+useClearErrorsOnEdit(() => form.value, () => () => errors.value, { leaveTypeId: "leave_type_id", fromDate: "from_date", toDate: "to_date", startTime: "start_time", endTime: "end_time", startSession: "start_session", endSession: "end_session", evidenceFile: "evidence_file" });
+
 async function submit() {
+    const { valid } = await leaveFormRef.value.validate();
+    if (!valid) {
+        return;
+    }
     errors.value = {};
     generalError.value = "";
 

@@ -16,6 +16,9 @@ use Illuminate\Validation\ValidationException;
 
 class AttendanceAdjustmentService
 {
+    // Số ngày liên tiếp tối đa cho 1 đơn "làm ngoài lịch".
+    private const EXTRA_SHIFT_MAX_DAYS = 31;
+
     private const TYPE_LABELS = [
         'correction' => 'điều chỉnh công',
         'supplement' => 'bổ sung chấm công',
@@ -67,6 +70,11 @@ class AttendanceAdjustmentService
                 $data['work_shift_id'] = $this->workShiftService
                     ->createCustomOneOff($data['custom_start_time'], $data['custom_end_time'])
                     ->id;
+            }
+
+            // Khoảng trùng 1 ngày thì coi như đăng ký 1 ngày (cột để NULL).
+            if (empty($data['attendance_date_to']) || $data['attendance_date_to'] === $data['attendance_date']) {
+                $data['attendance_date_to'] = null;
             }
 
             $this->assertExtraShiftRequestIsValid($employee, $data);
@@ -164,8 +172,11 @@ class AttendanceAdjustmentService
     {
         $label = self::TYPE_LABELS[$adjustment->type] ?? 'điều chỉnh công';
         $date = Carbon::parse($adjustment->attendance_date)->format('d/m/Y');
+        $dateText = $adjustment->attendance_date_to
+            ? 'từ ngày '.$date.' đến '.Carbon::parse($adjustment->attendance_date_to)->format('d/m/Y')
+            : 'ngày '.$date;
         $title = 'Đơn điều chỉnh công mới cần duyệt';
-        $message = "{$employee->full_name} vừa gửi đơn xin {$label} ngày {$date}.";
+        $message = "{$employee->full_name} vừa gửi đơn xin {$label} {$dateText}.";
         $data = ['attendance_adjustment_id' => $adjustment->id];
 
         $approvers = User::withPermission('attendance.adjust')->where('id', '!=', $requestedBy)->get();
@@ -192,32 +203,61 @@ class AttendanceAdjustmentService
             ]);
         }
 
-        $date = Carbon::parse($data['attendance_date']);
+        $from = Carbon::parse($data['attendance_date']);
+        $to = ! empty($data['attendance_date_to']) ? Carbon::parse($data['attendance_date_to']) : $from->copy();
 
-        if ($date->lt(Carbon::today())) {
+        if ($from->lt(Carbon::today())) {
             throw ValidationException::withMessages([
                 'attendance_date' => 'Chỉ đăng ký được cho hôm nay hoặc ngày trong tương lai — đã lỡ làm rồi thì dùng "Xin bổ sung chấm công".',
             ]);
         }
 
-        if ($this->attendanceService->resolveActiveAssignment($employee, $workShift, $date)) {
+        if ($from->diffInDays($to) + 1 > self::EXTRA_SHIFT_MAX_DAYS) {
             throw ValidationException::withMessages([
-                'work_shift_id' => 'Bạn đã có ca này trong lịch vào ngày đã chọn, không cần đăng ký thêm.',
+                'attendance_date_to' => 'Mỗi đơn chỉ đăng ký tối đa '.self::EXTRA_SHIFT_MAX_DAYS.' ngày liên tiếp.',
             ]);
         }
 
+        // Ngày nào đã có ca này trong lịch thì không cần đăng ký (bỏ qua, không
+        // lỗi) — nhưng nếu CẢ khoảng đều đã có ca thì đơn vô nghĩa.
+        if ($this->extraShiftDatesNeedingUnlock($employee, $workShift, $from, $to) === []) {
+            throw ValidationException::withMessages([
+                'work_shift_id' => $from->equalTo($to)
+                    ? 'Bạn đã có ca này trong lịch vào ngày đã chọn, không cần đăng ký thêm.'
+                    : 'Bạn đã có ca này trong lịch ở mọi ngày đã chọn, không cần đăng ký thêm.',
+            ]);
+        }
+
+        // Đơn chờ duyệt cùng ca mà khoảng ngày chồng lên khoảng này.
         $alreadyRequested = AttendanceAdjustment::where('employee_id', $employee->id)
             ->where('work_shift_id', $workShift->id)
-            ->where('attendance_date', $date->toDateString())
             ->where('type', 'extra_shift')
             ->where('status', 'pending')
+            ->where('attendance_date', '<=', $to->toDateString())
+            ->whereRaw('COALESCE(attendance_date_to, attendance_date) >= ?', [$from->toDateString()])
             ->exists();
 
         if ($alreadyRequested) {
             throw ValidationException::withMessages([
-                'work_shift_id' => 'Bạn đã gửi yêu cầu làm ca này vào ngày đã chọn, đang chờ duyệt.',
+                'work_shift_id' => 'Bạn đã gửi yêu cầu làm ca này trong khoảng ngày đã chọn, đang chờ duyệt.',
             ]);
         }
+    }
+
+    // Các ngày trong [from, to] mà nhân viên CHƯA có ca này trong lịch — chính là
+    // những ngày cần "mở khóa" bằng bản gán 1 ngày khi đơn được duyệt.
+    /** @return array<int, Carbon> */
+    private function extraShiftDatesNeedingUnlock(Employee $employee, WorkShift $workShift, Carbon $from, Carbon $to): array
+    {
+        $dates = [];
+
+        for ($day = $from->copy(); $day->lte($to); $day->addDay()) {
+            if (! $this->attendanceService->resolveActiveAssignment($employee, $workShift, $day)) {
+                $dates[] = $day->copy();
+            }
+        }
+
+        return $dates;
     }
 
     public function listForEmployee(Employee $employee): Collection
@@ -274,11 +314,18 @@ class AttendanceAdjustmentService
                 // (AttendanceService::checkIn()/checkOut()) chạy HỆT như 1
                 // ca bình thường, không cần sửa gì thêm ở đó.
                 if ($adjustment->type === 'extra_shift') {
-                    $this->employeeShiftAssignmentService->createOneOffAssignment(
-                        $adjustment->employee,
-                        $adjustment->workShift,
-                        $adjustment->attendance_date,
-                    );
+                    // Đơn có thể phủ NHIỀU ngày liền nhau (attendance_date_to): mỗi
+                    // ngày chưa có ca này trong lịch được mở khóa bằng 1 bản gán 1 ngày.
+                    $from = Carbon::parse($adjustment->attendance_date);
+                    $to = $adjustment->attendance_date_to ? Carbon::parse($adjustment->attendance_date_to) : $from->copy();
+
+                    foreach ($this->extraShiftDatesNeedingUnlock($adjustment->employee, $adjustment->workShift, $from, $to) as $date) {
+                        $this->employeeShiftAssignmentService->createOneOffAssignment(
+                            $adjustment->employee,
+                            $adjustment->workShift,
+                            $date,
+                        );
+                    }
 
                     return $adjustment;
                 }

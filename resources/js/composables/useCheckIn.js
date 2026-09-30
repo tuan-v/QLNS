@@ -62,6 +62,11 @@ export function formatDate(value) {
     return new Date(value).toLocaleDateString("vi-VN");
 }
 
+// 1 ngày -> "dd/mm/yyyy"; nhiều ngày liền nhau -> "dd/mm/yyyy – dd/mm/yyyy".
+export function formatDateRange(from, to) {
+    return to && to !== from ? `${formatDate(from)} – ${formatDate(to)}` : formatDate(from);
+}
+
 export function formatTime(value) {
     if (!value) {
         return "--:--";
@@ -463,6 +468,7 @@ export function useCheckIn() {
     // -- Tab "Làm ngoài lịch" --
     const extraShiftForm = ref({
         attendanceDate: "",
+        attendanceDateTo: "", // để trống = chỉ 1 ngày; có = làm liền nhiều ngày tới ngày này
         mode: "existing", // "existing" = chọn Ca có sẵn | "custom" = tự chọn giờ
         workShiftId: null,
         customStartTime: "",
@@ -535,6 +541,7 @@ export function useCheckIn() {
         extraShiftTab.value = tab;
         extraShiftForm.value = {
             attendanceDate: "",
+            attendanceDateTo: "",
             mode: "existing",
             workShiftId: null,
             customStartTime: "",
@@ -575,6 +582,9 @@ export function useCheckIn() {
             await attendanceService.requestAdjustment({
                 type: "extra_shift",
                 attendance_date: extraShiftForm.value.attendanceDate,
+                ...(extraShiftForm.value.attendanceDateTo
+                    ? { attendance_date_to: extraShiftForm.value.attendanceDateTo }
+                    : {}),
                 reason: extraShiftForm.value.reason,
                 ...(usingCustomTime
                     ? {
@@ -592,6 +602,7 @@ export function useCheckIn() {
             if (status === 422 && data?.errors) {
                 extraShiftErrors.value = {
                     attendance_date: data.errors.attendance_date?.[0],
+                    attendance_date_to: data.errors.attendance_date_to?.[0],
                     work_shift_id: data.errors.work_shift_id?.[0],
                     custom_start_time: data.errors.custom_start_time?.[0],
                     custom_end_time: data.errors.custom_end_time?.[0],

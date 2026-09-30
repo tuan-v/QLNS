@@ -26,7 +26,8 @@
                     density="comfortable"
                     rounded="lg"
                     placeholder="Ví dụ: Kế toán"
-                    :error-messages="store.errors.name"
+                    :rules="[notEmpty('Tên vai trò'), maxLength(100, 'Tên vai trò')]"
+                        :error-messages="store.errors.name"
                 />
             </div>
 
@@ -55,6 +56,8 @@
 import { computed, reactive, watch } from "vue";
 import { useRoleStore } from "../../stores/useRoleStore";
 import { useToastStore } from "../../stores/useToastStore";
+import { useChangeGuard } from "../../composables/useChangeGuard";
+import { maxLength, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
 import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
 
@@ -68,6 +71,7 @@ const emit = defineEmits(["update:modelValue", "saved"]);
 
 const store = useRoleStore();
 const toast = useToastStore();
+const guard = useChangeGuard(() => form);
 
 const isEdit = computed(() => props.role !== null);
 
@@ -87,15 +91,22 @@ watch(
         if (isOpen) {
             store.resetErrors();
             fillForm();
+            guard.takeSnapshot();
         }
     },
 );
+
+useClearErrorsOnEdit(form, () => store.errors);
 
 function close() {
     emit("update:modelValue", false);
 }
 
 async function submit() {
+    if (isEdit.value && guard.skipIfUnchanged()) {
+        close();
+        return;
+    }
     try {
         const saved = isEdit.value
             ? await store.update(props.role.id, { ...form })

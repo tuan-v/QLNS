@@ -123,8 +123,8 @@
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     Tải lên tài liệu
                 </v-card-title>
-                <v-card-text
-                    class="px-5"
+                <v-form ref="uploadFormRef" validate-on="blur invalid-input lazy" @submit.prevent="submitUpload"
+                    class="v-card-text px-5"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
                 >
                     <div>
@@ -139,7 +139,8 @@
                             density="comfortable"
                             rounded="lg"
                             persistent-placeholder
-                            :error-messages="uploadErrors.document_type"
+                            :rules="[notEmpty('Loại tài liệu')]"
+                        :error-messages="uploadErrors.document_type"
                         />
                     </div>
 
@@ -153,7 +154,8 @@
                             variant="outlined"
                             density="comfortable"
                             rounded="lg"
-                            :error-messages="uploadErrors.document_name"
+                            :rules="[notEmpty('Tên tài liệu'), maxLength(255, 'Tên tài liệu')]"
+                        :error-messages="uploadErrors.document_name"
                         />
                     </div>
 
@@ -164,7 +166,8 @@
                         <InputFile
                             v-model="uploadForm.file"
                             :limit="UPLOAD_LIMITS.document"
-                            :error-messages="uploadErrors.document_file"
+                            :rules="[(v) => (Array.isArray(v) ? v.length > 0 : Boolean(v)) || 'Vui lòng chọn tệp đính kèm']"
+                        :error-messages="uploadErrors.document_file"
                         />
                     </div>
 
@@ -176,7 +179,7 @@
                     >
                         {{ uploadGeneralError }}
                     </v-alert>
-                </v-card-text>
+                </v-form>
                 <v-card-actions class="px-5 pb-5">
                     <v-spacer />
                     <v-btn variant="text" :disabled="uploading" @click="closeUploadDialog">
@@ -205,6 +208,7 @@ import employeeService from "../../services/employeeService";
 import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
+import { maxLength, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
 
 defineEmits(["preview"]);
 
@@ -281,7 +285,14 @@ function closeUploadDialog() {
     uploadDialog.value = false;
 }
 
+const uploadFormRef = ref(null);
+useClearErrorsOnEdit(() => uploadForm.value, () => uploadErrors.value, { file: "document_file" });
+
 async function submitUpload() {
+    const { valid } = await uploadFormRef.value.validate();
+    if (!valid) {
+        return;
+    }
     uploadErrors.value = {};
     uploadGeneralError.value = "";
     uploading.value = true;

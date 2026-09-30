@@ -16,6 +16,7 @@ class EmployeeService
         private readonly EmployeeShiftAssignmentService $employeeShiftAssignmentService,
         private readonly EmployeeContractService $employeeContractService,
         private readonly ReportingLineService $reportingLineService,
+        private readonly EmployeeAccountService $employeeAccountService,
     ) {
     }
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -123,6 +124,9 @@ class EmployeeService
             $this->employeeShiftAssignmentService->removeAllForEmployee($employee);
             $this->employeeRepository->delete($employee);
         });
+
+        // Hồ sơ đã xóa thì tài khoản đăng nhập của họ cũng bị khóa.
+        $this->employeeAccountService->deactivateAccountOf($employee);
 
     }
 

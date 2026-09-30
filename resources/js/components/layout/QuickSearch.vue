@@ -160,7 +160,27 @@ const EMPLOYEE_SEARCH_DEBOUNCE_MS = 400;
 function loadRecentItems() {
     try {
         const raw = localStorage.getItem(RECENT_KEY);
-        return raw ? JSON.parse(raw) : [];
+        const parsed = raw ? JSON.parse(raw) : [];
+
+        // Bản cũ của tính năng này (trước Phase 2) lưu KIỂU KHÁC (vd chỉ tên route) —
+        // giữ lại thì "Gần đây" hiện ra 1 dòng TRỐNG không có tiêu đề. Chỉ nhận mục
+        // đủ hình dạng nav-item hiện tại; mục hỏng bị bỏ và ghi đè lại bản sạch.
+        const valid = Array.isArray(parsed)
+            ? parsed.filter(
+                  (item) =>
+                      item &&
+                      typeof item === "object" &&
+                      item.key &&
+                      item.title &&
+                      item.routeName,
+              )
+            : [];
+
+        if (Array.isArray(parsed) && valid.length !== parsed.length) {
+            localStorage.setItem(RECENT_KEY, JSON.stringify(valid));
+        }
+
+        return valid;
     } catch {
         return [];
     }

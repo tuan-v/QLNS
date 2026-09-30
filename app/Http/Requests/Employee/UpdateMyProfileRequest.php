@@ -27,7 +27,7 @@ class UpdateMyProfileRequest extends FormRequest
         $employeeId = $this->user()->employee?->id;
 
         return [
-            'phone' => ['required', 'string', 'max:10', 'unique:employees,phone,'.$employeeId],
+            'phone' => ['required', 'digits:10', 'unique:employees,phone,'.$employeeId],
             'personal_email' => ['required', 'email', 'unique:employees,personal_email,'.$employeeId],
             'address_detail' => ['required', 'string', 'max:255'],
             'province_code' => ['required', 'integer', 'exists:provinces,code'],
@@ -43,7 +43,7 @@ class UpdateMyProfileRequest extends FormRequest
     {
         return [
             'phone.required' => 'Số điện thoại không được để trống',
-            'phone.max' => 'Số điện thoại không được vượt quá 10 ký tự',
+            'phone.digits' => 'Số điện thoại phải gồm đúng 10 chữ số',
             'phone.unique' => 'Số điện thoại đã tồn tại',
             'personal_email.required' => 'Email cá nhân không được để trống',
             'personal_email.email' => 'Email cá nhân không đúng định dạng',

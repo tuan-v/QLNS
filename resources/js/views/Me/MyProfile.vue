@@ -130,7 +130,7 @@
             <v-dialog v-model="resignationDialog" max-width="560">
                 <v-card rounded="xl">
                     <v-card-title class="text-h6 font-weight-bold pt-5 px-6">Nộp đơn xin nghỉ việc</v-card-title>
-                    <v-card-text class="px-6">
+                    <v-form ref="resignationFormRef" validate-on="blur invalid-input lazy" @submit.prevent="submitResignation" class="v-card-text px-6">
                         <p class="text-body-2 text-medium-emphasis mb-2">
                             Đơn được gửi tới HR và quản lý trực tiếp của bạn.
                         </p>
@@ -149,7 +149,8 @@
                         <InputDate
                             v-model="resignationForm.last_working_date"
                             :min="todayIso()"
-                            :error-messages="resignationErrors.last_working_date"
+                            :rules="[notEmpty('Ngày làm việc cuối cùng')]"
+                        :error-messages="resignationErrors.last_working_date"
                         />
                         <v-alert
                             v-if="resignationOutcome"
@@ -168,9 +169,10 @@
                             rows="4"
                             auto-grow
                             counter="2000"
-                            :error-messages="resignationErrors.reason"
+                            :rules="[notEmpty('Lý do nghỉ việc'), maxLength(2000, 'Lý do nghỉ việc')]"
+                        :error-messages="resignationErrors.reason"
                         />
-                    </v-card-text>
+                    </v-form>
                     <v-card-actions class="px-6 pb-5">
                         <v-spacer />
                         <v-btn variant="text" :disabled="submittingResignation" @click="resignationDialog = false">
@@ -279,6 +281,7 @@ import { EMPLOYMENT_STATUS_MAP } from "../../composables/employmentStatus";
 import resignationService from "../../services/resignationService";
 import InputDate, { todayIso } from "../../components/common/InputDate.vue";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
+import { maxLength, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
 
 function formatDate(value) {
     if (!value) {
@@ -583,7 +586,14 @@ async function openResignationDialog() {
     }
 }
 
+const resignationFormRef = ref(null);
+useClearErrorsOnEdit(resignationForm, () => resignationErrors.value);
+
 async function submitResignation() {
+    const { valid } = await resignationFormRef.value.validate();
+    if (!valid) {
+        return;
+    }
     resignationErrors.value = {};
     submittingResignation.value = true;
     try {

@@ -26,6 +26,7 @@
                         density="comfortable"
                         rounded="lg"
                         placeholder="Nhập tên phòng ban"
+                        :rules="[notEmpty('Tên phòng ban'), maxLength(255, 'Tên phòng ban')]"
                         :error-messages="store.errors.name"
                     />
                 </v-col>
@@ -128,6 +129,8 @@ import { useEmployeeStore } from "../../stores/useEmployeeStore";
 import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useChangeGuard } from "../../composables/useChangeGuard";
+import { maxLength, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 
 const props = defineProps({
@@ -150,6 +153,7 @@ const emit = defineEmits(["update:modelValue", "saved"]);
 
 const store = useDepartmentStore();
 const toast = useToastStore();
+const guard = useChangeGuard(() => form);
 const employeeStore = useEmployeeStore();
 
 const isEdit = computed(() => props.department !== null);
@@ -191,15 +195,22 @@ watch(
         if (isOpen) {
             store.resetErrors();
             fillForm();
+            guard.takeSnapshot();
         }
     },
 );
+
+useClearErrorsOnEdit(form, () => store.errors);
 
 function close() {
     emit("update:modelValue", false);
 }
 
 async function submit() {
+    if (isEdit.value && guard.skipIfUnchanged()) {
+        close();
+        return;
+    }
     try {
         const saved = isEdit.value
             ? await store.update(props.department.id, { ...form })

@@ -26,6 +26,7 @@
                         density="comfortable"
                         rounded="lg"
                         placeholder="Nhập tên ca làm việc"
+                        :rules="[notEmpty('Tên ca'), maxLength(100, 'Tên ca')]"
                         :error-messages="errors.name"
                     />
                 </v-col>
@@ -57,6 +58,7 @@
                         variant="outlined"
                         density="comfortable"
                         rounded="lg"
+                        :rules="[notEmpty('Giờ bắt đầu')]"
                         :error-messages="errors.start_time"
                     />
                 </v-col>
@@ -70,6 +72,7 @@
                         variant="outlined"
                         density="comfortable"
                         rounded="lg"
+                        :rules="[notEmpty('Giờ kết thúc')]"
                         :error-messages="errors.end_time"
                     />
                     <!-- Chưa chặn giờ kết thúc phải sau giờ bắt đầu — dự án
@@ -89,6 +92,7 @@
                         variant="outlined"
                         density="comfortable"
                         rounded="lg"
+                        :rules="[(v) => !form.break_end_time || !!v || 'Nhập giờ bắt đầu nghỉ trưa']"
                         :error-messages="errors.break_start_time"
                     />
                 </v-col>
@@ -102,6 +106,7 @@
                         variant="outlined"
                         density="comfortable"
                         rounded="lg"
+                        :rules="[(v) => !form.break_start_time || !!v || 'Nhập giờ kết thúc nghỉ trưa', (v) => !v || !form.break_start_time || v > form.break_start_time || 'Giờ kết thúc nghỉ trưa phải sau giờ bắt đầu']"
                         :error-messages="errors.break_end_time"
                     />
                     <!-- Để trống cả 2 ô = ca này không có nghỉ trưa (ca ngắn/
@@ -124,6 +129,7 @@
                         variant="outlined"
                         density="comfortable"
                         rounded="lg"
+                        :rules="[notEmpty('Số phút công chuẩn'), isInteger('Số phút công chuẩn'), minValue(1, 'Số phút công chuẩn')]"
                         :error-messages="errors.standard_work_minutes"
                     />
                 </v-col>
@@ -141,6 +147,7 @@
                         variant="outlined"
                         density="comfortable"
                         rounded="lg"
+                        :rules="[isInteger('Số phút châm chước'), minValue(0, 'Số phút châm chước')]"
                         :error-messages="errors.late_grace_minutes"
                     />
                 </v-col>
@@ -155,6 +162,7 @@
                         variant="outlined"
                         density="comfortable"
                         rounded="lg"
+                        :rules="[isInteger('Số phút châm chước'), minValue(0, 'Số phút châm chước')]"
                         :error-messages="errors.early_leave_grace_minutes"
                     />
                 </v-col>
@@ -173,6 +181,7 @@
                         variant="outlined"
                         density="comfortable"
                         rounded="lg"
+                        :rules="[minValue(0, 'Hệ số công')]"
                         :error-messages="errors.work_coefficient"
                     />
                 </v-col>
@@ -233,6 +242,14 @@ import workShiftService from "../../services/workShiftService";
 import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useChangeGuard } from "../../composables/useChangeGuard";
+import {
+    isInteger,
+    maxLength,
+    minValue,
+    notEmpty,
+    useClearErrorsOnEdit,
+} from "../../composables/validationRules";
 
 const props = defineProps({
     modelValue: {
@@ -249,6 +266,7 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue", "saved"]);
 
 const toast = useToastStore();
+const guard = useChangeGuard(() => form);
 
 const isEdit = computed(() => props.workShift !== null);
 
@@ -301,15 +319,22 @@ watch(
             errors.value = {};
             loadError.value = "";
             fillForm();
+            guard.takeSnapshot();
         }
     },
 );
+
+useClearErrorsOnEdit(form, () => errors.value);
 
 function close() {
     emit("update:modelValue", false);
 }
 
 async function submit() {
+    if (isEdit.value && guard.skipIfUnchanged()) {
+        close();
+        return;
+    }
     errors.value = {};
     loadError.value = "";
     loading.value = true;

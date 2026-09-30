@@ -373,4 +373,115 @@ class AttendanceExtraShiftTest extends TestCase
             'attendance_date' => $saturday->toDateString(),
         ]);
     }
+
+    // ---- Làm ngoài lịch NHIỀU ngày liền nhau (2026-09-30): 1 đơn, 1 lần duyệt ----
+
+    public function test_one_request_can_cover_a_range_of_days_and_approval_unlocks_every_day(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift();
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $saturday = $this->nextSaturday();
+        $sunday = $saturday->copy()->addDay();
+
+        $adjustmentId = $this->requestExtraShift($token, $workShift, $saturday->toDateString(), [
+            'attendance_date_to' => $sunday->toDateString(),
+        ])->assertStatus(201)->assertJsonPath('attendance_date_to', $sunday->toDateString())->json('id');
+
+        $this->assertDatabaseCount('employee_shift_assignments', 0);
+
+        $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
+        $this->putJson('/api/v1/attendances/adjustments/'.$adjustmentId, ['status' => 'approved'], ['Authorization' => 'Bearer '.$hrToken])
+            ->assertStatus(200);
+
+        foreach ([$saturday, $sunday] as $day) {
+            $this->assertDatabaseHas('employee_shift_assignments', [
+                'employee_id' => $employee->id,
+                'work_shift_id' => $workShift->id,
+                'effective_from' => $day->toDateString(),
+                'effective_to' => $day->toDateString(),
+            ]);
+        }
+        $this->assertDatabaseCount('employee_shift_assignments', 2);
+    }
+
+    public function test_end_date_equal_to_start_is_stored_as_a_single_day(): void
+    {
+        [, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift();
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $saturday = $this->nextSaturday()->toDateString();
+
+        $this->requestExtraShift($token, $workShift, $saturday, ['attendance_date_to' => $saturday])
+            ->assertStatus(201)
+            ->assertJsonPath('attendance_date_to', null);
+    }
+
+    public function test_end_date_cannot_be_before_start_date_or_span_more_than_31_days(): void
+    {
+        [, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift();
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $saturday = $this->nextSaturday();
+
+        $this->requestExtraShift($token, $workShift, $saturday->toDateString(), [
+            'attendance_date_to' => $saturday->copy()->subDay()->toDateString(),
+        ])->assertStatus(422)->assertJsonValidationErrors('attendance_date_to');
+
+        $this->requestExtraShift($token, $workShift, $saturday->toDateString(), [
+            'attendance_date_to' => $saturday->copy()->addDays(31)->toDateString(),
+        ])->assertStatus(422)->assertJsonValidationErrors('attendance_date_to');
+
+        $this->requestExtraShift($token, $workShift, $saturday->toDateString(), [
+            'attendance_date_to' => $saturday->copy()->addDays(30)->toDateString(),
+        ])->assertStatus(201);
+    }
+
+    public function test_overlapping_pending_range_requests_for_the_same_shift_are_rejected(): void
+    {
+        [, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift();
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $saturday = $this->nextSaturday();
+
+        $this->requestExtraShift($token, $workShift, $saturday->toDateString(), [
+            'attendance_date_to' => $saturday->copy()->addDays(2)->toDateString(),
+        ])->assertStatus(201);
+
+        $this->requestExtraShift($token, $workShift, $saturday->copy()->addDay()->toDateString())
+            ->assertStatus(422)->assertJsonValidationErrors('work_shift_id');
+    }
+
+    public function test_days_already_in_the_schedule_are_skipped_but_a_fully_covered_range_is_rejected(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift();
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $saturday = $this->nextSaturday();
+        $sunday = $saturday->copy()->addDay();
+
+        // Đã có ca này vào Chủ nhật (lịch cố định).
+        EmployeeShiftAssignment::create([
+            'employee_id' => $employee->id, 'work_shift_id' => $workShift->id,
+            'effective_from' => $sunday->toDateString(), 'effective_to' => $sunday->toDateString(),
+            'work_days' => [7], 'status' => 'active',
+        ]);
+
+        // Cả khoảng đều đã có ca -> đơn vô nghĩa.
+        $this->requestExtraShift($token, $workShift, $sunday->toDateString())->assertStatus(422);
+
+        // Khoảng Thứ 7 - CN: chỉ Thứ 7 cần mở khóa, CN bị bỏ qua khi duyệt.
+        $id = $this->requestExtraShift($token, $workShift, $saturday->toDateString(), [
+            'attendance_date_to' => $sunday->toDateString(),
+        ])->assertStatus(201)->json('id');
+
+        $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
+        $this->putJson('/api/v1/attendances/adjustments/'.$id, ['status' => 'approved'], ['Authorization' => 'Bearer '.$hrToken])
+            ->assertStatus(200);
+
+        $this->assertDatabaseCount('employee_shift_assignments', 2);
+        $this->assertDatabaseHas('employee_shift_assignments', [
+            'employee_id' => $employee->id, 'effective_from' => $saturday->toDateString(),
+        ]);
+    }
 }

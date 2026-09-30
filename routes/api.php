@@ -2,7 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1')->group(function (): void {
+// throttle:api = giới hạn chung cho mọi API (config/rate_limits.php).
+Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     Route::get('/health', function () {
         return response()->json([
             'status' => 'ok',

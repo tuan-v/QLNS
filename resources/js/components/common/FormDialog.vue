@@ -46,7 +46,18 @@
                     </v-alert>
                 </v-expand-transition>
 
-                <slot />
+                <!-- Kiểm tra ô nhập kiểu "báo khi rời ô": không đỏ sẵn lúc mở, báo lỗi
+                     khi rời ô, hết lỗi ngay khi sửa đúng (xem composables/validationRules.js).
+                     Bấm Lưu (hoặc Enter) mà còn ô sai thì chặn và cuộn tới ô đó. -->
+                <v-form
+                    v-if="validation"
+                    ref="formRef"
+                    validate-on="blur invalid-input lazy"
+                    @submit.prevent="onSubmit"
+                >
+                    <slot />
+                </v-form>
+                <slot v-else />
             </v-card-text>
 
             <footer class="form-dialog-actions">
@@ -65,7 +76,7 @@
                         class="px-5"
                         :loading="loading"
                         :disabled="submitDisabled"
-                        @click="emit('submit')"
+                        @click="onSubmit"
                     >
                         {{ submitLabel }}
                     </v-btn>
@@ -76,7 +87,7 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 const props = defineProps({
     modelValue: {
         type: Boolean,
@@ -131,6 +142,12 @@ const props = defineProps({
         type: [String, Number],
         default: null,
     },
+    // Bật kiểm tra `:rules` của các ô trước khi phát sự kiện submit. Form tự dựng
+    // `v-form` riêng (vd EmployeeForm) đặt false để khỏi lồng 2 form.
+    validation: {
+        type: Boolean,
+        default: true,
+    },
     // Cỡ chuẩn: sm 480 · md 640 · lg 800 · xl 1000
     size: {
         type: String,
@@ -139,6 +156,28 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["update:modelValue", "submit"]);
+
+const formRef = ref(null);
+
+async function onSubmit() {
+    if (props.validation && formRef.value) {
+        const { valid } = await formRef.value.validate();
+        if (!valid) {
+            return;
+        }
+    }
+    emit("submit");
+}
+
+// Mở lại dialog thì xóa trạng thái lỗi còn sót của lần trước.
+watch(
+    () => props.modelValue,
+    (open) => {
+        if (open) {
+            nextTick(() => formRef.value?.resetValidation());
+        }
+    },
+);
 
 const SIZES = { sm: 480, md: 640, lg: 800, xl: 1000 };
 const dialogWidth = computed(() => props.maxWidth ?? SIZES[props.size] ?? SIZES.md);

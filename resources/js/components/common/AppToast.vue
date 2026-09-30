@@ -78,6 +78,13 @@ const ICONS = {
     padding: 0 !important;
     background: transparent !important;
     box-shadow: none !important;
+    /* Vuetify để overflow:hidden ở vỏ này nên bóng đổ (blur 32px) của thẻ bên
+       trong bị CẮT thành khối chữ nhật xám cứng cạnh — lộ rõ ở theme sáng. */
+    overflow: visible !important;
+}
+.app-toast-root .v-snackbar__wrapper,
+.app-toast-slot .v-snackbar__content {
+    overflow: visible !important;
 }
 
 .app-toast {

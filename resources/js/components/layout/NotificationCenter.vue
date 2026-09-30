@@ -7,20 +7,34 @@
         @update:model-value="onToggle"
     >
         <template #activator="{ props }">
-            <v-btn v-bind="props" icon variant="text" class="qlns-icon-btn" aria-label="Thông báo">
+            <v-btn
+                v-bind="props"
+                icon
+                variant="text"
+                class="qlns-icon-btn"
+                aria-label="Thông báo"
+            >
                 <v-badge
                     :model-value="store.unreadCount > 0"
-                    :content="store.unreadCount > 99 ? '99+' : store.unreadCount"
+                    :content="
+                        store.unreadCount > 99 ? '99+' : store.unreadCount
+                    "
                     color="error"
-                    offset-x="2"
-                    offset-y="2"
+                    class="bell-badge"
+                    offset-x="-2"
+                    offset-y="-2"
                 >
                     <v-icon size="20">mdi-bell-outline</v-icon>
                 </v-badge>
             </v-btn>
         </template>
 
-        <v-card width="400" max-width="calc(100vw - 24px)" rounded="xl" elevation="8">
+        <v-card
+            width="400"
+            max-width="calc(100vw - 24px)"
+            rounded="xl"
+            elevation="8"
+        >
             <div class="d-flex align-center ga-2 px-5 pt-4 pb-3">
                 <span class="text-h6 font-weight-bold">Thông báo</span>
                 <v-spacer />
@@ -34,14 +48,23 @@
                 >
                     Đánh dấu tất cả đã đọc
                 </v-btn>
-                <v-btn icon variant="text" size="small" aria-label="Đóng" @click="open = false">
+                <v-btn
+                    icon
+                    variant="text"
+                    size="small"
+                    aria-label="Đóng"
+                    @click="open = false"
+                >
                     <v-icon size="20">mdi-close</v-icon>
                 </v-btn>
             </div>
             <v-divider />
 
-            <div v-if="store.notifications.length === 0" class="text-center py-10 text-medium-emphasis">
-                <v-icon size="36" class="mb-2">mdi-bell-sleep-outline</v-icon>
+            <div
+                v-if="store.notifications.length === 0"
+                class="text-center py-10 text-medium-emphasis"
+            >
+                <v-icon size="30" class="mb-2">mdi-bell-sleep-outline</v-icon>
                 <div class="text-body-2">Chưa có thông báo nào</div>
             </div>
 
@@ -61,33 +84,63 @@
                         location="bottom end"
                         offset-x="4"
                         offset-y="4"
-                        :color="presence.isOnline(item.actor.employee_id) ? 'success' : 'grey'"
+                        :color="
+                            presence.isOnline(item.actor.employee_id)
+                                ? 'success'
+                                : 'grey'
+                        "
                     >
                         <v-avatar
                             size="44"
-                            :color="item.actor.avatar_url ? undefined : avatarColor(item.actor.full_name)"
+                            :color="
+                                item.actor.avatar_url
+                                    ? undefined
+                                    : avatarColor(item.actor.full_name)
+                            "
                             variant="tonal"
                         >
-                            <v-img v-if="item.actor.avatar_url" :src="item.actor.avatar_url" cover />
+                            <v-img
+                                v-if="item.actor.avatar_url"
+                                :src="item.actor.avatar_url"
+                                cover
+                            />
                             <span v-else class="text-body-2 font-weight-bold">
                                 {{ initials(item.actor.full_name) }}
                             </span>
                         </v-avatar>
                     </v-badge>
-                    <v-avatar v-else size="44" :color="systemIcon(item).color" variant="tonal">
+                    <v-avatar
+                        v-else
+                        size="44"
+                        :color="systemIcon(item).color"
+                        variant="tonal"
+                    >
                         <v-icon :icon="systemIcon(item).icon" size="22" />
                     </v-avatar>
 
                     <div class="flex-grow-1 min-w-0">
                         <div v-if="item.actor" class="text-body-2 notif-text">
-                            <template v-for="(part, index) in messageParts(item)" :key="index">
-                                <span v-if="part.bold" class="font-weight-bold text-ink">{{ part.text }}</span>
+                            <template
+                                v-for="(part, index) in messageParts(item)"
+                                :key="index"
+                            >
+                                <span
+                                    v-if="part.bold"
+                                    class="font-weight-bold text-ink"
+                                    >{{ part.text }}</span
+                                >
                                 <span v-else>{{ part.text }}</span>
                             </template>
                         </div>
                         <template v-else>
-                            <div class="text-body-2 font-weight-bold text-ink">{{ item.title }}</div>
-                            <div class="text-body-2 text-medium-emphasis notif-text">{{ item.message }}</div>
+                            <div class="text-body-2 font-weight-bold text-ink">
+                                {{ item.title }}
+                            </div>
+                            <div
+                                class="text-body-2 text-medium-emphasis notif-text"
+                            >
+                                {{ item.message }}
+                            </div>
                         </template>
                         <div class="text-caption text-medium-emphasis mt-1">
                             {{ TYPE_CATEGORY[item.type] ?? "Hệ thống" }}
@@ -96,7 +149,10 @@
                         </div>
                     </div>
 
-                    <span v-if="!item.read_at" class="unread-dot bg-primary flex-shrink-0 mt-2" />
+                    <span
+                        v-if="!item.read_at"
+                        class="unread-dot bg-primary flex-shrink-0 mt-2"
+                    />
                 </div>
             </div>
 
@@ -187,7 +243,9 @@ function onClickItem(item) {
 }
 
 function timeAgo(isoString) {
-    const diffSeconds = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+    const diffSeconds = Math.floor(
+        (Date.now() - new Date(isoString).getTime()) / 1000,
+    );
     if (diffSeconds < 60) {
         return "Vừa xong";
     }
@@ -205,13 +263,24 @@ function timeAgo(isoString) {
 </script>
 
 <style scoped>
+/* Huy hiệu số chưa đọc trên chuông: nhỏ gọn, đẩy lên góc phải-trên để không che
+   biểu tượng chuông (mặc định của Vuetify cao 20px, chữ 12px). */
+.bell-badge :deep(.v-badge__badge) {
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+}
 .notif-scroll {
     max-height: 440px;
     overflow-y: auto;
 }
 .notif-row {
     cursor: pointer;
-    border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+    border-bottom: 1px solid
+        rgba(var(--v-border-color), var(--v-border-opacity));
     transition: background-color 0.15s ease;
 }
 .notif-row:last-child {

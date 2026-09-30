@@ -24,6 +24,7 @@ class AttendanceAdjustment extends Model
         'employee_id',
         'work_shift_id',
         'attendance_date',
+        'attendance_date_to',
         'requested_by',
         'approved_by',
         'proposed_check_in_at',
@@ -36,6 +37,7 @@ class AttendanceAdjustment extends Model
 
     protected $casts = [
         'attendance_date' => 'date:Y-m-d',
+        'attendance_date_to' => 'date:Y-m-d',
         'proposed_check_in_at' => 'datetime',
         'proposed_check_out_at' => 'datetime',
         'decided_at' => 'datetime',

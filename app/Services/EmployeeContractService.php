@@ -20,8 +20,10 @@ class EmployeeContractService
         'chinh_thuc' => 'active',
     ];
 
-    public function __construct(private readonly EmployeeContractRepository $employeeContractRepository)
-    {
+    public function __construct(
+        private readonly EmployeeContractRepository $employeeContractRepository,
+        private readonly EmployeeAccountService $employeeAccountService,
+    ) {
     }
 
     // Gọi mỗi khi 1 hợp đồng BẮT ĐẦU có hiệu lực (tạo mới với start_date <=
@@ -41,6 +43,9 @@ class EmployeeContractService
             'employment_status' => $status,
             'termination_date' => null,
         ])->save();
+
+        // Tuyển lại người từng bị khóa tài khoản khi nghỉ việc -> mở lại.
+        $this->employeeAccountService->reactivateAccountOf($employee);
     }
 
     public function listForEmployee(Employee $employee): Collection
@@ -135,6 +140,9 @@ class EmployeeContractService
                     'employment_status' => 'terminated',
                     'termination_date' => $contract->terminated_at,
                 ])->save();
+
+                // Chấm dứt hợp đồng cuối cùng = hết quan hệ lao động -> khóa tài khoản.
+                $this->employeeAccountService->deactivateAccountOf($employee);
             }
 
             return $contract;

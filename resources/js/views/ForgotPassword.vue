@@ -113,7 +113,10 @@ async function handleSubmit() {
         sent.value = true;
     } catch (error) {
         const data = error.response?.data;
-        emailError.value = data?.errors?.email?.[0] ?? "Có lỗi xảy ra, vui lòng thử lại.";
+        emailError.value =
+            data?.errors?.email?.[0] ??
+            (error.response?.status === 429 ? data?.message : null) ??
+            "Có lỗi xảy ra, vui lòng thử lại.";
     } finally {
         loading.value = false;
     }

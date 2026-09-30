@@ -33,8 +33,8 @@
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     Sửa thông tin liên hệ
                 </v-card-title>
-                <v-card-text
-                    class="px-5"
+                <v-form ref="contactFormRef" validate-on="blur invalid-input lazy" @submit.prevent="submitContact"
+                    class="v-card-text px-5"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
                 >
                     <div>
@@ -43,6 +43,7 @@
                         </div>
                         <v-text-field
                             v-model="contactForm.phone"
+                            :rules="phoneRules"
                             variant="outlined"
                             density="comfortable"
                             rounded="lg"
@@ -59,6 +60,7 @@
                             variant="outlined"
                             density="comfortable"
                             rounded="lg"
+                            :rules="[notEmpty('Email cá nhân'), isEmail('Email cá nhân')]"
                             :error-messages="contactErrors.personal_email"
                         />
                     </div>
@@ -71,6 +73,7 @@
                             :model-value="contactForm.province_code"
                             :items="provinceOptions"
                             :loading="provincesLoading"
+                            :rules="[notEmpty('Tỉnh/Thành phố')]"
                             :error-messages="contactErrors.province_code"
                             @update:model-value="onContactProvinceChange"
                         />
@@ -85,6 +88,7 @@
                             :items="communeOptions"
                             :loading="communesLoading"
                             :disabled="!contactForm.province_code"
+                            :rules="[notEmpty('Xã/Phường')]"
                             :error-messages="contactErrors.commune_code"
                         />
                     </div>
@@ -99,6 +103,7 @@
                             density="comfortable"
                             rounded="lg"
                             placeholder="Số nhà, tên đường..."
+                            :rules="[notEmpty('Địa chỉ chi tiết'), maxLength(255, 'Địa chỉ chi tiết')]"
                             :error-messages="contactErrors.address_detail"
                         />
                     </div>
@@ -111,7 +116,7 @@
                     >
                         {{ contactGeneralError }}
                     </v-alert>
-                </v-card-text>
+                </v-form>
                 <v-card-actions class="px-5 pb-5">
                     <v-spacer />
                     <v-btn
@@ -145,6 +150,8 @@ import employeeService from "../../services/employeeService";
 import addressService from "../../services/addressService";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import { useToastStore } from "../../stores/useToastStore";
+import { useChangeGuard } from "../../composables/useChangeGuard";
+import { isEmail, maxLength, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
 
 const props = defineProps({
     employee: {
@@ -158,6 +165,7 @@ const props = defineProps({
 const emit = defineEmits(["updated"]);
 
 const toast = useToastStore();
+const guard = useChangeGuard(() => contactForm.value);
 
 const GENDER_MAP = {
     male: "Nam",
@@ -279,6 +287,7 @@ async function openEditContactDialog() {
     contactErrors.value = {};
     contactGeneralError.value = "";
     editContactDialog.value = true;
+    guard.takeSnapshot();
     await loadProvinces();
     // Nạp lại Xã theo đúng Tỉnh đã có sẵn — KHÔNG gọi qua onContactProvinceChange()
     // vì hàm đó xóa luôn commune_code, ở đây vừa gán đúng giá trị cũ ở trên.
@@ -289,7 +298,24 @@ function closeEditContactDialog() {
     editContactDialog.value = false;
 }
 
+// Số điện thoại phải đúng 10 chữ số (khớp UpdateMyProfileRequest).
+const phoneRules = [
+    (value) => Boolean(String(value ?? "").trim()) || "Số điện thoại không được để trống",
+    (value) => /^\d{10}$/.test(String(value ?? "")) || "Số điện thoại phải gồm đúng 10 chữ số",
+];
+
+const contactFormRef = ref(null);
+useClearErrorsOnEdit(() => contactForm.value, () => contactErrors.value);
+
 async function submitContact() {
+    const { valid } = await contactFormRef.value.validate();
+    if (!valid) {
+        return;
+    }
+    if (guard.skipIfUnchanged()) {
+        closeEditContactDialog();
+        return;
+    }
     contactErrors.value = {};
     contactGeneralError.value = "";
     contactSubmitting.value = true;
