@@ -926,4 +926,128 @@ class AttendanceAdjustmentTest extends TestCase
 
         $response->assertStatus(200);
     }
+
+    /* --------------------- type=early_leave (xin về sớm) --------------------- */
+
+    private function requestEarlyLeave(string $token, Attendance $attendance, string $reason = 'Con om can don gap tai truong'): \Illuminate\Testing\TestResponse
+    {
+        return $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'early_leave',
+            'attendance_id' => $attendance->id,
+            'reason' => $reason,
+        ], ['Authorization' => 'Bearer '.$token]);
+    }
+
+    public function test_employee_can_request_early_leave_before_checking_out(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, ['first_check_in_at' => now()->setTime(8, 0)]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $response = $this->requestEarlyLeave($token, $attendance);
+
+        $response->assertStatus(201);
+        $response->assertJsonPath('type', 'early_leave');
+        $response->assertJsonPath('status', 'pending');
+    }
+
+    public function test_early_leave_request_requires_a_reason(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, ['first_check_in_at' => now()->setTime(8, 0)]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $this->requestEarlyLeave($token, $attendance, '')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('reason');
+    }
+
+    public function test_cannot_request_early_leave_after_checkout_without_early_leave_minutes(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, [
+            'first_check_in_at' => now()->setTime(8, 0),
+            'last_check_out_at' => now()->setTime(17, 0),
+            'early_leave_minutes' => 0,
+        ]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $this->requestEarlyLeave($token, $attendance)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('attendance_id');
+    }
+
+    public function test_cannot_request_early_leave_twice_while_pending_or_after_approval(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, ['first_check_in_at' => now()->setTime(8, 0)]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $this->requestEarlyLeave($token, $attendance)->assertStatus(201);
+        $this->requestEarlyLeave($token, $attendance)->assertStatus(422)->assertJsonValidationErrors('attendance_id');
+
+        $attendance->forceFill(['early_leave_excused' => true])->save();
+        $this->requestEarlyLeave($token, $attendance)->assertStatus(422)->assertJsonValidationErrors('attendance_id');
+    }
+
+    public function test_hr_approving_early_leave_sets_excused_flag_without_changing_times(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, [
+            'first_check_in_at' => now()->setTime(8, 0),
+            'last_check_out_at' => now()->setTime(15, 0),
+            'early_leave_minutes' => 120,
+            'actual_work_minutes' => 420,
+        ]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $store = $this->requestEarlyLeave($token, $attendance);
+
+        $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
+        $this->putJson('/api/v1/attendances/adjustments/'.$store->json('id'), [
+            'status' => 'approved',
+            'decision_note' => 'Dong y cho ve som',
+        ], ['Authorization' => 'Bearer '.$hrToken])->assertStatus(200);
+
+        $attendance->refresh();
+        $this->assertTrue($attendance->early_leave_excused);
+        $this->assertSame(120, $attendance->early_leave_minutes);
+        $this->assertSame('15:00:00', $attendance->last_check_out_at->format('H:i:s'));
+    }
+
+    public function test_hr_rejecting_early_leave_keeps_the_deduction(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, [
+            'first_check_in_at' => now()->setTime(8, 0),
+            'last_check_out_at' => now()->setTime(15, 0),
+            'early_leave_minutes' => 120,
+            'actual_work_minutes' => 420,
+        ]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $store = $this->requestEarlyLeave($token, $attendance);
+
+        $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
+        $this->putJson('/api/v1/attendances/adjustments/'.$store->json('id'), [
+            'status' => 'rejected',
+            'decision_note' => 'Khong hop le',
+        ], ['Authorization' => 'Bearer '.$hrToken])->assertStatus(200);
+
+        $attendance->refresh();
+        $this->assertFalse($attendance->early_leave_excused);
+    }
+
+    public function test_early_leave_request_notifies_approvers(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $attendance = $this->makeAttendance($employee, ['first_check_in_at' => now()->setTime(8, 0)]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        $this->requestEarlyLeave($token, $attendance)->assertStatus(201);
+
+        $hr = User::where('email', 'hr@qlns.local')->first();
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $hr->id,
+            'type' => 'attendance_adjustment.pending',
+        ]);
+    }
 }

@@ -331,4 +331,24 @@ class PayrollControllerTest extends TestCase
 
         $response->assertStatus(403);
     }
+
+    public function test_workdays_endpoint_checks_permission_and_that_detail_belongs_to_payroll(): void
+    {
+        $this->makeEmployeeWithContract();
+        $adminHeaders = ['Authorization' => 'Bearer '.$this->loginAs('admin@qlns.local', 'Admin@123')];
+
+        $this->postJson('/api/v1/payrolls/generate', ['month' => 1, 'year' => 2030], $adminHeaders)->assertSuccessful();
+        $payrollId = $this->getJson('/api/v1/payrolls', $adminHeaders)->json('data.0.id');
+        $detailId = $this->getJson("/api/v1/payrolls/{$payrollId}", $adminHeaders)->json('data.details.0.id');
+        $url = "/api/v1/payrolls/{$payrollId}/details/{$detailId}/workdays";
+
+        $this->getJson($url, $adminHeaders)
+            ->assertOk()
+            ->assertJsonStructure(['employee', 'period', 'summary' => ['matches_payslip'], 'attendances', 'leaves']);
+
+        $this->getJson("/api/v1/payrolls/{$payrollId}/details/999999/workdays", $adminHeaders)->assertNotFound();
+
+        $employeeHeaders = ['Authorization' => 'Bearer '.$this->loginAs('employee@qlns.local', 'Employee@123')];
+        $this->getJson($url, $employeeHeaders)->assertForbidden();
+    }
 }

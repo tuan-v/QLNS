@@ -154,10 +154,9 @@ class PayrollTest extends TestCase
         // overtime_approved=true (2026-09-21) trên bản ghi có OT — test này
         // nhắm vào ĐÚNG công thức tính tiền OT, không phải cổng duyệt OT
         // (xem test riêng cho việc chưa duyệt/chưa đạt ngưỡng không được trả).
-        // Chỉ đi làm 3/21 công nên net_salary ra ÂM — đúng vì bảo hiểm vẫn
-        // tính đủ trên lương hợp đồng dù đi làm ít, không phải lỗi tính toán,
-        // chỉ là input cố tình cực đoan để dễ soát tay từng bước; xem test
-        // riêng ở dưới cho kịch bản thực tế hơn (đa số ngày công bình thường).
+        // Chỉ đi làm 3/21 công (< 14 ngày hưởng lương) nên THÁNG NÀY KHÔNG PHẢI
+        // ĐÓNG BẢO HIỂM (2026-09-30) — insurance_amount = 0, net = gross; xem các
+        // test insurance_* ở cuối file cho từng quy định đóng/không đóng.
         $employee = $this->makeEmployee();
         $workShift = $this->makeWorkShift();
         $this->assignShift($employee, $workShift);
@@ -186,12 +185,12 @@ class PayrollTest extends TestCase
         // là nguyên lương hợp đồng 15tr nữa).
         $this->assertEqualsWithDelta(2_142_857.14, (float) $detail->base_salary, 0.01);
         $this->assertEqualsWithDelta(714_285.71, (float) $detail->unpaid_leave_deduction, 0.01);
-        $this->assertEqualsWithDelta(1_575_000.00, (float) $detail->insurance_amount, 0.01);
+        $this->assertEqualsWithDelta(0.0, (float) $detail->insurance_amount, 0.01);
         $this->assertEqualsWithDelta(2_410_714.28, (float) $detail->gross_salary, 0.01);
         $this->assertEqualsWithDelta(0.0, (float) $detail->taxable_income, 0.01);
         $this->assertEqualsWithDelta(0.0, (float) $detail->personal_income_tax, 0.01);
-        $this->assertEqualsWithDelta(835_714.28, (float) $detail->net_salary, 0.01);
-        $this->assertEqualsWithDelta(835_714.28, (float) $payroll->total_payroll_amount, 0.01);
+        $this->assertEqualsWithDelta(2_410_714.28, (float) $detail->net_salary, 0.01);
+        $this->assertEqualsWithDelta(2_410_714.28, (float) $payroll->total_payroll_amount, 0.01);
     }
 
     public function test_salary_reflects_actual_attendance_when_no_leave_is_filed(): void
@@ -511,5 +510,143 @@ class PayrollTest extends TestCase
 
         $this->expectException(ValidationException::class);
         $this->service()->markAsPaid($payroll);
+    }
+
+    // ---- Quy định số ngày đóng BHXH trong tháng (2026-09-30) ----
+
+    // Ngày làm việc T2-T6 của tháng 8/2026, bắt đầu từ ngày 3.
+    private function augustWeekdays(int $count): array
+    {
+        $dates = [];
+        for ($day = \Carbon\Carbon::parse('2026-08-03'); count($dates) < $count; $day->addDay()) {
+            if (! $day->isWeekend()) {
+                $dates[] = $day->toDateString();
+            }
+        }
+
+        return $dates;
+    }
+
+    private function insuranceFor(Employee $employee): float
+    {
+        $payroll = $this->service()->generateForPeriod(8, 2026, $this->creator());
+
+        return (float) $payroll->details()->where('employee_id', $employee->id)->first()->insurance_amount;
+    }
+
+    private function employeeWorking(int $days, array $contract = []): Employee
+    {
+        $employee = $this->makeEmployee();
+        $workShift = $this->makeWorkShift();
+        $this->assignShift($employee, $workShift);
+        $this->makeContract($employee, array_merge(['agreed_salary' => 10_000_000, 'insurance_salary' => 10_000_000], $contract));
+
+        foreach ($this->augustWeekdays($days) as $date) {
+            $this->makeAttendance($employee, $workShift, $date);
+        }
+
+        return $employee;
+    }
+
+    public function test_insurance_is_charged_when_the_employee_has_at_least_14_paid_days(): void
+    {
+        $this->assertEqualsWithDelta(1_050_000.00, $this->insuranceFor($this->employeeWorking(14)), 0.01);
+    }
+
+    public function test_insurance_is_waived_when_the_employee_has_fewer_than_14_paid_days(): void
+    {
+        $this->assertEqualsWithDelta(0.0, $this->insuranceFor($this->employeeWorking(13)), 0.01);
+    }
+
+    public function test_paid_leave_days_count_toward_the_14_day_threshold(): void
+    {
+        $employee = $this->employeeWorking(10);
+        $this->makeLeaveRequest($employee, $this->makeLeaveType(isPaid: true), '2026-08-24', '2026-08-27', 4);
+
+        $this->assertEqualsWithDelta(1_050_000.00, $this->insuranceFor($employee), 0.01);
+    }
+
+    public function test_insurance_is_waived_when_unpaid_leave_reaches_14_days(): void
+    {
+        // Đủ 14 ngày công nhưng nghỉ không lương 14 ngày -> tháng đó không đóng.
+        $employee = $this->employeeWorking(14);
+        $this->makeLeaveRequest($employee, $this->makeLeaveType(isPaid: false), '2026-08-24', '2026-08-31', 14);
+
+        $this->assertEqualsWithDelta(0.0, $this->insuranceFor($employee), 0.01);
+    }
+
+    public function test_insurance_is_waived_for_a_contract_shorter_than_one_month(): void
+    {
+        // Hợp đồng 2026-08-01 -> 2026-08-20 (dưới 1 tháng) dù đủ 14 ngày công.
+        $employee = $this->employeeWorking(14, ['start_date' => '2026-08-01', 'end_date' => '2026-08-20']);
+
+        $this->assertEqualsWithDelta(0.0, $this->insuranceFor($employee), 0.01);
+    }
+
+    public function test_insurance_is_charged_for_a_contract_of_exactly_one_month(): void
+    {
+        $employee = $this->employeeWorking(14, ['start_date' => '2026-08-01', 'end_date' => '2026-08-31']);
+
+        $this->assertEqualsWithDelta(1_050_000.00, $this->insuranceFor($employee), 0.01);
+    }
+
+    public function test_insurance_is_waived_for_a_probation_contract_even_with_full_attendance(): void
+    {
+        $employee = $this->employeeWorking(21, ['contract_type' => 'thu_viec']);
+
+        $this->assertEqualsWithDelta(0.0, $this->insuranceFor($employee), 0.01);
+    }
+
+    public function test_insurance_starts_again_once_the_employee_is_on_an_official_contract(): void
+    {
+        $employee = $this->employeeWorking(21, ['contract_type' => 'chinh_thuc']);
+
+        $this->assertEqualsWithDelta(1_050_000.00, $this->insuranceFor($employee), 0.01);
+    }
+
+    // ---- Chi tiết ngày công (2026-10-01) ----
+
+    public function test_workday_breakdown_matches_the_payslip_and_flags_uncounted_rows(): void
+    {
+        $employee = $this->makeEmployee();
+        $workShift = $this->makeWorkShift();
+        $this->assignShift($employee, $workShift);
+        $this->makeContract($employee, ['agreed_salary' => 10_000_000, 'insurance_salary' => 10_000_000]);
+
+        $this->makeAttendance($employee, $workShift, '2026-08-03');
+        $this->makeAttendance($employee, $workShift, '2026-08-04');
+        $this->makeAttendance($employee, $workShift, '2026-08-05', ['approval_status' => 'rejected']);
+
+        $payroll = $this->service()->generateForPeriod(8, 2026, $this->creator());
+        $detail = $payroll->details()->where('employee_id', $employee->id)->first();
+
+        $breakdown = $this->service()->workdayBreakdown($payroll, $detail);
+
+        $this->assertTrue($breakdown['summary']['matches_payslip']);
+        $this->assertEqualsWithDelta((float) $detail->actual_work_days, $breakdown['summary']['computed_work_days'], 0.001);
+        $this->assertSame(2, $breakdown['summary']['counted_records']);
+        $this->assertSame(1, $breakdown['summary']['not_counted_records']);
+        $this->assertSame('rejected', $breakdown['attendances']->firstWhere('date', '2026-08-05')['not_counted_reason']);
+    }
+
+    public function test_workday_breakdown_detects_stale_payslip_and_deleted_shift(): void
+    {
+        $employee = $this->makeEmployee();
+        $workShift = $this->makeWorkShift();
+        $this->assignShift($employee, $workShift);
+        $this->makeContract($employee, ['agreed_salary' => 10_000_000, 'insurance_salary' => 10_000_000]);
+        $this->makeAttendance($employee, $workShift, '2026-08-03');
+        $late = $this->makeAttendance($employee, $workShift, '2026-08-04', ['approval_status' => 'rejected']);
+
+        $payroll = $this->service()->generateForPeriod(8, 2026, $this->creator());
+        $detail = $payroll->details()->where('employee_id', $employee->id)->first();
+
+        // Duyệt công muộn sau khi đã tính lương -> phiếu lương lỗi thời.
+        $late->update(['approval_status' => 'approved']);
+        $this->assertFalse($this->service()->workdayBreakdown($payroll, $detail)['summary']['matches_payslip']);
+
+        $workShift->delete();
+        $deleted = $this->service()->workdayBreakdown($payroll, $detail);
+        $this->assertSame('shift_deleted', $deleted['attendances']->firstWhere('date', '2026-08-03')['not_counted_reason']);
     }
 }

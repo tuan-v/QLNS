@@ -383,6 +383,7 @@ const ADJUSTMENT_TYPE_LABELS = {
     correction: "Điều chỉnh công",
     supplement: "Bổ sung chấm công",
     excuse: "Miễn trừ đi muộn",
+    early_leave: "Xin về sớm",
     overtime: "Xin duyệt OT",
     extra_shift: "Làm ngoài lịch",
 };

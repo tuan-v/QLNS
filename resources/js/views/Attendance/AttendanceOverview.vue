@@ -332,7 +332,9 @@ const summaryStats = computed(() => [
         icon: "mdi-account-group-outline",
     },
     ...Object.entries(ATTENDANCE_STATUS_MAP)
-        .filter(([status]) => status !== "rejected" || summary.value.rejected > 0)
+        .filter(
+            ([status]) => status !== "rejected" || summary.value.rejected > 0,
+        )
         .map(([status, { label, color }]) => ({
             label,
             value: `${summary.value[status] ?? 0}`,
@@ -502,7 +504,7 @@ const bulkActions = computed(() => {
             confirm: {
                 title: "Duyệt chấm công hàng loạt",
                 message:
-                    "Duyệt TẤT CẢ bản ghi đã chọn (bỏ qua dòng đã duyệt sẵn)? Các bản ghi được duyệt sẽ được tính công và lương.",
+                    "Duyệt TẤT CẢ nhân viên đã chọn (bỏ qua dòng đã duyệt sẵn)? Các nhân viên được duyệt sẽ được tính công và lương.",
                 confirmText: "Duyệt tất cả",
                 input: { required: false, label: "Ghi chú (tùy chọn)" },
             },
@@ -522,7 +524,7 @@ const bulkActions = computed(() => {
             confirm: {
                 title: "Từ chối chấm công hàng loạt",
                 message:
-                    "Từ chối TẤT CẢ bản ghi đã chọn (bỏ qua dòng đã từ chối sẵn)? Các bản ghi bị từ chối sẽ không được tính công và lương.",
+                    "Từ chối TẤT CẢ nhân viên đã chọn (bỏ qua dòng đã từ chối sẵn)? Các nhân viên bị từ chối sẽ không được tính công và lương.",
                 confirmText: "Từ chối tất cả",
                 input: {
                     required: true,
@@ -552,11 +554,11 @@ async function runBulkDecide(selectedItems, status, note) {
 
     if (failed.length === 0) {
         toast.success(
-            `Đã ${status === "approved" ? "duyệt" : "từ chối"} ${succeeded.length} bản ghi.`,
+            `Đã ${status === "approved" ? "duyệt" : "từ chối"} ${succeeded.length} nhân viên.`,
         );
     } else {
         toast.warning(
-            `${succeeded.length} bản ghi thành công, ${failed.length} bản ghi lỗi: ${failed[0].message}`,
+            `${succeeded.length} nhân viên thành công, ${failed.length} nhân viên lỗi: ${failed[0].message}`,
         );
     }
     await loadData();
@@ -575,7 +577,14 @@ watch(
 useRealtimeRefresh(loadData, {
     shared: [
         { resource: "attendances", permission: "attendance.view_all" },
-        { resource: "leave_requests", permission: ["leave.approve_manager", "leave.approve_hr", "leave.view_all"] },
+        {
+            resource: "leave_requests",
+            permission: [
+                "leave.approve_manager",
+                "leave.approve_hr",
+                "leave.view_all",
+            ],
+        },
     ],
 });
 

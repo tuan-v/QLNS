@@ -7,6 +7,7 @@ Route::middleware('auth:api')->prefix('payrolls')->group(function (): void {
     Route::get('/', [PayrollController::class, 'index'])->middleware('permission:payroll.view_all');
     Route::get('/me', [PayrollController::class, 'mine'])->middleware('permission:payroll.view_own');
     Route::get('/{payroll}', [PayrollController::class, 'show'])->middleware('permission:payroll.view_all');
+    Route::get('/{payroll}/details/{payrollDetail}/workdays', [PayrollController::class, 'workdays'])->middleware('permission:payroll.view_all');
     Route::post('/generate', [PayrollController::class, 'generate'])->middleware('permission:payroll.manage');
     Route::post('/{payroll}/close', [PayrollController::class, 'close'])->middleware('permission:payroll.manage');
     Route::post('/{payroll}/mark-paid', [PayrollController::class, 'markAsPaid'])->middleware('permission:payroll.manage');

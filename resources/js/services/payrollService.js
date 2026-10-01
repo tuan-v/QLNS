@@ -17,6 +17,9 @@ export default {
     show(id) {
         return axios.get(`${API_BASE}/${id}`);
     },
+    workdays(payrollId, detailId) {
+        return axios.get(`${API_BASE}/${payrollId}/details/${detailId}/workdays`);
+    },
     mine() {
         return axios.get(`${API_BASE}/me`);
     },

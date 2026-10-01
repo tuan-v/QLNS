@@ -32,7 +32,7 @@ class StoreAttendanceAdjustmentRequest extends FormRequest
         $type = $this->input('type', 'correction');
 
         $rules = [
-            'type' => ['nullable', 'in:correction,supplement,excuse,overtime,extra_shift'],
+            'type' => ['nullable', 'in:correction,supplement,excuse,overtime,extra_shift,early_leave'],
             'reason' => ['required', 'string', 'max:1000'],
         ];
 
@@ -59,7 +59,7 @@ class StoreAttendanceAdjustmentRequest extends FormRequest
             return $rules;
         }
 
-        if ($type === 'excuse' || $type === 'overtime') {
+        if ($type === 'excuse' || $type === 'overtime' || $type === 'early_leave') {
             $rules['attendance_id'] = ['required', 'exists:attendances,id'];
 
             return $rules;

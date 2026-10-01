@@ -54,6 +54,17 @@
                         formatMinutesAsHours(item.attendance?.late_minutes)
                     }})
                 </div>
+                <div v-if="item.type === 'early_leave'" style="opacity: 0.75">
+                    Xin về sớm
+                    <template v-if="item.attendance?.last_check_out_at">
+                        ({{
+                            formatMinutesAsHours(
+                                item.attendance?.early_leave_minutes,
+                            )
+                        }})
+                    </template>
+                    <template v-else>(đang trong ca, chưa chấm công ra)</template>
+                </div>
                 <div v-if="item.type === 'overtime'" style="opacity: 0.75">
                     <template v-if="item.attendance?.last_check_out_at">
                         Xin duyệt OT ({{
@@ -117,6 +128,7 @@ const ADJUSTMENT_TYPE_MAP = {
     correction: { label: "Điều chỉnh", color: "info" },
     supplement: { label: "Bổ sung", color: "purple" },
     excuse: { label: "Miễn trừ đi muộn", color: "secondary" },
+    early_leave: { label: "Xin về sớm", color: "orange" },
     overtime: { label: "Duyệt OT", color: "teal" },
     extra_shift: { label: "Làm ngoài lịch", color: "indigo" },
 };

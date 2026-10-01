@@ -8,6 +8,7 @@ use App\Http\Resources\PayrollDetailResource;
 use App\Http\Resources\PayrollResource;
 use App\Models\Employee;
 use App\Models\Payroll;
+use App\Models\PayrollDetail;
 use App\Services\PayrollService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,6 +41,14 @@ class PayrollController extends Controller
     public function forEmployee(Employee $employee): AnonymousResourceCollection
     {
         return PayrollDetailResource::collection($this->payrollService->listPayslipsForEmployee($employee));
+    }
+
+    // Chi tiết ngày công của 1 dòng trong bảng lương — xem PayrollService::workdayBreakdown().
+    public function workdays(Payroll $payroll, PayrollDetail $payrollDetail): JsonResponse
+    {
+        abort_if($payrollDetail->payroll_id !== $payroll->id, 404);
+
+        return response()->json($this->payrollService->workdayBreakdown($payroll, $payrollDetail));
     }
 
     public function show(Payroll $payroll): PayrollResource

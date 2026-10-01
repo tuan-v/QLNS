@@ -55,6 +55,11 @@
             </template>
         </DataTable>
 
+        <PayrollWorkdaysDialog
+            v-model="workdaysDialog"
+            :detail="selectedDetail"
+            :payroll="payroll"
+        />
         <PayrollPayslipDialog
             v-model="payslipDialog"
             :detail="selectedDetail"
@@ -70,6 +75,7 @@ import payrollService from "../../services/payrollService";
 import DataTable from "../../components/common/DataTable.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
 import PayrollPayslipDialog from "./PayrollPayslipDialog.vue";
+import PayrollWorkdaysDialog from "./PayrollWorkdaysDialog.vue";
 import { formatMinutesAsHours } from "../../composables/useCheckIn.js";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
@@ -123,7 +129,18 @@ async function loadData(opts) {
 const payslipDialog = ref(false);
 const selectedDetail = ref(null);
 
+const workdaysDialog = ref(false);
+
 const actions = [
+    {
+        icon: "mdi-calendar-check-outline",
+        tooltip: "Kiểm tra ngày công",
+        color: "info",
+        onClick: (item) => {
+            selectedDetail.value = item;
+            workdaysDialog.value = true;
+        },
+    },
     {
         icon: "mdi-file-document-outline",
         tooltip: "Xem phiếu lương",

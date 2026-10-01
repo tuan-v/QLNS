@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\Payroll;
+use App\Models\PayrollDetail;
 use App\Models\User;
 use App\Repositories\PayrollDetailRepository;
 use App\Repositories\PayrollRepository;
@@ -36,6 +37,15 @@ class PayrollService
     // cùng cảnh báo như PersonalIncomeTaxCalculator: số theo luật hiện hành,
     // cần xác nhận lại trước khi dùng dữ liệu thật.
     private const INSURANCE_RATE = 0.105;
+
+    // Quy định số ngày đóng BHXH trong tháng (2026-09-30, theo yêu cầu người dùng): từ
+    // đủ 14 ngày hưởng lương trở lên mới phải đóng; nghỉ không lương từ 14 ngày trở
+    // lên thì tháng đó không đóng; hợp đồng phải có thời hạn từ đủ 1 tháng mới thuộc diện
+    // tham gia; HỢP ĐỒNG THỬ VIỆC không phải đóng BHXH (thử việc chưa phải HĐLĐ, 2026-10-01,
+    // theo yêu cầu người dùng). (Chưa xử lý ngoại lệ thai sản.)
+    private const INSURANCE_MIN_PAID_DAYS = 14;
+
+    private const INSURANCE_MAX_UNPAID_LEAVE_DAYS = 14;
 
     public function __construct(
         private readonly PayrollRepository $payrollRepository,
@@ -137,7 +147,9 @@ class PayrollService
         // Vẫn tính + hiển thị để tham khảo trên phiếu lương — không còn trực
         // tiếp trừ vào gross nữa (đã tự động không được tính vào $compensatedDays).
         $unpaidLeaveDeduction = round($dailyRate * $unpaidLeaveDays, 2);
-        $insuranceAmount = round((float) $contract->insurance_salary * self::INSURANCE_RATE, 2);
+        $insuranceAmount = $this->insuranceApplies($contract, $compensatedDays, $unpaidLeaveDays)
+            ? round((float) $contract->insurance_salary * self::INSURANCE_RATE, 2)
+            : 0.0;
 
         $grossSalary = round($baseSalary + $overtimeAmount, 2);
         $personalIncomeTax = $this->taxCalculator->calculate($grossSalary - $insuranceAmount);
@@ -160,6 +172,30 @@ class PayrollService
             'personal_income_tax' => $personalIncomeTax,
             'net_salary' => $netSalary,
         ];
+    }
+
+    // Tháng này nhân viên có phải đóng bảo hiểm không — xem hằng số INSURANCE_* ở đầu
+    // class. $paidDays = công thực tế + nghỉ phép CÓ lương (tức "ngày hưởng lương").
+    private function insuranceApplies($contract, float $paidDays, float $unpaidLeaveDays): bool
+    {
+        if ($contract->contract_type === 'thu_viec') {
+            return false;
+        }
+
+        if ($paidDays < self::INSURANCE_MIN_PAID_DAYS || $unpaidLeaveDays >= self::INSURANCE_MAX_UNPAID_LEAVE_DAYS) {
+            return false;
+        }
+
+        // Hợp đồng có ngày kết thúc mà ngắn hơn 1 tháng thì không thuộc diện tham gia.
+        if ($contract->end_date !== null) {
+            $oneMonthEnd = $contract->start_date->copy()->addMonthNoOverflow()->subDay();
+
+            if ($contract->end_date->lt($oneMonthEnd)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // Payroll TỰ tính ngày công quy đổi từ dữ liệu chấm công qua
@@ -257,6 +293,100 @@ class PayrollService
             ->count();
 
         return $weekdayCount - $holidaysOnWeekdays;
+    }
+
+    // "Chi tiết ngày công" của 1 dòng bảng lương (2026-10-01, theo yêu cầu: HR cần kiểm nhanh
+    // nhân viên làm những ngày nào và có khớp bảng lương không). Dựng LẠI từ chấm công/nghỉ
+    // phép của đúng kỳ theo CÙNG quy tắc calculateWorkedMetrics() nhưng liệt kê cả bản ghi
+    // KHÔNG được tính kèm lý do. `matches_payslip` = false khi dữ liệu đã đổi sau lúc tính
+    // lương (vd duyệt/sửa công muộn) -> số trên phiếu lương đã lỗi thời.
+    /** @return array<string, mixed> */
+    public function workdayBreakdown(Payroll $payroll, PayrollDetail $detail): array
+    {
+        $start = Carbon::create($payroll->period_year, $payroll->period_month, 1)->startOfDay();
+        $end = $start->copy()->endOfMonth();
+        $employee = Employee::withTrashed()->findOrFail($detail->employee_id);
+
+        $rows = Attendance::where('employee_id', $employee->id)
+            ->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])
+            ->with(['workShift' => fn ($query) => $query->withTrashed()])
+            ->orderBy('attendance_date')
+            ->orderBy('first_check_in_at')
+            ->get()
+            ->map(function (Attendance $attendance) {
+                $shift = $attendance->workShift;
+                $reason = null;
+
+                if ($attendance->approval_status !== Attendance::APPROVAL_APPROVED) {
+                    $reason = $attendance->approval_status === Attendance::APPROVAL_REJECTED ? 'rejected' : 'pending';
+                } elseif ($shift === null || $shift->trashed() || ! $shift->standard_work_minutes) {
+                    $reason = 'shift_deleted';
+                }
+
+                $counted = $reason === null;
+                $dayEquivalent = $counted
+                    ? round($this->workTimeCalculationService->dayEquivalentFor($attendance, $shift), 2)
+                    : 0.0;
+
+                return [
+                    'attendance_id' => $attendance->id,
+                    'date' => $attendance->attendance_date->toDateString(),
+                    'work_shift' => $shift?->name,
+                    'work_coefficient' => $shift?->work_coefficient,
+                    'check_in_at' => $attendance->first_check_in_at,
+                    'check_out_at' => $attendance->last_check_out_at,
+                    'actual_work_minutes' => $attendance->actual_work_minutes,
+                    'standard_work_minutes' => $shift?->standard_work_minutes,
+                    'late_minutes' => $attendance->late_minutes,
+                    'early_leave_minutes' => $attendance->early_leave_minutes,
+                    'overtime_minutes' => $attendance->overtime_minutes,
+                    'overtime_approved' => (bool) $attendance->overtime_approved,
+                    'overtime_payable' => $counted
+                        && $attendance->overtime_approved
+                        && $attendance->overtime_minutes >= self::OVERTIME_MINIMUM_PAYABLE_MINUTES,
+                    'approval_status' => $attendance->approval_status,
+                    'counted' => $counted,
+                    'not_counted_reason' => $reason,
+                    'day_equivalent' => $dayEquivalent,
+                ];
+            })
+            ->values();
+
+        $leaves = LeaveRequest::where('employee_id', $employee->id)
+            ->where('status', 'approved')
+            ->where('from_date', '<=', $end->toDateString())
+            ->where('to_date', '>=', $start->toDateString())
+            ->with('leaveType')
+            ->orderBy('from_date')
+            ->get()
+            ->map(fn (LeaveRequest $leave) => [
+                'from_date' => $leave->from_date->toDateString(),
+                'to_date' => $leave->to_date->toDateString(),
+                'total_days' => (float) $leave->total_days,
+                'leave_type' => $leave->leaveType?->name,
+                'is_paid' => (bool) $leave->leaveType?->is_paid,
+            ])
+            ->values();
+
+        $computedWorkDays = round((float) $rows->sum('day_equivalent'), 2);
+        $paidLeaveDays = $this->leaveDaysFor($employee, $start, $end, isPaid: true);
+
+        return [
+            'employee' => ['id' => $employee->id, 'code' => $employee->code, 'full_name' => $employee->full_name],
+            'period' => ['month' => $payroll->period_month, 'year' => $payroll->period_year],
+            'summary' => [
+                'standard_work_days' => (float) $detail->standard_work_days,
+                'payslip_work_days' => (float) $detail->actual_work_days,
+                'computed_work_days' => $computedWorkDays,
+                'matches_payslip' => abs($computedWorkDays - (float) $detail->actual_work_days) < 0.01,
+                'paid_leave_days' => $paidLeaveDays,
+                'unpaid_leave_days' => $this->leaveDaysFor($employee, $start, $end, isPaid: false),
+                'counted_records' => $rows->where('counted', true)->count(),
+                'not_counted_records' => $rows->where('counted', false)->count(),
+            ],
+            'attendances' => $rows,
+            'leaves' => $leaves,
+        ];
     }
 
     // Tổng số ngày nghỉ phép ĐÃ DUYỆT trong kỳ, lọc theo đúng 1 chiều

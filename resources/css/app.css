@@ -674,3 +674,16 @@ body {
     > [class*="v-col"] {
     padding: 8px 10px;
 }
+
+/* Dialog "scrollable": phần thân (v-card-text) tự cuộn, tiêu đề đứng yên. .glass-panel
+   đặt overflow riêng nên cần ép card thành cột flex có chiều cao tối đa. */
+.v-dialog--scrollable > .v-overlay__content > .v-card.glass-panel {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 48px);
+    overflow: hidden;
+}
+.v-dialog--scrollable > .v-overlay__content > .v-card.glass-panel > .v-card-text {
+    overflow-y: auto;
+    flex: 1 1 auto;
+}

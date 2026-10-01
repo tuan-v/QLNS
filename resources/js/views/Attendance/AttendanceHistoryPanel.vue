@@ -71,6 +71,7 @@
                         <th>Ca</th>
                         <th>Lịch làm</th>
                         <th>Thực tế</th>
+                        <th class="text-right">Công</th>
                         <th>Trạng thái</th>
                         <th v-if="!readOnly" class="text-center">Thao tác</th>
                     </tr>
@@ -78,7 +79,7 @@
                 <tbody>
                     <tr v-if="loading">
                         <td
-                            :colspan="readOnly ? 5 : 6"
+                            :colspan="readOnly ? 6 : 7"
                             class="text-center py-6"
                         >
                             <v-progress-circular indeterminate size="24" />
@@ -86,7 +87,7 @@
                     </tr>
                     <tr v-else-if="!rows.length">
                         <td
-                            :colspan="readOnly ? 5 : 6"
+                            :colspan="readOnly ? 6 : 7"
                             class="text-center py-6"
                             style="opacity: 0.6"
                         >
@@ -110,6 +111,14 @@
                                 formatTime(row.attendance?.first_check_in_at)
                             }}-{{
                                 formatTime(row.attendance?.last_check_out_at)
+                            }}
+                        </td>
+                        <td class="text-right font-weight-medium">
+                            {{
+                                row.day_equivalent === null ||
+                                row.day_equivalent === undefined
+                                    ? "—"
+                                    : row.day_equivalent.toFixed(2)
                             }}
                         </td>
                         <td>

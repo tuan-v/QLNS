@@ -265,4 +265,61 @@ class WorkTimeCalculationServiceTest extends TestCase
 
         $this->assertEqualsWithDelta(450 / 480, $result, 0.0001);
     }
+
+    /* ------------------- Xin về sớm (early_leave_excused) ------------------- */
+
+    private function makeAttendanceWithEarlyLeave(int $actualWorkMinutes, int $earlyLeaveMinutes, bool $earlyLeaveExcused): Attendance
+    {
+        return new Attendance([
+            'actual_work_minutes' => $actualWorkMinutes,
+            'late_minutes' => 0,
+            'early_leave_minutes' => $earlyLeaveMinutes,
+            'early_leave_excused' => $earlyLeaveExcused,
+        ]);
+    }
+
+    public function test_early_leave_beyond_threshold_without_approval_is_penalized(): void
+    {
+        $result = $this->service()->dayEquivalentFor(
+            $this->makeAttendanceWithEarlyLeave(420, 60, false),
+            $this->makeWorkShift(480),
+        );
+
+        $this->assertEqualsWithDelta(420 / 480, $result, 0.0001);
+    }
+
+    public function test_approved_early_leave_beyond_threshold_is_not_deducted(): void
+    {
+        $result = $this->service()->dayEquivalentFor(
+            $this->makeAttendanceWithEarlyLeave(420, 60, true),
+            $this->makeWorkShift(480),
+        );
+
+        $this->assertEqualsWithDelta(1.0, $result, 0.0001);
+    }
+
+    public function test_approved_early_leave_still_requires_checkout(): void
+    {
+        $result = $this->service()->dayEquivalentFor(
+            $this->makeAttendanceWithEarlyLeave(0, 60, true),
+            $this->makeWorkShift(480),
+        );
+
+        $this->assertSame(0.0, $result);
+    }
+
+    public function test_approved_early_leave_keeps_late_penalty(): void
+    {
+        // Đi muộn 45' (không xin) + về sớm 60' đã duyệt: chỉ phần đi muộn bị trừ.
+        $attendance = new Attendance([
+            'actual_work_minutes' => 375,
+            'late_minutes' => 45,
+            'early_leave_minutes' => 60,
+            'early_leave_excused' => true,
+        ]);
+
+        $result = $this->service()->dayEquivalentFor($attendance, $this->makeWorkShift(480));
+
+        $this->assertEqualsWithDelta((375 + 60) / 480, $result, 0.0001);
+    }
 }

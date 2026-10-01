@@ -112,6 +112,11 @@ class AttendanceService
                     'work_shift' => $assignment->workShift,
                     'attendance' => $attendance,
                     'status' => $rowStatus,
+                    // Công của dòng này — cùng quy tắc summarizeHistory()/lương: chỉ
+                    // bản ghi đã duyệt mới có công; còn lại null (hiện "—" ở giao diện).
+                    'day_equivalent' => $attendance && $attendance->approval_status === Attendance::APPROVAL_APPROVED
+                        ? round($this->workTimeCalculationService->dayEquivalentFor($attendance, $assignment->workShift), 2)
+                        : null,
                 ]);
             }
         }
@@ -189,7 +194,7 @@ class AttendanceService
         if (! $attendance->last_check_out_at && $attendance->attendance_date?->isToday()) {
             return 'in_progress';
         }
-        if (! $attendance->last_check_out_at || $attendance->early_leave_minutes > 0) {
+        if (! $attendance->last_check_out_at || ($attendance->early_leave_minutes > 0 && ! $attendance->early_leave_excused)) {
             return 'insufficient';
         }
 
@@ -248,12 +253,16 @@ class AttendanceService
                 if ($a->late_excused && ($a->late_minutes ?? 0) > 0 && $minutes > 0) {
                     $minutes += (int) $a->late_minutes;
                 }
+                // Về sớm đã được duyệt "Xin về sớm": cộng phần thiếu để giờ làm khớp công.
+                if ($a->early_leave_excused && ($a->early_leave_minutes ?? 0) > 0 && $minutes > 0) {
+                    $minutes += (int) $a->early_leave_minutes;
+                }
 
                 return $minutes;
             }),
             'unapproved_count' => $withAttendance->count() - $approved->count(),
             'late_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->late_minutes ?? 0) > 0 && ! ($row['attendance']->late_excused ?? false))->count(),
-            'early_leave_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->early_leave_minutes ?? 0) > 0)->count(),
+            'early_leave_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->early_leave_minutes ?? 0) > 0 && ! ($row['attendance']->early_leave_excused ?? false))->count(),
             'on_leave_count' => $rows->filter(fn (array $row) => $row['status'] === 'on_leave')->count(),
         ];
     }

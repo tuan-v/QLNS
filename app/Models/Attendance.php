@@ -32,6 +32,7 @@ class Attendance extends Model
         'late_minutes',
         'early_leave_minutes',
         'late_excused',
+        'early_leave_excused',
         'status',
         'approval_status',
         'approved_by',
@@ -60,6 +61,7 @@ class Attendance extends Model
         // Frontend nào tra theo khóa số nguyên 1/0, chỉ dùng như cờ
         // true/false thuần túy.
         'late_excused' => 'boolean',
+        'early_leave_excused' => 'boolean',
         'overtime_approved' => 'boolean',
     ];
 
