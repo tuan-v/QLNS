@@ -5,7 +5,7 @@
         :title="isEdit ? 'Sửa vai trò' : 'Thêm vai trò'"
         :subtitle="
             isEdit
-                ? 'Cập nhật tên và mô tả vai trò.'
+                ? 'Cập nhật tên, cấp bậc và mô tả vai trò.'
                 : 'Tạo vai trò mới — sau khi lưu có thể gán quyền qua nút \'Quản lý quyền\'.'
         "
         :error="store.loadError"
@@ -28,6 +28,23 @@
                     placeholder="Ví dụ: Kế toán"
                     :rules="[notEmpty('Tên vai trò'), maxLength(100, 'Tên vai trò')]"
                         :error-messages="store.errors.name"
+                />
+            </div>
+
+            <div class="mb-3">
+                <div class="text-body-2 font-weight-medium mb-1">
+                    Cấp bậc <span class="text-error">*</span>
+                </div>
+                <v-select
+                    v-model="form.level"
+                    :items="ROLE_LEVEL_OPTIONS"
+                    variant="outlined"
+                    density="comfortable"
+                    rounded="lg"
+                    :rules="[notEmpty('Cấp bậc')]"
+                    :error-messages="store.errors.level"
+                    hint="Người dùng chỉ gán được cho người khác những vai trò có cấp bậc THẤP HƠN vai trò của chính mình. Để 100 nghĩa là chỉ Quản trị hệ thống gán được."
+                    persistent-hint
                 />
             </div>
 
@@ -58,6 +75,7 @@ import { useRoleStore } from "../../stores/useRoleStore";
 import { useToastStore } from "../../stores/useToastStore";
 import { useChangeGuard } from "../../composables/useChangeGuard";
 import { maxLength, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
+import { DEFAULT_ROLE_LEVEL, ROLE_LEVEL_OPTIONS } from "../../composables/roleLevels";
 import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
 
@@ -77,11 +95,15 @@ const isEdit = computed(() => props.role !== null);
 
 const form = reactive({
     name: "",
+    // Vai trò mới mặc định cấp cao nhất = chỉ Admin gán được (fail-closed),
+    // khớp Role::DEFAULT_LEVEL ở backend.
+    level: DEFAULT_ROLE_LEVEL,
     description: "",
 });
 
 function fillForm() {
     form.name = props.role?.name ?? "";
+    form.level = props.role?.level ?? DEFAULT_ROLE_LEVEL;
     form.description = props.role?.description ?? "";
 }
 

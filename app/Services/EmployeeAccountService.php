@@ -20,6 +20,7 @@ class EmployeeAccountService
         private readonly UserRepository $userRepository,
         private readonly PasswordResetService $passwordResetService,
         private readonly RefreshTokenRepository $refreshTokenRepository,
+        private readonly RoleService $roleService,
     ) {
     }
 
@@ -75,6 +76,11 @@ class EmployeeAccountService
     // quyền đó mới được gán (2026-09-30, vá lỗ hổng leo thang đặc quyền): trước
     // đây HR (employee.update) tự đặt email công ty của nhân viên rồi tạo tài
     // khoản với vai trò Admin, email đặt mật khẩu về hộp thư của chính HR.
+    //
+    // 2026-10-01 mở rộng: không chỉ vai trò Admin, mà MỌI vai trò cấp bậc cao
+    // hơn hoặc ngang bằng người đang tạo đều bị chặn — luật đặt ở
+    // RoleService::assertCanAssign() để màn chọn vai trò (RoleController::index)
+    // và chỗ chặn thật dùng chung đúng một định nghĩa.
     private function assertCanAssignRoles(?User $actor, array $roleIds): void
     {
         $assignsPrivilegedRole = Role::whereIn('id', $roleIds)
@@ -86,6 +92,8 @@ class EmployeeAccountService
                 'role_ids' => 'Bạn không có quyền gán vai trò quản trị hệ thống.',
             ]);
         }
+
+        $this->roleService->assertCanAssign($actor, $roleIds);
     }
 
     // Nhân viên nghỉ việc / chấm dứt hợp đồng / bị xóa hồ sơ thì KHÓA tài khoản đăng

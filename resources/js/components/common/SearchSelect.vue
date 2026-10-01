@@ -1,21 +1,8 @@
-<script>
-// Bỏ dấu tiếng Việt để gõ không dấu vẫn tìm ra: "ha noi" -> "Hà Nội",
-// "phuong dong da" -> "Phường Đống Đa".
-//   .normalize("NFD")        tách nguyên âm và dấu thành 2 ký tự riêng
-//   [̀-ͯ]          xóa toàn bộ dấu vừa tách ra
-//   đ -> d                   chữ "đ" KHÔNG tách ra được (là 1 ký tự độc lập
-//                            U+0111), nên phải đổi riêng, nếu không "da nang"
-//                            sẽ không khớp "Đà Nẵng"
-export function normalizeVietnamese(text) {
-    return String(text ?? "")
-        .normalize("NFD")
-        .replace(/[̀-ͯ]/g, "")
-        .toLowerCase()
-        .replace(/đ/g, "d");
-}
-</script>
-
 <script setup>
+// Bỏ dấu tiếng Việt để gõ không dấu vẫn tìm ra ("ha noi" -> "Hà Nội") —
+// xem composables/normalizeVietnamese.js.
+import { normalizeVietnamese } from "../../composables/normalizeVietnamese";
+
 // Ô chọn có tìm kiếm, dùng chung. Bọc v-autocomplete của Vuetify thay vì viết
 // lại từ đầu — v-autocomplete đã lo sẵn phần khó: lọc theo từ khóa, cuộn ảo
 // (danh sách 3321 xã/phường vẫn mượt), điều hướng bàn phím, ARIA.

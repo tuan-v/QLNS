@@ -6,16 +6,21 @@ export const usePermissionStore = defineStore("permission", () => {
     const permissions = ref([]);
     const loading = ref(false);
     const errors = ref({});
+    // Lỗi 422 của form SỬA quyền để riêng, không dùng chung với `errors` (form
+    // Tạo quyền mới) — hai form hiển thị cùng lúc trong RolePermissionsDialog,
+    // dùng chung một túi lỗi thì sửa sai mã quyền sẽ làm đỏ luôn ô của form tạo.
+    const editErrors = ref({});
     const loadError = ref("");
 
     function resetErrors() {
         errors.value = {};
+        editErrors.value = {};
         loadError.value = "";
     }
 
-    function handleError(error) {
+    function handleError(error, bag = errors) {
         if (error.response?.status === 422) {
-            errors.value = error.response.data.errors;
+            bag.value = error.response.data.errors;
         } else {
             loadError.value =
                 error.response?.data?.message ??
@@ -52,6 +57,21 @@ export const usePermissionStore = defineStore("permission", () => {
         }
     }
 
+    async function update(id, permission) {
+        resetErrors();
+        loading.value = true;
+        try {
+            const response = await permissionService.update(id, permission);
+            await fetchList();
+            return response.data;
+        } catch (e) {
+            handleError(e, editErrors);
+            throw e;
+        } finally {
+            loading.value = false;
+        }
+    }
+
     async function remove(id) {
         resetErrors();
         loading.value = true;
@@ -71,10 +91,12 @@ export const usePermissionStore = defineStore("permission", () => {
         permissions,
         loading,
         errors,
+        editErrors,
         loadError,
         resetErrors,
         fetchList,
         create,
+        update,
         remove,
     };
 });

@@ -7,6 +7,7 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use App\Repositories\RoleRepository;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +33,9 @@ class RoleService
     public function create(array $data): Role
     {
         $data['guard_name'] ??= 'api';
+        // Gán tường minh (không chỉ dựa vào default của cột DB) để bản ghi trả
+        // về cho frontend có sẵn cấp bậc, thay vì null cho tới lần đọc lại sau.
+        $data['level'] ??= Role::DEFAULT_LEVEL;
 
         $role = DB::transaction(fn () => $this->roleRepository->create($data));
 
@@ -61,6 +65,74 @@ class RoleService
     public function usersForRole(Role $role): Collection
     {
         return $this->roleRepository->usersForRole($role);
+    }
+
+    /**
+     * Cấp bậc cao nhất trong các vai trò $user đang giữ (0 nếu chưa có vai trò
+     * nào) — "cấp của chính mình" dùng để so khi gán vai trò cho người khác.
+     */
+    public function maxLevelOf(?User $user): int
+    {
+        if ($user === null) {
+            return 0;
+        }
+
+        return (int) $user->roles()->max('level');
+    }
+
+    /**
+     * Danh sách vai trò $actor được phép gán cho NGƯỜI KHÁC.
+     *
+     * Luật (2026-10-01, theo yêu cầu người dùng): chỉ gán được vai trò có cấp
+     * bậc THẤP HƠN cấp của chính mình — cao hơn hay ngang bằng đều chặn. Chặn
+     * ngang bằng là chủ ý: ngang cấp không làm người gán mạnh thêm, nhưng cho
+     * phép 1 tài khoản HR bị chiếm tự nhân bản thêm tài khoản HR khác làm cửa
+     * hậu, lúc đó khóa tài khoản gốc cũng vô nghĩa (separation of duties).
+     *
+     * Admin (giữ "rbac.manage") được MIỄN TRỪ, gán được mọi vai trò kể cả
+     * Admin: nếu chặn luôn cấp cao nhất thì mất tài khoản Admin duy nhất là
+     * khóa chết hệ thống, không còn ai tạo lại được. Muốn siết cả Admin thì
+     * bỏ nhánh miễn trừ này — chỉ một chỗ duy nhất.
+     */
+    public function assignableRolesQuery(?User $actor): Builder
+    {
+        $query = Role::query()->orderBy('name');
+
+        if ($actor?->hasPermission('rbac.manage')) {
+            return $query;
+        }
+
+        return $query
+            ->where('level', '<', $this->maxLevelOf($actor))
+            // Lưới chặn thứ hai, độc lập với cấp bậc: vai trò có quyền quản trị
+            // phân quyền thì chỉ người CÓ quyền đó mới gán được, kể cả khi ai
+            // đó vô tình hạ cấp bậc vai trò Admin xuống thấp.
+            ->whereDoesntHave('permissions', fn ($q) => $q->where('code', 'rbac.manage'));
+    }
+
+    /** Chặn gán vai trò cao hơn/ngang cấp — xem assignableRolesQuery(). */
+    public function assertCanAssign(?User $actor, array $roleIds): void
+    {
+        if ($roleIds === []) {
+            return;
+        }
+
+        $assignableIds = $this->assignableRolesQuery($actor)->pluck('id')->all();
+        $refused = Role::whereIn('id', $roleIds)
+            ->whereNotIn('id', $assignableIds)
+            ->pluck('name')
+            ->all();
+
+        if ($refused === []) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'role_ids' => sprintf(
+                'Bạn không được gán vai trò %s vì cấp bậc cao hơn hoặc ngang bằng vai trò của bạn — hãy nhờ Quản trị hệ thống.',
+                '"'.implode('", "', $refused).'"',
+            ),
+        ]);
     }
 
     /**

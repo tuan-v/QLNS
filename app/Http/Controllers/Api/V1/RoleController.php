@@ -23,15 +23,15 @@ class RoleController extends Controller
     // KHÔNG đụng route này khi thêm CRUD/quản lý quyền bên dưới (gate "rbac.manage").
     public function index(Request $request): JsonResponse
     {
-        $query = Role::query()->orderBy('name');
+        // Chỉ trả về vai trò người gọi được phép gán (cấp bậc thấp hơn mình, và
+        // không chứa rbac.manage nếu bản thân không có) — cùng một luật với chỗ
+        // chặn thật, xem RoleService::assignableRolesQuery(). Lọc sẵn ở đây để ô
+        // chọn vai trò không hiện lựa chọn bấm vào là bị 422.
+        $roles = $this->roleService
+            ->assignableRolesQuery($request->user())
+            ->get(['id', 'name', 'description', 'level']);
 
-        // Người không có rbac.manage không được thấy/gán vai trò quản trị (Admin) —
-        // xem EmployeeAccountService::assertCanAssignRoles().
-        if (! $request->user()?->hasPermission('rbac.manage')) {
-            $query->whereDoesntHave('permissions', fn ($q) => $q->where('code', 'rbac.manage'));
-        }
-
-        return response()->json($query->get(['id', 'name', 'description']));
+        return response()->json($roles);
     }
 
     public function show(Role $role): JsonResponse

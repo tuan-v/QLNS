@@ -34,6 +34,10 @@
             :loading="store.loading"
             :actions="actions"
         >
+            <template #item.level="{ item }">
+                {{ roleLevelLabel(item.level) }}
+            </template>
+
             <template #item.description="{ item }">
                 <span v-if="item.description">{{ item.description }}</span>
                 <span v-else style="opacity: 0.4">—</span>
@@ -51,6 +55,7 @@ import { onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoleStore } from "../../stores/useRoleStore";
 import { useToastStore } from "../../stores/useToastStore";
 import { useResourceSyncStore } from "../../stores/useResourceSyncStore";
+import { roleLevelLabel } from "../../composables/roleLevels";
 import DataTable from "../../components/common/DataTable.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
 import RoleForm from "./RoleForm.vue";
@@ -68,6 +73,9 @@ const editingPermissionsFor = ref(null);
 
 const headers = [
     { title: "Tên vai trò", key: "name" },
+    // Cấp bậc quyết định ai gán được vai trò này cho người khác (chỉ gán được
+    // vai trò cấp thấp hơn mình) — xem RoleService::assignableRolesQuery().
+    { title: "Cấp bậc", key: "level" },
     { title: "Mô tả", key: "description", sortable: false },
 ];
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Role;
 
+use App\Models\Role;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -24,6 +25,8 @@ class UpdateRoleRequest extends FormRequest
                     ->ignore($this->route('role')),
             ],
             'description' => ['nullable', 'string'],
+            // Không gửi lên thì giữ nguyên cấp bậc cũ (xem StoreRoleRequest).
+            'level' => ['sometimes', 'integer', Rule::in(Role::LEVELS)],
         ];
     }
 
@@ -32,6 +35,8 @@ class UpdateRoleRequest extends FormRequest
         return [
             'name.required' => 'Tên vai trò không được để trống',
             'name.unique' => 'Tên vai trò này đã tồn tại',
+            'level.integer' => 'Cấp bậc phải là số nguyên',
+            'level.in' => 'Cấp bậc chỉ nhận các bậc '.implode(', ', Role::LEVELS),
         ];
     }
 }
