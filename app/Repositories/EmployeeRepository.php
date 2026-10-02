@@ -21,8 +21,8 @@ class EmployeeRepository
                         ->orWhere('company_email', 'like', "%{$search}%");
                 });
             })
-            ->when($filters['department_id'] ?? null, fn($query, $departmentId) => $query->where('department_id', $departmentId))
-            ->when($filters['employment_status'] ?? null, fn($query, $status) => $query->where('employment_status', $status))
+            ->when($filters['department_id'] ?? null, fn ($query, $departmentId) => $query->where('department_id', $departmentId))
+            ->when($filters['employment_status'] ?? null, fn ($query, $status) => $query->where('employment_status', $status))
             ->latest()
             ->paginate($perPage);
     }

@@ -115,7 +115,7 @@ class AttendanceCheckInNotificationTest extends TestCase
         $this->assertDatabaseMissing('notifications', ['user_id' => $managerUser->id]);
     }
 
-    public function test_check_out_does_not_create_an_additional_notification(): void
+    public function test_check_out_also_notifies_approvers_because_check_out_is_approved_separately(): void
     {
         $monday = Carbon::parse('next monday 08:00');
         $this->travelTo($monday);
@@ -135,6 +135,8 @@ class AttendanceCheckInNotificationTest extends TestCase
             'work_shift_id' => $workShift->id,
         ], ['Authorization' => 'Bearer '.$token])->assertStatus(201);
 
-        $this->assertSame($countAfterCheckIn, \App\Models\Notification::count());
+        // Giờ ra cũng cần duyệt riêng nên người duyệt nhận thêm thông báo "chấm công ra".
+        $this->assertGreaterThan($countAfterCheckIn, \App\Models\Notification::count());
+        $this->assertDatabaseHas('notifications', ['type' => 'attendance.pending_approval', 'title' => 'Chấm công ra cần duyệt']);
     }
 }

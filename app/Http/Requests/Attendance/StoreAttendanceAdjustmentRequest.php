@@ -32,7 +32,10 @@ class StoreAttendanceAdjustmentRequest extends FormRequest
         $type = $this->input('type', 'correction');
 
         $rules = [
-            'type' => ['nullable', 'in:correction,supplement,excuse,overtime,extra_shift,early_leave'],
+            // 'excuse' (miễn trừ đi muộn) và 'early_leave' (xin về sớm) đã bỏ: nay
+            // HR duyệt giờ vào/giờ ra trực tiếp, đi muộn/về sớm thì công tính tới
+            // đúng giờ làm thực tế. Dữ liệu cũ của 2 loại này vẫn hiển thị được.
+            'type' => ['nullable', 'in:correction,supplement,overtime,extra_shift'],
             'reason' => ['required', 'string', 'max:1000'],
         ];
 
@@ -59,7 +62,7 @@ class StoreAttendanceAdjustmentRequest extends FormRequest
             return $rules;
         }
 
-        if ($type === 'excuse' || $type === 'overtime' || $type === 'early_leave') {
+        if ($type === 'overtime') {
             $rules['attendance_id'] = ['required', 'exists:attendances,id'];
 
             return $rules;

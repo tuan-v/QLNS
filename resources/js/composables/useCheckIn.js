@@ -349,105 +349,6 @@ export function useCheckIn() {
         }
     }
 
-    /* --------------------- Xin miễn trừ đi muộn (excuse) --------------------- */
-
-    const excuseDialog = ref(false);
-    const excuseTarget = ref(null);
-    const excuseForm = ref({ reason: "" });
-    const excuseErrors = ref({});
-    const excuseGeneralError = ref("");
-    const excuseSubmitting = ref(false);
-
-    function openExcuseDialog(attendance) {
-        excuseTarget.value = attendance;
-        excuseForm.value = { reason: "" };
-        excuseErrors.value = {};
-        excuseGeneralError.value = "";
-        excuseDialog.value = true;
-    }
-
-    function closeExcuseDialog() {
-        excuseDialog.value = false;
-    }
-
-    async function submitExcuseRequest() {
-        excuseErrors.value = {};
-        excuseGeneralError.value = "";
-
-        excuseSubmitting.value = true;
-        try {
-            await attendanceService.requestAdjustment({
-                type: "excuse",
-                attendance_id: excuseTarget.value.id,
-                reason: excuseForm.value.reason,
-            });
-            toast.success("Đã gửi yêu cầu miễn trừ đi muộn, chờ duyệt.");
-            closeExcuseDialog();
-        } catch (e) {
-            const status = e.response?.status;
-            const data = e.response?.data;
-            if (status === 422 && data?.errors) {
-                excuseErrors.value = { reason: data.errors.reason?.[0] };
-                excuseGeneralError.value = data.errors.attendance_id?.[0] ?? "";
-            } else {
-                excuseGeneralError.value = data?.message ?? "Không thể gửi yêu cầu, vui lòng thử lại.";
-            }
-        } finally {
-            excuseSubmitting.value = false;
-        }
-    }
-
-    /* --------------------------- Xin về sớm (early_leave) --------------------------- */
-    // Cùng khuôn "Xin miễn trừ đi muộn": không sửa giờ, bắt buộc lý do. Gửi được
-    // TRƯỚC khi chấm công ra (đang trong ca) hoặc sau khi đã ra mà bị tính về sớm.
-    // Duyệt → không bị trừ công; từ chối/không xin → vẫn bị trừ như thường.
-
-    const earlyLeaveDialog = ref(false);
-    const earlyLeaveTarget = ref(null);
-    const earlyLeaveForm = ref({ reason: "" });
-    const earlyLeaveErrors = ref({});
-    const earlyLeaveGeneralError = ref("");
-    const earlyLeaveSubmitting = ref(false);
-
-    function openEarlyLeaveDialog(attendance) {
-        earlyLeaveTarget.value = attendance;
-        earlyLeaveForm.value = { reason: "" };
-        earlyLeaveErrors.value = {};
-        earlyLeaveGeneralError.value = "";
-        earlyLeaveDialog.value = true;
-    }
-
-    function closeEarlyLeaveDialog() {
-        earlyLeaveDialog.value = false;
-    }
-
-    async function submitEarlyLeaveRequest() {
-        earlyLeaveErrors.value = {};
-        earlyLeaveGeneralError.value = "";
-
-        earlyLeaveSubmitting.value = true;
-        try {
-            await attendanceService.requestAdjustment({
-                type: "early_leave",
-                attendance_id: earlyLeaveTarget.value.id,
-                reason: earlyLeaveForm.value.reason,
-            });
-            toast.success("Đã gửi yêu cầu xin về sớm, chờ duyệt.");
-            closeEarlyLeaveDialog();
-        } catch (e) {
-            const status = e.response?.status;
-            const data = e.response?.data;
-            if (status === 422 && data?.errors) {
-                earlyLeaveErrors.value = { reason: data.errors.reason?.[0] };
-                earlyLeaveGeneralError.value = data.errors.attendance_id?.[0] ?? "";
-            } else {
-                earlyLeaveGeneralError.value = data?.message ?? "Không thể gửi yêu cầu, vui lòng thử lại.";
-            }
-        } finally {
-            earlyLeaveSubmitting.value = false;
-        }
-    }
-
     /* ------------------------ Xin duyệt OT (2026-09-21) ----------------------- */
 
     const otApprovalDialog = ref(false);
@@ -750,24 +651,6 @@ export function useCheckIn() {
         openSupplementDialog,
         closeSupplementDialog,
         submitSupplementRequest,
-        excuseDialog,
-        excuseTarget,
-        excuseForm,
-        excuseErrors,
-        excuseGeneralError,
-        excuseSubmitting,
-        openExcuseDialog,
-        closeExcuseDialog,
-        submitExcuseRequest,
-        earlyLeaveDialog,
-        earlyLeaveTarget,
-        earlyLeaveForm,
-        earlyLeaveErrors,
-        earlyLeaveGeneralError,
-        earlyLeaveSubmitting,
-        openEarlyLeaveDialog,
-        closeEarlyLeaveDialog,
-        submitEarlyLeaveRequest,
         otApprovalDialog,
         otApprovalTarget,
         otApprovalForm,

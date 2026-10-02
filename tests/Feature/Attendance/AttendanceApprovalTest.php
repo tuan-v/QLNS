@@ -59,7 +59,7 @@ class AttendanceApprovalTest extends TestCase
             'start_time' => '08:00', 'end_time' => '17:00', 'standard_work_minutes' => 480,
         ]);
 
-        return Attendance::create(array_merge([
+        $data = array_merge([
             'employee_id' => $this->makeEmployee()->id,
             'work_shift_id' => $workShift->id,
             'attendance_date' => now()->toDateString(),
@@ -67,7 +67,15 @@ class AttendanceApprovalTest extends TestCase
             'last_check_out_at' => now()->setTime(17, 0),
             'actual_work_minutes' => 540,
             'status' => 'completed',
-        ], $overrides));
+        ], $overrides);
+
+        // Giờ vào/ra duyệt riêng: bản ghi dựng sẵn với approval_status thì coi cả hai phần cùng trạng thái đó.
+        if (isset($data['approval_status']) && ! isset($data['check_in_approval_status'])) {
+            $data['check_in_approval_status'] = $data['approval_status'];
+            $data['check_out_approval_status'] = $data['approval_status'];
+        }
+
+        return Attendance::create($data);
     }
 
     private function approvalUrl(Attendance $attendance): string
@@ -293,8 +301,7 @@ class AttendanceApprovalTest extends TestCase
 
     public function test_rejected_or_non_time_adjustments_do_not_approve_the_attendance(): void
     {
-        // Từ chối điều chỉnh, hay duyệt loại không đụng giờ (miễn trừ đi muộn),
-        // đều KHÔNG được tự duyệt chấm công.
+        // Duyệt loại đơn không đụng giờ (duyệt OT) KHÔNG được tự duyệt chấm công.
         $employee = $this->makeEmployee();
         $user = User::create([
             'email' => 'appr-'.uniqid().'@qlns.local', 'user_name' => 'Appr User',
@@ -302,19 +309,125 @@ class AttendanceApprovalTest extends TestCase
         ]);
         Role::where('name', 'Employee')->first()->users()->attach($user->id);
         $employee->update(['user_id' => $user->id]);
-        $attendance = $this->makeAttendance(['employee_id' => $employee->id, 'late_minutes' => 20]);
+        $attendance = $this->makeAttendance(['employee_id' => $employee->id, 'overtime_minutes' => 40]);
         $token = $this->loginAs($user->email, 'Secret@123');
 
-        $excuseId = $this->postJson('/api/v1/attendances/adjustments', [
-            'type' => 'excuse',
+        $otId = $this->postJson('/api/v1/attendances/adjustments', [
+            'type' => 'overtime',
             'attendance_id' => $attendance->id,
-            'reason' => 'Ket xe',
+            'reason' => 'Lam them cho kip tien do',
         ], ['Authorization' => 'Bearer '.$token])->assertStatus(201)->json('id');
 
-        $this->putJson('/api/v1/attendances/adjustments/'.$excuseId, ['status' => 'approved'], $this->hrHeaders())
+        $this->putJson('/api/v1/attendances/adjustments/'.$otId, ['status' => 'approved'], $this->hrHeaders())
             ->assertStatus(200);
 
         $this->assertSame('pending', $attendance->fresh()->approval_status);
-        $this->assertTrue((bool) $attendance->fresh()->late_excused);
+        $this->assertTrue((bool) $attendance->fresh()->overtime_approved);
+    }
+
+    /* ---------------- Duyệt giờ VÀO và giờ RA riêng ---------------- */
+
+    private function decide(Attendance $attendance, array $payload): \Illuminate\Testing\TestResponse
+    {
+        return $this->putJson($this->approvalUrl($attendance), $payload, $this->hrHeaders());
+    }
+
+    public function test_approving_only_check_in_keeps_a_checked_out_record_pending(): void
+    {
+        $attendance = $this->makeAttendance();
+
+        $this->decide($attendance, ['status' => 'approved', 'part' => 'check_in'])->assertStatus(200);
+
+        $attendance->refresh();
+        $this->assertSame('approved', $attendance->check_in_approval_status);
+        $this->assertSame('pending', $attendance->check_out_approval_status);
+        $this->assertSame('pending', $attendance->approval_status);
+    }
+
+    public function test_record_is_approved_only_when_both_check_in_and_check_out_are_approved(): void
+    {
+        $attendance = $this->makeAttendance();
+
+        $this->decide($attendance, ['status' => 'approved', 'part' => 'check_in'])->assertStatus(200);
+        $this->decide($attendance, ['status' => 'approved', 'part' => 'check_out'])->assertStatus(200);
+
+        $this->assertSame('approved', $attendance->fresh()->approval_status);
+    }
+
+    public function test_default_part_approves_both_check_in_and_check_out(): void
+    {
+        $attendance = $this->makeAttendance();
+
+        $this->decide($attendance, ['status' => 'approved'])->assertStatus(200);
+
+        $attendance->refresh();
+        $this->assertSame('approved', $attendance->check_in_approval_status);
+        $this->assertSame('approved', $attendance->check_out_approval_status);
+        $this->assertSame('approved', $attendance->approval_status);
+    }
+
+    public function test_rejecting_check_out_rejects_the_whole_record(): void
+    {
+        $attendance = $this->makeAttendance();
+
+        $this->decide($attendance, ['status' => 'approved', 'part' => 'check_in'])->assertStatus(200);
+        $this->decide($attendance, ['status' => 'rejected', 'part' => 'check_out', 'decision_note' => 'Gio ra khong dung'])
+            ->assertStatus(200);
+
+        $this->assertSame('rejected', $attendance->fresh()->approval_status);
+    }
+
+    public function test_cannot_decide_check_out_before_the_employee_checked_out(): void
+    {
+        $attendance = $this->makeAttendance(['last_check_out_at' => null, 'actual_work_minutes' => 0, 'status' => 'pending']);
+
+        $this->decide($attendance, ['status' => 'approved', 'part' => 'check_out'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('status');
+    }
+
+    public function test_before_checking_out_only_the_check_in_decides_the_overall_status(): void
+    {
+        $attendance = $this->makeAttendance(['last_check_out_at' => null, 'actual_work_minutes' => 0, 'status' => 'pending']);
+
+        $this->decide($attendance, ['status' => 'approved'])->assertStatus(200);
+
+        $this->assertSame('approved', $attendance->fresh()->approval_status);
+    }
+
+    public function test_overall_status_reopens_when_a_check_out_is_added_after_check_in_was_approved(): void
+    {
+        $attendance = $this->makeAttendance(['last_check_out_at' => null, 'actual_work_minutes' => 0, 'status' => 'pending']);
+        $this->decide($attendance, ['status' => 'approved'])->assertStatus(200);
+        $this->assertSame('approved', $attendance->fresh()->approval_status);
+
+        // Chấm công ra: giờ ra bắt đầu ở "chờ duyệt" nên bản ghi quay lại "chờ duyệt".
+        $attendance->refresh();
+        $attendance->forceFill(['last_check_out_at' => now()->setTime(17, 0), 'check_out_approval_status' => 'pending']);
+
+        $this->assertSame('pending', $attendance->computeOverallApproval());
+    }
+
+    public function test_excuse_and_early_leave_requests_are_no_longer_accepted(): void
+    {
+        $employee = $this->makeEmployee();
+        $user = User::create([
+            'email' => 'appr-'.uniqid().'@qlns.local', 'user_name' => 'Appr User',
+            'password' => bcrypt('Secret@123'), 'status' => 'active',
+        ]);
+        Role::where('name', 'Employee')->first()->users()->attach($user->id);
+        $employee->update(['user_id' => $user->id]);
+        $attendance = $this->makeAttendance(['employee_id' => $employee->id, 'late_minutes' => 40]);
+        $token = $this->loginAs($user->email, 'Secret@123');
+
+        foreach (['excuse', 'early_leave'] as $type) {
+            $this->postJson('/api/v1/attendances/adjustments', [
+                'type' => $type,
+                'attendance_id' => $attendance->id,
+                'reason' => 'Ly do bat ky',
+            ], ['Authorization' => 'Bearer '.$token])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('type');
+        }
     }
 }

@@ -56,7 +56,7 @@ class AttendanceBulkApprovalTest extends TestCase
             'start_time' => '08:00', 'end_time' => '17:00', 'standard_work_minutes' => 480,
         ]);
 
-        return Attendance::create(array_merge([
+        $data = array_merge([
             'employee_id' => $this->makeEmployee()->id,
             'work_shift_id' => $workShift->id,
             'attendance_date' => now()->toDateString(),
@@ -64,7 +64,15 @@ class AttendanceBulkApprovalTest extends TestCase
             'last_check_out_at' => now()->setTime(17, 0),
             'actual_work_minutes' => 540,
             'status' => 'completed',
-        ], $overrides));
+        ], $overrides);
+
+        // Giờ vào/ra duyệt riêng: bản ghi dựng sẵn với approval_status thì coi cả hai phần cùng trạng thái đó.
+        if (isset($data['approval_status']) && ! isset($data['check_in_approval_status'])) {
+            $data['check_in_approval_status'] = $data['approval_status'];
+            $data['check_out_approval_status'] = $data['approval_status'];
+        }
+
+        return Attendance::create($data);
     }
 
     public function test_requires_authentication(): void

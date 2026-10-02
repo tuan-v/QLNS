@@ -25,7 +25,6 @@ class AttendanceAdjustmentService
         'excuse' => 'miễn trừ đi muộn',
         'overtime' => 'duyệt OT',
         'extra_shift' => 'làm ngoài lịch',
-        'early_leave' => 'xin về sớm',
     ];
 
     public function __construct(
@@ -118,41 +117,6 @@ class AttendanceAdjustmentService
                 if ($attendance->late_excused) {
                     throw ValidationException::withMessages([
                         'attendance_id' => 'Bản ghi này đã được miễn trừ đi muộn trước đó.',
-                    ]);
-                }
-            }
-
-            // 'early_leave' — "Xin về sớm" (cùng khuôn 'excuse' của đi muộn: không
-            // sửa giờ, chỉ có lý do). Được gửi TRƯỚC khi chấm công ra (đang trong ca)
-            // hoặc SAU khi đã ra mà bị tính về sớm; duyệt → early_leave_excused=true
-            // (không trừ công), từ chối → vẫn bị trừ như thường.
-            if ($type === 'early_leave') {
-                if (! $attendance->first_check_in_at) {
-                    throw ValidationException::withMessages([
-                        'attendance_id' => 'Bạn chưa chấm công vào ca này, chưa thể xin về sớm.',
-                    ]);
-                }
-
-                if ($attendance->last_check_out_at && $attendance->early_leave_minutes <= 0) {
-                    throw ValidationException::withMessages([
-                        'attendance_id' => 'Bản ghi này không bị tính về sớm, không thể xin về sớm.',
-                    ]);
-                }
-
-                if ($attendance->early_leave_excused) {
-                    throw ValidationException::withMessages([
-                        'attendance_id' => 'Bản ghi này đã được duyệt xin về sớm trước đó.',
-                    ]);
-                }
-
-                $alreadyPending = AttendanceAdjustment::where('attendance_id', $attendance->id)
-                    ->where('type', 'early_leave')
-                    ->where('status', 'pending')
-                    ->exists();
-
-                if ($alreadyPending) {
-                    throw ValidationException::withMessages([
-                        'attendance_id' => 'Bạn đã có đơn xin về sớm đang chờ duyệt cho ca này.',
                     ]);
                 }
             }
@@ -342,12 +306,6 @@ class AttendanceAdjustmentService
                     return $adjustment;
                 }
 
-                if ($adjustment->type === 'early_leave') {
-                    $adjustment->attendance->forceFill(['early_leave_excused' => true])->save();
-
-                    return $adjustment;
-                }
-
                 // Duyệt 'extra_shift' KHÔNG đụng gì tới Attendance (chưa có
                 // gì để chỉnh — nhân viên chưa làm) — chỉ MỞ KHÓA cho họ tự
                 // chấm công vào đúng ngày đã đăng ký, bằng cách tạo 1 bản
@@ -398,12 +356,11 @@ class AttendanceAdjustmentService
                 // sung' mới tạo còn mặc định 'pending' nên sẽ mãi không có
                 // công nếu không làm bước này). 'excuse'/'overtime' ở trên
                 // không đụng giờ nên không đi qua đây.
-                $attendance->forceFill([
-                    'approval_status' => Attendance::APPROVAL_APPROVED,
-                    'approved_by' => $approvedBy,
-                    'approved_at' => now(),
-                    'approval_note' => "Duyệt cùng yêu cầu điều chỉnh công #{$adjustment->id}.",
-                ])->save();
+                $this->attendanceService->markFullyApproved(
+                    $attendance,
+                    $approvedBy,
+                    "Duyệt cùng yêu cầu điều chỉnh công #{$adjustment->id}.",
+                );
             }
 
             return $adjustment;

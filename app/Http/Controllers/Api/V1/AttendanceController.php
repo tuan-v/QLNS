@@ -84,6 +84,7 @@ class AttendanceController extends Controller
             $request->validated('status'),
             $request->validated('decision_note'),
             $request->user()->id,
+            $request->validated('part') ?? 'both',
         );
         $attendance->load(['employee', 'workShift', 'logs', 'approvedBy']);
 
@@ -97,6 +98,7 @@ class AttendanceController extends Controller
             $request->validated('status'),
             $request->validated('decision_note'),
             $request->user()->id,
+            $request->validated('part') ?? 'both',
         );
 
         return response()->json($result);

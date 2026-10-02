@@ -20,6 +20,8 @@ class BulkDecideAttendanceApprovalRequest extends FormRequest
             'attendance_ids' => ['required', 'array', 'min:1'],
             'attendance_ids.*' => ['integer', 'exists:attendances,id'],
             'status' => ['required', 'in:approved,rejected'],
+            // Duyệt giờ vào / giờ ra riêng, hoặc cả hai (mặc định, mọi phần đang chờ).
+            'part' => ['nullable', 'in:check_in,check_out,both'],
             'decision_note' => ['required_if:status,rejected', 'nullable', 'string', 'max:1000'],
         ];
     }

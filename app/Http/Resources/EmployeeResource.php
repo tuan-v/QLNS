@@ -65,10 +65,10 @@ class EmployeeResource extends JsonResource
             'hire_date' => $this->hire_date,
             'department' => $this->whenLoaded('department'),
             'position' => $this->whenLoaded('position'),
-            'manager' => $this->whenLoaded('manager', fn() => new EmployeeResource($this->manager)),
+            'manager' => $this->whenLoaded('manager', fn () => new EmployeeResource($this->manager)),
             // null = chưa có tài khoản đăng nhập (EmployeeDetail.vue dùng để
             // hiện/ẩn nút "Tạo tài khoản đăng nhập" — xem EmployeeAccountController).
-            'user' => $this->whenLoaded('user', fn() => $this->user ? [
+            'user' => $this->whenLoaded('user', fn () => $this->user ? [
                 'id' => $this->user->id,
                 'email' => $this->user->email,
                 'roles' => $this->user->roles->pluck('name'),

@@ -194,7 +194,7 @@ class AttendanceService
         if (! $attendance->last_check_out_at && $attendance->attendance_date?->isToday()) {
             return 'in_progress';
         }
-        if (! $attendance->last_check_out_at || ($attendance->early_leave_minutes > 0 && ! $attendance->early_leave_excused)) {
+        if (! $attendance->last_check_out_at || $attendance->early_leave_minutes > 0) {
             return 'insufficient';
         }
 
@@ -253,16 +253,12 @@ class AttendanceService
                 if ($a->late_excused && ($a->late_minutes ?? 0) > 0 && $minutes > 0) {
                     $minutes += (int) $a->late_minutes;
                 }
-                // Về sớm đã được duyệt "Xin về sớm": cộng phần thiếu để giờ làm khớp công.
-                if ($a->early_leave_excused && ($a->early_leave_minutes ?? 0) > 0 && $minutes > 0) {
-                    $minutes += (int) $a->early_leave_minutes;
-                }
 
                 return $minutes;
             }),
             'unapproved_count' => $withAttendance->count() - $approved->count(),
             'late_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->late_minutes ?? 0) > 0 && ! ($row['attendance']->late_excused ?? false))->count(),
-            'early_leave_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->early_leave_minutes ?? 0) > 0 && ! ($row['attendance']->early_leave_excused ?? false))->count(),
+            'early_leave_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->early_leave_minutes ?? 0) > 0)->count(),
             'on_leave_count' => $rows->filter(fn (array $row) => $row['status'] === 'on_leave')->count(),
         ];
     }
@@ -423,25 +419,20 @@ class AttendanceService
     // dùng: mọi lượt chấm công phải được duyệt, chưa duyệt thì không tính
     // công/lương). $status: 'approved' | 'rejected'.
     //
-    // Duyệt được NGAY TỪ LÚC CHẤM CÔNG VÀO (2026-09-23, sửa lại theo đúng ý
-    // người dùng — trước đó bắt phải chấm công RA mới cho duyệt, nhưng mục
-    // đích thật của việc duyệt là XÁC NHẬN LƯỢT CHẤM CÔNG VÀO này có thật hay
-    // không — HR nhìn giờ vào/thiết bị/vị trí ngay khi nhân viên vừa vào ca
-    // để biết họ đi sớm hay trễ, có thật sự tới nơi làm việc hay không, KHÔNG
-    // cần chờ tới lúc họ chấm công ra). Chỉ đòi hỏi ĐÃ chấm công VÀO — bản
-    // ghi thật sự không tồn tại nếu chưa chấm công vào (xem
-    // AttendanceRepository::findOrCreateForShift(), luôn set
-    // first_check_in_at ngay khi tạo), kiểm tra ở đây chỉ để phòng vệ. Quên
-    // chấm công RA thì nhân viên dùng "Xin điều chỉnh công", HR duyệt yêu
-    // cầu đó là duyệt luôn bản ghi (xem AttendanceAdjustmentService::decide()).
-    // Cho phép ĐỔI quyết định (duyệt <-> từ chối) vì HR có thể bấm nhầm; chỉ
-    // chặn quyết định trùng trạng thái hiện tại. LƯU Ý: bảng lương chỉ được
-    // tính MỘT LẦN lúc tạo kỳ lương (PayrollService::generateForPeriod()),
-    // không tự tính lại khi quyết định duyệt đổi sau đó — nên
-    // generateForPeriod() chặn tạo bảng lương khi kỳ đó còn bản ghi đã chấm
-    // công ra mà chưa được duyệt/từ chối (duyệt SỚM lúc chấm công vào rồi thì
-    // tới lúc chấm công ra không cần duyệt lại — quyết định cũ vẫn giữ nguyên).
-    public function decideApproval(Attendance $attendance, string $status, ?string $note, int $decidedBy): Attendance
+    // Giờ VÀO và giờ RA được duyệt TÁCH RIÊNG ($part = 'check_in' | 'check_out'
+    // | 'both'; 'both' = mọi phần đang có mà chưa có quyết định đó). Duyệt = xác
+    // nhận lượt chấm công có thật; bị từ chối (vào hoặc ra) thì bản ghi KHÔNG có
+    // công cho tới khi sửa bằng "Xin điều chỉnh công". Không còn "miễn trừ đi
+    // muộn/về sớm": đi muộn/về sớm quá ngưỡng thì công chỉ tính tới đúng giờ làm
+    // thực tế (WorkTimeCalculationService). Cột approval_status là trạng thái
+    // TỔNG HỢP (Attendance::computeOverallApproval()): chỉ 'approved' khi đã chấm
+    // ra và cả hai phần đều được duyệt. Cho phép ĐỔI quyết định (duyệt <-> từ
+    // chối) vì HR có thể bấm nhầm; chỉ chặn quyết định trùng trạng thái hiện tại.
+    // Bảng lương chỉ tính MỘT LẦN nên generateForPeriod() chặn khi còn bản ghi đã
+    // chấm ra mà chưa được quyết đủ cả hai phần.
+    public const APPROVAL_PARTS = ['check_in', 'check_out'];
+
+    public function decideApproval(Attendance $attendance, string $status, ?string $note, int $decidedBy, string $part = 'both'): Attendance
     {
         if (! $attendance->first_check_in_at) {
             throw ValidationException::withMessages([
@@ -449,22 +440,83 @@ class AttendanceService
             ]);
         }
 
-        if ($attendance->approval_status === $status) {
+        $targets = $part === 'both' ? self::APPROVAL_PARTS : [$part];
+
+        // Giờ ra chỉ duyệt được khi đã chấm ra: gọi riêng 'check_out' mà chưa ra thì
+        // báo lỗi; 'both' thì bỏ qua phần giờ ra chưa có.
+        if (! $attendance->last_check_out_at) {
+            if ($part === 'check_out') {
+                throw ValidationException::withMessages([
+                    'status' => 'Bản ghi này chưa chấm công ra nên chưa thể duyệt giờ ra.',
+                ]);
+            }
+
+            $targets = array_values(array_diff($targets, ['check_out']));
+        }
+
+        $changing = array_values(array_filter(
+            $targets,
+            fn (string $p) => $attendance->{"{$p}_approval_status"} !== $status,
+        ));
+
+        if ($changing === []) {
+            $label = $part === 'check_in' ? 'giờ vào' : ($part === 'check_out' ? 'giờ ra' : 'bản ghi này');
+
             throw ValidationException::withMessages([
                 'status' => $status === Attendance::APPROVAL_APPROVED
-                    ? 'Bản ghi này đã được duyệt rồi.'
-                    : 'Bản ghi này đã bị từ chối rồi.',
+                    ? "Phần {$label} đã được duyệt rồi."
+                    : "Phần {$label} đã bị từ chối rồi.",
+            ]);
+        }
+
+        foreach ($changing as $p) {
+            $attendance->forceFill([
+                "{$p}_approval_status" => $status,
+                "{$p}_approved_by" => $decidedBy,
+                "{$p}_approved_at" => now(),
+                "{$p}_approval_note" => $note,
             ]);
         }
 
         $attendance->forceFill([
-            'approval_status' => $status,
+            'approval_status' => $attendance->computeOverallApproval(),
             'approved_by' => $decidedBy,
             'approved_at' => now(),
             'approval_note' => $note,
         ])->save();
 
         AttendanceApprovalDecided::dispatch($attendance);
+
+        return $attendance;
+    }
+
+    // Đánh dấu CẢ giờ vào lẫn giờ ra (nếu có) là đã duyệt — dùng khi HR duyệt yêu
+    // cầu điều chỉnh/bổ sung công (duyệt yêu cầu = đã xem xét giờ vào/ra mới).
+    public function markFullyApproved(Attendance $attendance, int $approvedBy, string $note): Attendance
+    {
+        $fields = [
+            'check_in_approval_status' => Attendance::APPROVAL_APPROVED,
+            'check_in_approved_by' => $approvedBy,
+            'check_in_approved_at' => now(),
+            'check_in_approval_note' => $note,
+        ];
+
+        if ($attendance->last_check_out_at) {
+            $fields += [
+                'check_out_approval_status' => Attendance::APPROVAL_APPROVED,
+                'check_out_approved_by' => $approvedBy,
+                'check_out_approved_at' => now(),
+                'check_out_approval_note' => $note,
+            ];
+        }
+
+        $attendance->forceFill($fields);
+        $attendance->forceFill([
+            'approval_status' => $attendance->computeOverallApproval(),
+            'approved_by' => $approvedBy,
+            'approved_at' => now(),
+            'approval_note' => $note,
+        ])->save();
 
         return $attendance;
     }
@@ -476,7 +528,7 @@ class AttendanceService
     // "succeeded"/"failed" để Frontend báo rõ đúng bản ghi nào không duyệt
     // được và vì sao, thay vì rollback tất cả chỉ vì 1 dòng có vấn đề (vd HR
     // chọn nhầm 1 dòng đã được duyệt từ trước đó bởi người khác).
-    public function bulkDecideApproval(array $attendanceIds, string $status, ?string $note, int $decidedBy): array
+    public function bulkDecideApproval(array $attendanceIds, string $status, ?string $note, int $decidedBy, string $part = 'both'): array
     {
         $succeeded = [];
         $failed = [];
@@ -491,7 +543,7 @@ class AttendanceService
             }
 
             try {
-                $this->decideApproval($attendance, $status, $note, $decidedBy);
+                $this->decideApproval($attendance, $status, $note, $decidedBy, $part);
                 $succeeded[] = $attendanceId;
             } catch (ValidationException $e) {
                 $failed[] = ['id' => $attendanceId, 'message' => collect($e->errors())->flatten()->first()];
@@ -601,22 +653,23 @@ class AttendanceService
         AttendanceChecked::dispatch($employee, 'in', $now);
 
         // Thông báo THẬT (lưu bảng notifications, hiện ở chuông) cho người có
-        // quyền duyệt (2026-09-25, theo yêu cầu người dùng) — KHÁC hẳn
-        // AttendanceChecked ở trên (chỉ broadcast thuần, không lưu DB, phục
-        // vụ xem lướt qua). Chỉ báo lúc CHẤM CÔNG VÀO, không báo lúc chấm
-        // công RA — khớp đúng thiết kế "duyệt được ngay lúc chấm công vào,
-        // không cần chờ ra" (xem decideApproval()), chấm công RA không phát
-        // sinh thêm việc cần duyệt.
-        $this->notifyApprovers($employee, $log->attendance);
+        // quyền duyệt — KHÁC hẳn AttendanceChecked ở trên (chỉ broadcast
+        // thuần, không lưu DB, phục vụ xem lướt qua). Giờ RA cũng có thông báo
+        // riêng (xem checkOut()) vì giờ vào và giờ ra được duyệt độc lập.
+        $this->notifyApprovers($employee, $log->attendance, 'in');
 
         return $log;
     }
 
-    private function notifyApprovers(Employee $employee, Attendance $attendance): void
+    // $part: 'in' (chấm vào) hoặc 'out' (chấm ra) — cả hai đều cần duyệt riêng.
+    private function notifyApprovers(Employee $employee, Attendance $attendance, string $part = 'in'): void
     {
-        $title = 'Chấm công mới cần duyệt';
-        $message = "{$employee->full_name} vừa chấm công vào lúc {$attendance->first_check_in_at->format('H:i')}.";
-        $data = ['attendance_id' => $attendance->id];
+        $title = $part === 'out' ? 'Chấm công ra cần duyệt' : 'Chấm công mới cần duyệt';
+        $time = ($part === 'out' ? $attendance->last_check_out_at : $attendance->first_check_in_at)?->format('H:i');
+        $message = $part === 'out'
+            ? "{$employee->full_name} vừa chấm công ra lúc {$time}."
+            : "{$employee->full_name} vừa chấm công vào lúc {$time}.";
+        $data = ['attendance_id' => $attendance->id, 'part' => $part];
 
         foreach (User::withPermission('attendance.approve')->get() as $approver) {
             $this->notificationService->send($approver, 'attendance.pending_approval', $title, $message, $data);
@@ -656,7 +709,13 @@ class AttendanceService
                 // (tổng giờ làm - giờ chuẩn) như trước.
                 'overtime_minutes' => $this->calculateOvertimeMinutes($workShift, $now),
                 'status' => 'completed',
-            ])->save();
+                // Giờ ra là một lần duyệt RIÊNG, luôn bắt đầu ở "chờ duyệt".
+                'check_out_approval_status' => Attendance::APPROVAL_PENDING,
+                'check_out_approved_by' => null,
+                'check_out_approved_at' => null,
+                'check_out_approval_note' => null,
+            ]);
+            $attendance->forceFill(['approval_status' => $attendance->computeOverallApproval()])->save();
 
             return $this->attendanceLogRepository->create($this->logPayload(
                 $employee,
@@ -669,6 +728,7 @@ class AttendanceService
         });
 
         AttendanceChecked::dispatch($employee, 'out', $now);
+        $this->notifyApprovers($employee, $log->attendance, 'out');
 
         return $log;
     }

@@ -98,7 +98,7 @@
                 :items="rows"
                 :loading="loading"
                 :actions="actions"
-                :actions-width="150"
+                :actions-width="230"
                 :selectable="canApprove"
                 :item-value="(item) => item.attendance?.id"
                 :item-selectable="itemSelectableForBulk"
@@ -124,8 +124,28 @@
                     </div>
                 </template>
                 <template #item.times="{ item }">
-                    {{ formatTime(item.attendance?.first_check_in_at) }} -
-                    {{ formatTime(item.attendance?.last_check_out_at) }}
+                    <div class="d-flex align-center ga-1">
+                        <span>Vào {{ formatTime(item.attendance?.first_check_in_at) }}</span>
+                        <v-chip
+                            v-if="item.attendance?.first_check_in_at"
+                            size="x-small"
+                            variant="tonal"
+                            :color="PART_CHIP[partStatus(item, 'check_in')].color"
+                        >
+                            {{ PART_CHIP[partStatus(item, "check_in")].label }}
+                        </v-chip>
+                    </div>
+                    <div class="d-flex align-center ga-1">
+                        <span>Ra {{ formatTime(item.attendance?.last_check_out_at) }}</span>
+                        <v-chip
+                            v-if="item.attendance?.last_check_out_at"
+                            size="x-small"
+                            variant="tonal"
+                            :color="PART_CHIP[partStatus(item, 'check_out')].color"
+                        >
+                            {{ PART_CHIP[partStatus(item, "check_out")].label }}
+                        </v-chip>
+                    </div>
                 </template>
                 <template #item.device="{ item }">
                     <template v-if="firstLog(item)">
@@ -292,7 +312,7 @@ async function loadShiftOptions() {
 const headers = [
     { title: "Nhân viên", key: "employee" },
     { title: "Ca", key: "work_shift", width: 140 },
-    { title: "Giờ vào - ra", key: "times", width: 130 },
+    { title: "Giờ vào - ra", key: "times", width: 190 },
     { title: "Thiết bị", key: "device" },
     // Gộp trạng thái ca + duyệt công vào 1 cột (xem AttendanceService::displayStatusFor()).
     { title: "Trạng thái", key: "status", width: 190 },
@@ -383,6 +403,89 @@ const canApprove = computed(() =>
 // AttendanceService::decideApproval().
 const canDecide = (item) => Boolean(item.attendance?.first_check_in_at);
 
+// Giờ VÀO và giờ RA được duyệt RIÊNG (2 nút Duyệt + 2 nút Từ chối, mỗi cặp
+// áp dụng cho đúng 1 phần). Duyệt = xác nhận lượt chấm công có thật; từ chối
+// (vào hoặc ra) thì bản ghi không có công. Giờ ra chỉ duyệt được khi nhân viên
+// đã chấm ra. Xem AttendanceService::decideApproval().
+const PART_CHIP = {
+    pending: { label: "Chờ duyệt", color: "warning" },
+    approved: { label: "Đã duyệt", color: "success" },
+    rejected: { label: "Từ chối", color: "error" },
+};
+const PART_FIELD = {
+    check_in: "check_in_approval_status",
+    check_out: "check_out_approval_status",
+};
+const partStatus = (item, part) =>
+    item.attendance?.[PART_FIELD[part]] ?? "pending";
+const partExists = (item, part) =>
+    part === "check_in"
+        ? Boolean(item.attendance?.first_check_in_at)
+        : Boolean(item.attendance?.last_check_out_at);
+
+function partActions(part, label, icon) {
+    const who = (item) => `${item.employee.full_name} ngày ${formatDate(date.value)}`;
+
+    return [
+        {
+            icon,
+            tooltip: (item) =>
+                partStatus(item, part) === "rejected"
+                    ? `Đổi sang Duyệt ${label}`
+                    : `Duyệt ${label}`,
+            color: "success",
+            hidden: (item) =>
+                !canApprove.value ||
+                !partExists(item, part) ||
+                partStatus(item, part) === "approved",
+            confirm: {
+                title: `Duyệt ${label}`,
+                message: (item) =>
+                    `Duyệt ${label} của ${who(item)}? Bản ghi chỉ được tính công và lương khi cả giờ vào và giờ ra đều được duyệt.`,
+                confirmText: "Duyệt",
+                input: { required: false, label: "Ghi chú (tùy chọn)" },
+            },
+            onClick: async (item, { input }) => {
+                await attendanceService.decideApproval(item.attendance.id, {
+                    status: "approved",
+                    part,
+                    decision_note: input || null,
+                });
+                toast.success(`Đã duyệt ${label}.`);
+                await loadData();
+            },
+        },
+        {
+            icon: part === "check_in" ? "mdi-account-cancel-outline" : "mdi-close",
+            tooltip: (item) =>
+                partStatus(item, part) === "approved"
+                    ? `Đổi sang Từ chối ${label}`
+                    : `Từ chối ${label}`,
+            color: "error",
+            hidden: (item) =>
+                !canApprove.value ||
+                !partExists(item, part) ||
+                partStatus(item, part) === "rejected",
+            confirm: {
+                title: `Từ chối ${label}`,
+                message: (item) =>
+                    `Từ chối ${label} của ${who(item)}? Bản ghi bị từ chối sẽ không được tính công và lương.`,
+                confirmText: "Từ chối",
+                input: { required: true, label: "Lý do từ chối" },
+            },
+            onClick: async (item, { input }) => {
+                await attendanceService.decideApproval(item.attendance.id, {
+                    status: "rejected",
+                    part,
+                    decision_note: input,
+                });
+                toast.success(`Đã từ chối ${label}.`);
+                await loadData();
+            },
+        },
+    ];
+}
+
 // Duyệt/Từ chối dùng thẳng cơ chế "confirm.input" của DataTable.vue, giống
 // màn Duyệt điều chỉnh công. Từ chối BẮT BUỘC có lý do (backend cũng yêu cầu).
 const actions = computed(() => [
@@ -393,77 +496,8 @@ const actions = computed(() => [
         hidden: (item) => !item.attendance,
         onClick: (item) => openDetail(item),
     },
-    {
-        icon: "mdi-check",
-        // "Đổi sang Duyệt" khi dòng ĐANG bị từ chối (2026-09-25, theo phản hồi
-        // người dùng: nút "Từ chối" vẫn hiện sau khi đã Duyệt gây hiểu lầm là
-        // bug) — 2 nút Duyệt/Từ chối CHO PHÉP đổi qua lại (HR bấm nhầm thì sửa
-        // lại được, xem AttendanceService::decideApproval()), chỉ là tên nút
-        // trước đây không nói rõ ý "đổi quyết định" này.
-        tooltip: (item) =>
-            item.attendance?.approval_status === "rejected"
-                ? "Đổi sang Duyệt"
-                : "Duyệt",
-        color: "success",
-        hidden: (item) =>
-            !canApprove.value ||
-            item.attendance?.approval_status === "approved" ||
-            !canDecide(item),
-        confirm: {
-            title: (item) =>
-                item.attendance?.approval_status === "rejected"
-                    ? "Đổi quyết định sang Duyệt"
-                    : "Duyệt chấm công",
-            message: (item) =>
-                item.attendance?.approval_status === "rejected"
-                    ? `Đơn này ĐANG bị Từ chối — đổi lại thành Duyệt cho ${item.employee.full_name} ngày ${formatDate(date.value)}? Bản ghi được duyệt sẽ được tính công và lương.`
-                    : `Duyệt chấm công của ${item.employee.full_name} ngày ${formatDate(date.value)}? Bản ghi được duyệt sẽ được tính công và lương.`,
-            confirmText: "Duyệt",
-            input: { required: false, label: "Ghi chú (tùy chọn)" },
-        },
-        onClick: async (item, { input }) => {
-            await attendanceService.decideApproval(item.attendance.id, {
-                status: "approved",
-                decision_note: input || null,
-            });
-            toast.success("Đã duyệt chấm công.");
-            await loadData();
-        },
-    },
-    {
-        icon: "mdi-close",
-        // "Đổi sang Từ chối" khi dòng ĐANG được duyệt — cùng lý do ở nút Duyệt
-        // phía trên (đây là đổi quyết định, không phải "từ chối lần đầu").
-        tooltip: (item) =>
-            item.attendance?.approval_status === "approved"
-                ? "Đổi sang Từ chối"
-                : "Từ chối",
-        color: "error",
-        hidden: (item) =>
-            !canApprove.value ||
-            item.attendance?.approval_status === "rejected" ||
-            !canDecide(item),
-        confirm: {
-            title: (item) =>
-                item.attendance?.approval_status === "approved"
-                    ? "Đổi quyết định sang Từ chối"
-                    : "Từ chối chấm công",
-            message: (item) =>
-                item.attendance?.approval_status === "approved"
-                    ? `Đơn này ĐANG được Duyệt — đổi lại thành Từ chối cho ${item.employee.full_name} ngày ${formatDate(date.value)}? Bản ghi bị từ chối sẽ không được tính công và lương.`
-                    : `Từ chối chấm công của ${item.employee.full_name} ngày ${formatDate(date.value)}? Bản ghi bị từ chối sẽ không được tính công và lương.`,
-            confirmText: "Từ chối",
-            input: { required: true, label: "Lý do từ chối" },
-        },
-        onClick: async (item, { input }) => {
-            await attendanceService.decideApproval(item.attendance.id, {
-                status: "rejected",
-                decision_note: input,
-            });
-            toast.success("Đã từ chối chấm công.");
-            await loadData();
-        },
-    },
+    ...partActions("check_in", "giờ vào", "mdi-login"),
+    ...partActions("check_out", "giờ ra", "mdi-logout"),
 ]);
 
 // Chọn nhiều dòng chỉ để DUYỆT/TỪ CHỐI hàng loạt (2026-09-25, theo yêu cầu

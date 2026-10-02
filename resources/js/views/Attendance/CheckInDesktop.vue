@@ -167,29 +167,6 @@
                     >
                         Chấm công ra
                     </v-btn>
-                    <!-- Xin về sớm: gửi TRƯỚC khi chấm ra (hoặc sau, ở bảng
-                    lịch sử bên dưới). Về sớm ≤ 30 phút không cần xin. -->
-                    <v-btn
-                        v-if="
-                            entry.attendance?.first_check_in_at &&
-                            !entry.attendance?.last_check_out_at &&
-                            !entry.attendance?.early_leave_excused
-                        "
-                        class="mt-2"
-                        variant="tonal"
-                        color="primary"
-                        block
-                        prepend-icon="mdi-exit-run"
-                        @click="openEarlyLeaveDialog(entry.attendance)"
-                    >
-                        Xin về sớm
-                    </v-btn>
-                    <div
-                        v-if="entry.attendance?.early_leave_excused"
-                        class="text-body-2 text-success mt-2"
-                    >
-                        Đã được duyệt xin về sớm — không bị trừ công.
-                    </div>
                 </v-sheet>
             </v-col>
         </v-row>
@@ -299,25 +276,9 @@
                         <td>{{ formatTime(a.last_check_out_at) }}</td>
                         <td>
                             {{ formatMinutesAsHours(a.late_minutes) }}
-                            <span
-                                v-if="a.late_minutes && a.late_excused"
-                                class="text-success"
-                                style="opacity: 0.8"
-                            >
-                                (đã miễn trừ)
-                            </span>
                         </td>
                         <td>
                             {{ formatMinutesAsHours(a.early_leave_minutes) }}
-                            <span
-                                v-if="
-                                    a.early_leave_minutes && a.early_leave_excused
-                                "
-                                class="text-success"
-                                style="opacity: 0.8"
-                            >
-                                (đã duyệt)
-                            </span>
                         </td>
                         <td>
                             <!-- Chỉ hiện OT khi đã được duyệt: chấm công ra muộn
@@ -366,37 +327,6 @@
                                     <v-icon icon="mdi-file-edit-outline" />
                                     <v-tooltip activator="parent" location="top"
                                         >Xin điều chỉnh</v-tooltip
-                                    >
-                                </v-btn>
-                                <v-btn
-                                    v-if="a.late_minutes > 0 && !a.late_excused"
-                                    icon="mdi-shield-check-outline"
-                                    variant="tonal"
-                                    color="primary"
-                                    size="small"
-                                    rounded="lg"
-                                    @click="openExcuseDialog(a)"
-                                >
-                                    <v-icon icon="mdi-shield-check-outline" />
-                                    <v-tooltip activator="parent" location="top"
-                                        >Xin miễn trừ đi muộn</v-tooltip
-                                    >
-                                </v-btn>
-                                <v-btn
-                                    v-if="
-                                        a.early_leave_minutes > 0 &&
-                                        !a.early_leave_excused
-                                    "
-                                    icon="mdi-exit-run"
-                                    variant="tonal"
-                                    color="primary"
-                                    size="small"
-                                    rounded="lg"
-                                    @click="openEarlyLeaveDialog(a)"
-                                >
-                                    <v-icon icon="mdi-exit-run" />
-                                    <v-tooltip activator="parent" location="top"
-                                        >Xin về sớm</v-tooltip
                                     >
                                 </v-btn>
                                 <v-btn
@@ -924,146 +854,6 @@
             </v-card>
         </v-dialog>
 
-        <!-- Xin về sớm (early_leave — KHÔNG sửa giờ, bắt buộc lý do; duyệt thì
-        không bị trừ công, từ chối thì vẫn bị trừ) -->
-        <v-dialog v-model="earlyLeaveDialog" max-width="480" persistent>
-            <v-card rounded="xl" elevation="12" class="glass-panel">
-                <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
-                    Xin về sớm
-                </v-card-title>
-                <v-form
-                    ref="earlyLeaveFormRef"
-                    validate-on="blur invalid-input lazy"
-                    @submit.prevent="validateThen(earlyLeaveFormRef, submitEarlyLeaveRequest)"
-                    class="v-card-text px-5"
-                    style="display: flex; flex-direction: column; gap: 0.75rem"
-                >
-                    <div class="text-body-2" style="opacity: 0.75">
-                        Ngày công:
-                        <strong>{{
-                            formatDate(earlyLeaveTarget?.attendance_date)
-                        }}</strong
-                        >. Về sớm quá 30 phút so với giờ kết thúc ca sẽ bị trừ
-                        công theo số giờ thiếu. Nếu yêu cầu được duyệt thì
-                        không bị trừ; bị từ chối thì vẫn bị trừ như thường.
-                        Về sớm trong 30 phút không cần xin.
-                    </div>
-
-                    <div>
-                        <div class="text-body-2 font-weight-medium mb-1">
-                            Lý do <span class="text-error">*</span>
-                        </div>
-                        <v-textarea
-                            v-model="earlyLeaveForm.reason"
-                            :rules="[notEmpty('Lý do'), maxLength(1000, 'Lý do')]"
-                            rows="3"
-                            variant="outlined"
-                            density="comfortable"
-                            rounded="lg"
-                            :error-messages="earlyLeaveErrors.reason"
-                        />
-                    </div>
-
-                    <v-alert
-                        v-if="earlyLeaveGeneralError"
-                        type="error"
-                        variant="tonal"
-                        density="compact"
-                    >
-                        {{ earlyLeaveGeneralError }}
-                    </v-alert>
-                </v-form>
-                <v-card-actions class="px-5 pb-5">
-                    <v-spacer />
-                    <v-btn
-                        variant="text"
-                        :disabled="earlyLeaveSubmitting"
-                        @click="closeEarlyLeaveDialog"
-                    >
-                        Hủy
-                    </v-btn>
-                    <v-btn
-                        color="primary"
-                        variant="flat"
-                        :loading="earlyLeaveSubmitting"
-                        @click="validateThen(earlyLeaveFormRef, submitEarlyLeaveRequest)"
-                    >
-                        Gửi yêu cầu
-                    </v-btn>
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
-
-        <!-- Xin miễn trừ đi muộn (excuse — Ngày 42, KHÔNG sửa giờ, chỉ xin
-        không tính vào thống kê đi muộn) -->
-        <v-dialog v-model="excuseDialog" max-width="480" persistent>
-            <v-card rounded="xl" elevation="12" class="glass-panel">
-                <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
-                    Xin miễn trừ đi muộn
-                </v-card-title>
-                <v-form ref="excuseFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(excuseFormRef, submitExcuseRequest)"
-                    class="v-card-text px-5"
-                    style="display: flex; flex-direction: column; gap: 0.75rem"
-                >
-                    <div class="text-body-2" style="opacity: 0.75">
-                        Ngày công:
-                        <strong>{{
-                            formatDate(excuseTarget?.attendance_date)
-                        }}</strong
-                        >, trễ
-                        <strong>{{
-                            formatMinutesAsHours(excuseTarget?.late_minutes)
-                        }}</strong
-                        >. Dùng khi đi muộn có lý do chính đáng (kẹt xe, tai
-                        nạn,...) — giờ vào vẫn giữ nguyên, chỉ không tính vào
-                        thống kê đi muộn nếu được duyệt.
-                    </div>
-
-                    <div>
-                        <div class="text-body-2 font-weight-medium mb-1">
-                            Lý do <span class="text-error">*</span>
-                        </div>
-                        <v-textarea
-                            v-model="excuseForm.reason"
- :rules="[notEmpty('Lý do'), maxLength(1000, 'Lý do')]"
-                            rows="3"
-                            variant="outlined"
-                            density="comfortable"
-                            rounded="lg"
-                            :error-messages="excuseErrors.reason"
-                        />
-                    </div>
-
-                    <v-alert
-                        v-if="excuseGeneralError"
-                        type="error"
-                        variant="tonal"
-                        density="compact"
-                    >
-                        {{ excuseGeneralError }}
-                    </v-alert>
-                </v-form>
-                <v-card-actions class="px-5 pb-5">
-                    <v-spacer />
-                    <v-btn
-                        variant="text"
-                        :disabled="excuseSubmitting"
-                        @click="closeExcuseDialog"
-                    >
-                        Hủy
-                    </v-btn>
-                    <v-btn
-                        color="primary"
-                        variant="flat"
-                        :loading="excuseSubmitting"
-                        @click="validateThen(excuseFormRef, submitExcuseRequest)"
-                    >
-                        Gửi yêu cầu
-                    </v-btn>
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
-
         <!-- Xin duyệt OT (2026-09-21, KHÔNG sửa giờ, chỉ xin HR xác nhận
         phần làm thêm giờ này được trả lương) -->
         <v-dialog v-model="otApprovalDialog" max-width="480" persistent>
@@ -1164,8 +954,6 @@ const adjustFormRef = ref(null);
 const supplementFormRef = ref(null);
 const extraShiftFormRef = ref(null);
 const otRequestFormRef = ref(null);
-const excuseFormRef = ref(null);
-const earlyLeaveFormRef = ref(null);
 const otApprovalFormRef = ref(null);
 
 const {
@@ -1197,24 +985,6 @@ const {
     openSupplementDialog,
     closeSupplementDialog,
     submitSupplementRequest,
-    excuseDialog,
-    excuseTarget,
-    excuseForm,
-    excuseErrors,
-    excuseGeneralError,
-    excuseSubmitting,
-    openExcuseDialog,
-    closeExcuseDialog,
-    submitExcuseRequest,
-    earlyLeaveDialog,
-    earlyLeaveTarget,
-    earlyLeaveForm,
-    earlyLeaveErrors,
-    earlyLeaveGeneralError,
-    earlyLeaveSubmitting,
-    openEarlyLeaveDialog,
-    closeEarlyLeaveDialog,
-    submitEarlyLeaveRequest,
     otApprovalDialog,
     otApprovalTarget,
     otApprovalForm,

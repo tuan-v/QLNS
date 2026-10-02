@@ -10,7 +10,9 @@ use Illuminate\Http\JsonResponse;
 
 class EmployeeAccountController extends Controller
 {
-    public function __construct(private readonly EmployeeAccountService $employeeAccountService) {}
+    public function __construct(private readonly EmployeeAccountService $employeeAccountService)
+    {
+    }
 
     public function store(StoreEmployeeAccountRequest $request, Employee $employee): JsonResponse
     {
