@@ -45,6 +45,14 @@ export default {
     createContract(id, formData) {
         return axios.post(`${API_BASE}/${id}/contracts`, formData);
     },
+    // Bổ sung tệp PDF / ngày kết thúc / ngày ký còn thiếu của 1 hợp đồng đã
+    // tạo. Gửi POST kèm `_method=PUT` vì multipart không đi qua PUT được —
+    // Laravel tự hiểu thành PUT (xem routes/api/v1/employees.php).
+    fillContract(id, contractId, formData) {
+        formData.append("_method", "PUT");
+
+        return axios.post(`${API_BASE}/${id}/contracts/${contractId}`, formData);
+    },
     terminateContract(id, contractId) {
         return axios.post(`${API_BASE}/${id}/contracts/${contractId}/terminate`);
     },

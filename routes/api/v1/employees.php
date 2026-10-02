@@ -41,6 +41,10 @@ Route::middleware('auth:api')->prefix('employees')->group(function (): void {
     Route::post('/{employee}/account', [EmployeeAccountController::class, 'store'])->middleware('permission:employee.update');
     Route::get('/{employee}/contracts', [EmployeeContractController::class, 'index'])->middleware('permission:employee.view');
     Route::post('/{employee}/contracts', [EmployeeContractController::class, 'store'])->middleware('permission:employee.update');
+    // Bổ sung tệp PDF / ngày kết thúc / ngày ký còn thiếu của hợp đồng đã tạo
+    // (hợp đồng đầu tiên sinh tự động lúc thêm nhân viên không có 3 thứ này).
+    // Frontend gửi POST kèm `_method=PUT` vì multipart không đi được qua PUT.
+    Route::put('/{employee}/contracts/{contract}', [EmployeeContractController::class, 'update'])->middleware('permission:employee.update');
     Route::post('/{employee}/contracts/{contract}/terminate', [EmployeeContractController::class, 'terminate'])->middleware('permission:employee.update');
     // Không gắn permission:employee.view — download() tự kiểm tra "chính
     // mình HOẶC có employee.view" bên trong Controller, vì route này còn

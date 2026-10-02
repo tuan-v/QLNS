@@ -10,7 +10,7 @@ class EmployeeContractRepository
 {
     public function listByEmployee(Employee $employee): Collection
     {
-        return $employee->contracts()->latest('start_date')->get();
+        return $employee->contracts()->latest('start_date')->latest('id')->get();
     }
 
     public function find(int $id): ?EmployeeContract

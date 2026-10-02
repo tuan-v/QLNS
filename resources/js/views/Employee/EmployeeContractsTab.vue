@@ -89,7 +89,29 @@
                                     >
                                 </v-btn>
 
+                                <!-- Hợp đồng còn thiếu tệp PDF / ngày kết thúc /
+                                     ngày ký thì cho bổ sung (hợp đồng đầu tiên
+                                     sinh tự động lúc thêm nhân viên không có 3
+                                     thứ này) — xem EmployeeContractService::
+                                     fillMissing(), chỉ điền được ô đang trống. -->
                                 <v-btn
+                                    v-if="isMissingData(contract)"
+                                    icon="mdi-file-plus-outline"
+                                    variant="tonal"
+                                    color="warning"
+                                    size="small"
+                                    rounded="lg"
+                                    @click="openFillDialog(contract)"
+                                >
+                                    <v-icon icon="mdi-file-plus-outline" />
+                                    <v-tooltip activator="parent" location="top">
+                                        Bổ sung dữ liệu còn thiếu
+                                    </v-tooltip>
+                                </v-btn>
+
+                                <!-- Không có file thì 2 nút này chỉ dẫn tới lỗi -->
+                                <v-btn
+                                    v-if="contract.has_file"
                                     icon="mdi-eye-outline"
                                     variant="tonal"
                                     size="small"
@@ -109,6 +131,7 @@
                                 </v-btn>
 
                                 <v-btn
+                                    v-if="contract.has_file"
                                     icon="mdi-download-outline"
                                     variant="tonal"
                                     size="small"
@@ -214,6 +237,83 @@
                 </v-card-actions>
             </v-card>
         </v-dialog>
+
+        <!-- Bổ sung dữ liệu còn thiếu — CHỈ hiện những ô đang trống, vì
+             backend không cho ghi đè giá trị đã có (giấy tờ pháp lý, xem
+             EmployeeContractService::fillMissing()). -->
+        <FormDialog
+            v-model="fillDialog"
+            eyebrow="HỢP ĐỒNG"
+            :title="`Bổ sung hợp đồng ${fillContract?.contract_number ?? ''}`"
+            subtitle="Chỉ điền được những mục còn trống. Đã ghi rồi thì không sửa lại được — cần đổi thì ký hợp đồng mới."
+            :error="fillGeneralError"
+            :loading="filling"
+            submit-label="Lưu bổ sung"
+            icon="mdi-file-plus-outline"
+            max-width="520"
+            @submit="submitFill"
+        >
+            <FormSection title="Thông tin còn thiếu">
+                <div v-if="!fillContract?.end_date" class="mb-3">
+                    <div class="text-body-2 font-weight-medium mb-1">Ngày kết thúc</div>
+                    <InputDate
+                        v-model="fillForm.end_date"
+                        :error-messages="fillErrors.end_date"
+                    />
+                </div>
+
+                <div v-if="!fillContract?.signed_at" class="mb-3">
+                    <div class="text-body-2 font-weight-medium mb-1">Ngày ký</div>
+                    <InputDate
+                        v-model="fillForm.signed_at"
+                        :error-messages="fillErrors.signed_at"
+                    />
+                </div>
+
+                <div>
+                    <div class="text-body-2 font-weight-medium mb-1">
+                        {{ fillContract?.has_file ? "Thay tệp hợp đồng (PDF)" : "Tệp hợp đồng (PDF)" }}
+                    </div>
+                    <InputFile
+                        v-model="fillForm.contract_file"
+                        :limit="UPLOAD_LIMITS.contract"
+                        :error-messages="fillErrors.contract_file"
+                    />
+
+                    <!-- Nút xem trước tệp vừa chọn nằm sẵn trong InputFile
+                         (dùng chung cho mọi ô upload), không dựng lại ở đây. -->
+
+                    <v-alert
+                        v-if="fillContract?.has_file"
+                        type="warning"
+                        variant="tonal"
+                        density="compact"
+                        class="mt-3"
+                        icon="mdi-history"
+                    >
+                        Hợp đồng này đã có tệp. Thay tệp sẽ được ghi vết (ai thay,
+                        lúc nào, từ tệp nào sang tệp nào, vì sao) — tệp cũ vẫn
+                        được giữ lại, không bị xóa.
+                    </v-alert>
+                </div>
+
+                <div v-if="fillContract?.has_file && pickedFile" class="mt-3">
+                    <div class="text-body-2 font-weight-medium mb-1">
+                        Lý do thay tệp <span class="text-error">*</span>
+                    </div>
+                    <v-textarea
+                        v-model="fillForm.replace_reason"
+                        variant="outlined"
+                        density="comfortable"
+                        rounded="lg"
+                        rows="2"
+                        no-resize
+                        placeholder="Ví dụ: Upload nhầm bản scan của nhân viên khác"
+                        :error-messages="fillErrors.replace_reason"
+                    />
+                </div>
+            </FormSection>
+        </FormDialog>
 
         <!-- Xác nhận trước khi chấm dứt — hành động một chiều (không có nút
              "hoàn tác" trên giao diện), nên bắt xác nhận riêng thay vì cho
@@ -402,11 +502,14 @@
 // Tab "Hợp đồng" của EmployeeDetail.vue — tách riêng theo yêu cầu dễ bảo
 // trì. Tự tải dữ liệu của chính nó ngay khi mount (component cha chỉ mount
 // component này lần đầu khi người dùng thật sự mở tab, xem EmployeeDetail.vue).
-import { onMounted, ref, reactive } from "vue";
+import { computed, onMounted, ref, reactive } from "vue";
 import employeeService from "../../services/employeeService";
 import StatusChip from "../../components/common/StatusChip.vue";
 import InputMoney from "../../components/common/InputMoney.vue";
 import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
+import InputDate from "../../components/common/InputDate.vue";
+import FormDialog from "../../components/common/FormDialog.vue";
+import FormSection from "../../components/common/FormSection.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 import { notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
@@ -625,6 +728,80 @@ const terminateDialog = ref(false);
 const terminateContract = ref(null);
 const terminateError = ref("");
 const terminating = ref(false);
+
+/* ----------------- Bổ sung dữ liệu còn thiếu của hợp đồng ----------------- */
+// Hợp đồng ĐẦU TIÊN sinh tự động lúc thêm nhân viên không có tệp PDF / ngày
+// kết thúc / ngày ký — xem EmployeeContractService::fillMissing(). Backend
+// chỉ cho điền ô đang trống nên hộp thoại cũng chỉ hiện đúng những ô đó.
+const fillDialog = ref(false);
+const fillContract = ref(null);
+const fillForm = reactive({
+    end_date: null,
+    signed_at: null,
+    contract_file: null,
+    replace_reason: "",
+});
+
+// InputFile trả về File hoặc mảng File tuỳ cấu hình — chuẩn hoá về 1 File.
+const pickedFile = computed(() =>
+    Array.isArray(fillForm.contract_file) ? fillForm.contract_file[0] : fillForm.contract_file,
+);
+const fillErrors = ref({});
+const fillGeneralError = ref("");
+const filling = ref(false);
+
+function isMissingData(contract) {
+    return !contract.has_file || !contract.end_date || !contract.signed_at;
+}
+
+function openFillDialog(contract) {
+    fillContract.value = contract;
+    fillForm.end_date = null;
+    fillForm.signed_at = null;
+    fillForm.contract_file = null;
+    fillForm.replace_reason = "";
+    fillErrors.value = {};
+    fillGeneralError.value = "";
+    fillDialog.value = true;
+}
+
+async function submitFill() {
+    fillErrors.value = {};
+    fillGeneralError.value = "";
+
+    const formData = new FormData();
+    if (fillForm.end_date) formData.append("end_date", fillForm.end_date);
+    if (fillForm.signed_at) formData.append("signed_at", fillForm.signed_at);
+    if (pickedFile.value) formData.append("contract_file", pickedFile.value);
+    if (fillForm.replace_reason) formData.append("replace_reason", fillForm.replace_reason);
+
+    filling.value = true;
+    try {
+        const response = await employeeService.fillContract(
+            props.employeeId,
+            fillContract.value.id,
+            formData,
+        );
+        const updated = response.data.data;
+        const index = contracts.value.findIndex((c) => c.id === updated.id);
+        if (index !== -1) contracts.value[index] = updated;
+        toast.success("Đã bổ sung thông tin hợp đồng.");
+        fillDialog.value = false;
+        emit("changed");
+    } catch (e) {
+        if (e.response?.status === 422) {
+            fillErrors.value = e.response.data.errors ?? {};
+            // Lỗi không gắn với ô nào (vd không gửi gì để bổ sung).
+            fillGeneralError.value =
+                e.response.data.errors?.contract?.[0] ?? "";
+        } else {
+            fillGeneralError.value =
+                e.response?.data?.message ?? "Không thể bổ sung thông tin hợp đồng.";
+        }
+    } finally {
+        filling.value = false;
+    }
+}
 
 function openTerminateDialog(contract) {
     terminateContract.value = contract;

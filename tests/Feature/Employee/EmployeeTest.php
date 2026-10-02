@@ -334,6 +334,38 @@ class EmployeeTest extends TestCase
         $this->assertDatabaseHas('employees', ['id' => $employeeId, 'employment_status' => 'probation']);
     }
 
+    // Ngày kết thúc hợp đồng là TÙY CHỌN ở form thêm nhân viên — bỏ trống =
+    // hợp đồng không xác định thời hạn (hoặc HR bổ sung sau ở tab "Hợp đồng",
+    // xem EmployeeContractService::fillMissing()).
+    public function test_optional_contract_end_date_is_saved_on_the_first_contract(): void
+    {
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+        $endDate = now()->addMonths(2)->toDateString();
+
+        $response = $this->postJson('/api/v1/employees', $this->validPayload([
+            'hire_date' => now()->toDateString(),
+            'contract_end_date' => $endDate,
+        ]), ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('employee_contracts', [
+            'employee_id' => $response->json('data.id'),
+            'end_date' => $endDate,
+        ]);
+    }
+
+    public function test_contract_end_date_must_be_after_hire_date(): void
+    {
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+
+        $this->postJson('/api/v1/employees', $this->validPayload([
+            'hire_date' => '2024-06-01',
+            'contract_end_date' => '2024-05-01',
+        ]), ['Authorization' => 'Bearer '.$token])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('contract_end_date');
+    }
+
     // 2026-09-29, theo yêu cầu người dùng: trạng thái nhân viên KHÔNG còn chọn
     // tay — đi theo loại hợp đồng HR chọn khi tạo (chính thức -> "Chính thức"),
     // client cố gửi employment_status/insurance_salary vẫn bị bỏ qua.

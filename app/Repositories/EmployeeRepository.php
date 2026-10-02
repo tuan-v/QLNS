@@ -13,7 +13,7 @@ class EmployeeRepository
         // "Lương"/"Nghỉ phép" ở danh sách nhân viên, nạp cùng lượt tránh N+1
         // (mỗi trang tối đa perPage dòng, mỗi quan hệ chỉ 1 query riêng, không
         // lặp theo từng dòng).
-        return Employee::with(['department', 'position', 'manager', 'activeContract', 'currentYearLeaveBalance'])
+        return Employee::with(['department', 'position', 'manager', 'activeContract', 'currentYearLeaveBalance','user'])
             ->when($filters['search'] ?? null, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('full_name', 'like', "%{$search}%")

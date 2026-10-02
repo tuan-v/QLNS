@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\EmployeeContract;
 use App\Repositories\EmployeeContractRepository;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class EmployeeContractService
@@ -107,6 +109,96 @@ class EmployeeContractService
 
             return $contract;
         });
+    }
+
+    /**
+     * Bổ sung dữ liệu còn THIẾU của 1 hợp đồng đã tạo: tệp PDF bản ký, ngày
+     * kết thúc, ngày ký. Đây là "route riêng" mà comment ở create() nhắc tới —
+     * hợp đồng ĐẦU TIÊN tự tạo lúc thêm nhân viên không có 3 thứ này, trước
+     * đây không có đường nào bổ sung được nữa.
+     *
+     * Ngày kết thúc / ngày ký CHỈ điền được khi đang trống — đã ghi nhận thì
+     * không sửa lại, vì đó là dữ kiện của bản hợp đồng đã ký. Riêng TỆP PDF
+     * thay được kèm lý do (xem phần dưới). Muốn đổi điều khoản (lương, loại
+     * hợp đồng, ngày bắt đầu) thì vẫn phải ký hợp đồng MỚI qua create().
+     */
+    public function fillMissing(EmployeeContract $contract, array $data, ?UploadedFile $file = null): EmployeeContract
+    {
+        $labels = ['end_date' => 'Ngày kết thúc', 'signed_at' => 'Ngày ký'];
+        $changes = [];
+
+        foreach ($labels as $field => $label) {
+            $value = $data[$field] ?? null;
+
+            if ($value === null) {
+                continue;
+            }
+
+            if ($contract->{$field} !== null) {
+                throw ValidationException::withMessages([
+                    $field => "{$label} của hợp đồng này đã có, không sửa lại được — cần đổi thì ký hợp đồng mới.",
+                ]);
+            }
+
+            $changes[$field] = $value;
+        }
+
+        // Tệp PDF thì KHÁC 2 trường ngày ở trên: cho thay cả khi đã có, vì
+        // upload nhầm bản scan là lỗi thao tác rất dễ xảy ra và cấm tuyệt đối
+        // chỉ để lại dữ liệu sai vĩnh viễn chứ không bảo vệ được gì. Đổi lại,
+        // phải nhập lý do (UpdateEmployeeContractRequest bắt buộc) và:
+        //   - KHÔNG xóa tệp cũ khỏi đĩa — còn nguyên để đối chiếu/khôi phục;
+        //   - ghi 1 dòng audit riêng nêu rõ tệp cũ → tệp mới + lý do, bên cạnh
+        //     dòng "updated" mà AuditObserver tự ghi (ai/IP/lúc nào).
+        $replacedFrom = null;
+
+        if ($file !== null) {
+            $replacedFrom = $contract->contract_file_path;
+            $changes['contract_file_path'] = $file->store('contracts', 'local');
+        }
+
+        if ($changes === []) {
+            throw ValidationException::withMessages([
+                'contract' => 'Không có dữ liệu nào để bổ sung.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($contract, $changes, $replacedFrom, $data) {
+            $updated = $this->employeeContractRepository->update($contract, $changes);
+
+            if ($replacedFrom !== null) {
+                $this->logFileReplacement($updated, $replacedFrom, $data['replace_reason'] ?? null);
+            }
+
+            return $updated;
+        });
+    }
+
+    /**
+     * Một dòng audit DÀNH RIÊNG cho việc thay tệp hợp đồng. AuditObserver đã
+     * tự ghi dòng "updated" (ai, IP, lúc nào, cột nào đổi) nhưng KHÔNG mang
+     * được lý do — mà lý do mới là thứ giải thích được vì sao bản ký đính kèm
+     * đổi. Gom cả tệp cũ, tệp mới và lý do vào 1 dòng để sau này tra cứu chỉ
+     * cần đọc đúng dòng đó.
+     */
+    private function logFileReplacement(EmployeeContract $contract, string $previousPath, ?string $reason): void
+    {
+        AuditLog::create([
+            'action' => 'contract_file_replaced',
+            'auditable_type' => EmployeeContract::class,
+            'auditable_id' => $contract->getKey(),
+            'old_data' => ['contract_file_path' => $previousPath],
+            'new_data' => [
+                'contract_file_path' => $contract->contract_file_path,
+                'replace_reason' => $reason,
+            ],
+            'user_id' => request()->user()?->id,
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'http_method' => request()->method(),
+            'url' => request()->fullUrl(),
+            'request_id' => (string) Str::uuid(),
+        ]);
     }
 
     // Chấm dứt hợp đồng giữa chừng (HR chủ động, khác "expired" tự nhiên hết

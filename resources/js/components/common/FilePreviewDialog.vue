@@ -271,6 +271,13 @@ const props = defineProps({
     modelValue: Boolean,
     fileUrl: String, // download_url có sẵn từ API
     fileName: String, // để suy ra đuôi file
+    // Tệp NGƯỜI DÙNG VỪA CHỌN, chưa tải lên (InputFile truyền vào để xem trước
+    // trước khi bấm Lưu). Có `file` thì đọc bytes ngay tại máy, không gọi API —
+    // tệp chưa tồn tại trên server nên `fileUrl` lúc này vô nghĩa.
+    file: {
+        type: [File, Blob],
+        default: null,
+    },
 });
 const emit = defineEmits(["update:modelValue"]);
 
@@ -284,7 +291,11 @@ const MAX_SCALE = 3;
 const SCALE_STEP = 0.2;
 
 const extension = computed(
-    () => (props.fileName ?? "").split(".").pop()?.toLowerCase() ?? "",
+    () =>
+        (props.fileName ?? props.file?.name ?? "")
+            .split(".")
+            .pop()
+            ?.toLowerCase() ?? "",
 );
 
 // Content-Type theo đuôi file, chỉ dùng làm phương án dự phòng khi phản hồi
@@ -374,18 +385,28 @@ async function loadPreview() {
 
     loading.value = true;
 
+    // Hai khâu hỏng vì hai lý do khác hẳn nhau: LẤY dữ liệu (mạng, hết phiên,
+    // không đọc được tệp trên máy) và DỰNG bản xem (tệp không phải định dạng
+    // thật, hỏng cấu trúc, lỗi thư viện). Gộp chung một câu thông báo thì người
+    // dùng lẫn người sửa đều không biết phải làm gì tiếp.
+    let stage = "source";
+
     try {
         // Ảnh: tải dạng "blob" rồi biến thành URL tạm để nhúng thẳng vào <img>
         // — giống hệt cách downloadContract() đã làm ở EmployeeDetail.vue.
         if (previewType.value === "image") {
-            const response = await window.axios.get(props.fileUrl, {
-                responseType: "blob",
-            });
+            const raw =
+                props.file ??
+                (
+                    await window.axios.get(props.fileUrl, {
+                        responseType: "blob",
+                    })
+                ).data;
             // Dùng thẳng Blob của axios, KHÔNG bọc lại bằng new Blob([...]):
             // bọc lại làm mất content-type.
-            const blob = response.data.type
-                ? response.data
-                : new Blob([response.data], {
+            const blob = raw.type
+                ? raw
+                : new Blob([raw], {
                       type: MIME_BY_EXTENSION[extension.value] ?? "",
                   });
             blobUrl.value = window.URL.createObjectURL(blob);
@@ -393,12 +414,18 @@ async function loadPreview() {
         }
 
         // PDF / Word / Excel đều cần dữ liệu thô (ArrayBuffer), không phải Blob.
-        const response = await window.axios.get(props.fileUrl, {
-            responseType: "arraybuffer",
-        });
+        const data = props.file
+            ? await props.file.arrayBuffer()
+            : (
+                  await window.axios.get(props.fileUrl, {
+                      responseType: "arraybuffer",
+                  })
+              ).data;
+
+        stage = "render";
 
         if (previewType.value === "pdf") {
-            await loadPdf(response.data);
+            await loadPdf(data);
             return;
         }
 
@@ -415,18 +442,35 @@ async function loadPreview() {
                 return;
             }
             docxContainer.value.innerHTML = ""; // xóa nội dung file cũ nếu mở lại dialog cho file khác
-            await renderAsync(response.data, docxContainer.value);
+            await renderAsync(data, docxContainer.value);
             return;
         }
 
         if (previewType.value === "xlsx") {
-            await loadWorkbook(response.data);
+            await loadWorkbook(data);
         }
     } catch (error) {
-        errorMessage.value =
-            error?.response?.status === 401
-                ? "Phiên đăng nhập đã hết hạn — vui lòng đăng nhập lại rồi thử mở tài liệu."
-                : "Không mở được bản xem trước — tệp có thể đã hỏng hoặc không tải về được.";
+        if (stage === "render") {
+            errorMessage.value = `Không dựng được bản xem trước — tệp có thể không phải .${extension.value} thật hoặc đã hỏng cấu trúc.`;
+        } else if (props.file) {
+            // Tệp chọn từ máy: không có phiên đăng nhập hay mạng dính vào, đọc
+            // hỏng là hỏng ở chính tệp — nói đúng như vậy để người dùng chọn lại.
+            errorMessage.value =
+                "Không đọc được tệp từ máy — tệp có thể đã bị di chuyển, đổi tên hoặc không còn quyền đọc.";
+        } else {
+            errorMessage.value =
+                error?.response?.status === 401
+                    ? "Phiên đăng nhập đã hết hạn — vui lòng đăng nhập lại rồi thử mở tài liệu."
+                    : "Không tải được tệp từ máy chủ — kiểm tra kết nối rồi thử lại.";
+        }
+
+        // Lúc phát triển thì kèm nguyên văn lỗi: thiếu nó thì mọi trục trặc
+        // (worker pdf.js, tệp giả định dạng, hết phiên) đều ra cùng một câu và
+        // phải mò. Bản build cho người dùng cuối không in gì thêm.
+        if (import.meta.env.DEV) {
+            errorMessage.value += ` [${stage}] ${error?.name ?? "Error"}: ${error?.message ?? error}`;
+            console.error("[FilePreviewDialog]", stage, error);
+        }
     } finally {
         loading.value = false;
         rendering.value = false;
@@ -435,11 +479,54 @@ async function loadPreview() {
 
 // --------------------------------------------------------------- PDF logic
 
+// pdf.js giải mã trong Web Worker, mà Worker đòi tệp phải CÙNG ORIGIN với trang
+// và có MIME kiểu JavaScript. Hai môi trường của dự án vi phạm theo 2 kiểu khác
+// nhau, nên cách lấy tệp worker cũng khác nhau:
+//
+//   Bản build: `/build/assets/pdf.worker.min-*.mjs` do chính nginx phục vụ nên
+//   cùng origin — chỉ cần docker/nginx/default.conf khai MIME cho .mjs (mặc
+//   định nginx trả application/octet-stream, cộng header nosniff là trình duyệt
+//   từ chối chạy luôn, không đoán lại kiểu).
+//
+//   Khi chạy `npm run dev`: trang ở http://localhost:8080 (nginx) còn asset ở
+//   Vite dev server (origin khác) -> new Worker() bị chặn thẳng bởi SecurityError.
+//   Mà tải tệp đó về bọc blob cũng không xong: Vite BIẾN ĐỔI mọi tệp .js/.mjs nó
+//   phục vụ và chèn `import "/@vite/client"` vào (1,27MB gốc phình thành 6,8MB),
+//   trong Worker thì đường dẫn đó không giải được -> worker chết ngay lúc khởi
+//   động. `?raw` là đường duy nhất lấy được nguyên văn tệp gốc; bọc thành blob:
+//   URL thì vừa cùng origin vừa tự đặt được MIME.
+//
+// import.meta.env.DEV là hằng số lúc build nên nhánh dev bị loại khỏi bản phát
+// hành, không kéo theo bản sao worker dạng chuỗi.
+let workerSrcPromise = null;
+
+function resolveWorkerSrc() {
+    workerSrcPromise ??= (async () => {
+        if (!import.meta.env.DEV) {
+            return pdfWorkerUrl;
+        }
+
+        try {
+            const { default: source } = await import(
+                "pdfjs-dist/build/pdf.worker.min.mjs?raw"
+            );
+
+            return URL.createObjectURL(
+                new Blob([source], { type: "text/javascript" }),
+            );
+        } catch {
+            return pdfWorkerUrl; // vẫn thử cách thường, còn hơn chắc chắn hỏng
+        }
+    })();
+
+    return workerSrcPromise;
+}
+
 async function loadPdf(data) {
     const pdfjs = await import("pdfjs-dist");
     // pdf.js giải mã PDF trong Web Worker; không trỏ workerSrc thì nó chạy dồn
     // vào luồng chính và treo giao diện với file nhiều trang.
-    pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+    pdfjs.GlobalWorkerOptions.workerSrc = await resolveWorkerSrc();
 
     // pdf.js GIỮ và tiêu thụ chính ArrayBuffer được truyền vào (detach), nên
     // đưa bản sao để dữ liệu gốc không bị vô hiệu nếu cần dùng lại.

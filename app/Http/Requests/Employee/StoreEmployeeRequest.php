@@ -47,6 +47,12 @@ class StoreEmployeeRequest extends FormRequest
             // (EmployeeContractService::create()).
             'contract_type' => ['required', 'in:thu_viec,chinh_thuc'],
             'agreed_salary' => ['required', 'numeric', 'min:0'],
+            // Tùy chọn: hợp đồng không xác định thời hạn thì bỏ trống. Để
+            // trống lúc này vẫn bổ sung được sau ở tab "Hợp đồng" (xem
+            // EmployeeContractService::fillMissing()). Tệp PDF KHÔNG nhận ở
+            // đây — form tạo nhân viên gửi JSON, Frontend tải tệp lên ngay sau
+            // khi tạo xong qua route bổ sung đó.
+            'contract_end_date' => ['nullable', 'date', 'after:hire_date'],
         ];
     }
 
@@ -61,6 +67,8 @@ class StoreEmployeeRequest extends FormRequest
             'company_email.unique' => 'Email công ty đã tồn tại',
             'hire_date.required' => 'Ngày vào làm không được để trống',
             'hire_date.date' => 'Ngày vào làm không đúng định dạng',
+            'contract_end_date.date' => 'Ngày kết thúc hợp đồng không đúng định dạng',
+            'contract_end_date.after' => 'Ngày kết thúc hợp đồng phải sau ngày vào làm',
             'personal_email.required' => 'Email cá nhân không được để trống',
             'personal_email.email' => 'Email cá nhân không đúng định dạng',
             'personal_email.unique' => 'Email cá nhân đã tồn tại',

@@ -29,7 +29,7 @@ export const UPLOAD_LIMITS = {
 </script>
 
 <script setup>
-import { computed } from "vue";
+import { computed, defineAsyncComponent, ref } from "vue";
 
 // Ô chọn tệp dùng chung: bọc v-file-input của Vuetify, tự lấy `accept` và dòng
 // gợi ý "Định dạng ..., tối đa ...MB" từ 1 mục UPLOAD_LIMITS. Dùng
@@ -37,21 +37,57 @@ import { computed } from "vue";
 // placeholder: biến mất ngay khi chọn), và khi có lỗi 422 thì Vuetify tự thay
 // bằng câu lỗi của Backend (đã nêu sẵn giới hạn), không hiện chồng 2 dòng.
 //
-// Giống SearchSelect.vue: mọi thuộc tính còn lại (v-model, error-messages,
+// Giống SearchSelect.vue: mọi thuộc tính còn lại (error-messages, rules,
 // disabled...) rơi thẳng xuống v-file-input qua $attrs, không khai báo lại.
 // v-file-input trả về MẢNG (kể cả khi không multiple) — nơi gọi vẫn tự lấy
 // phần tử đầu như trước, component này không đổi kiểu giá trị.
+//
+// Riêng modelValue thì PHẢI khai báo (không để rơi qua $attrs): component cần
+// đọc được tệp vừa chọn để dựng bản xem trước, nhưng vẫn trả nguyên giá trị
+// v-file-input đưa ra nên nơi gọi không phải sửa gì.
 const props = defineProps({
     limit: {
         type: Object,
         required: true,
     },
+    modelValue: {
+        type: [Array, File],
+        default: null,
+    },
 });
+
+const emit = defineEmits(["update:modelValue"]);
+
+// Component có 2 node gốc (ô chọn tệp + dialog xem trước) nên Vue KHÔNG tự rót
+// $attrs xuống nữa — phải tắt rồi tự v-bind vào đúng ô chọn tệp. Đặt
+// v-bind="$attrs" SAU các thuộc tính mặc định để nơi gọi ghi đè được (ví dụ
+// EmployeeForm.vue truyền hint riêng thay cho dòng "Định dạng ..., tối đa ...").
+defineOptions({ inheritAttrs: false });
 
 const hint = computed(
     () =>
         `Định dạng ${props.limit.formats}, tối đa ${props.limit.maxSizeMb}MB`,
 );
+
+// Xem trước TRƯỚC khi bấm Lưu: upload nhầm bản scan của người khác là lỗi thao
+// tác rất dễ xảy ra, mà sửa sau thì phải thay tệp + ghi lý do (xem
+// EmployeeContractService::fillMissing). Mở ngay tại máy, chưa gửi byte nào lên
+// server. Tài liệu yêu cầu §3.2 mục 2 "preview file PDF trực tiếp" và kế hoạch
+// Ngày 29 — ở đây dùng chung cho mọi ô chọn tệp, không riêng hợp đồng.
+const FilePreviewDialog = defineAsyncComponent(
+    () => import("./FilePreviewDialog.vue"),
+);
+
+const previewOpen = ref(false);
+
+// v-file-input trả mảng khi multiple, còn lại trả thẳng File — nhận cả 2.
+const pickedFile = computed(() => {
+    const value = Array.isArray(props.modelValue)
+        ? props.modelValue[0]
+        : props.modelValue;
+
+    return value instanceof File ? value : null;
+});
 </script>
 
 <template>
@@ -66,5 +102,36 @@ const hint = computed(
         persistent-hint
         :accept="limit.accept"
         :hint="hint"
+        :model-value="modelValue"
+        v-bind="$attrs"
+        @update:model-value="emit('update:modelValue', $event)"
+    >
+        <!-- Nút xem trước nằm TRONG ô chọn tệp: ở đâu có ô upload là ở đó có
+             nút, không phụ thuộc vào bố cục của từng dialog gọi tới.
+             @click.stop: ô v-file-input bắt click để mở hộp chọn tệp của hệ
+             điều hành, không chặn thì bấm "xem trước" lại nhảy ra hộp chọn tệp. -->
+        <template v-if="pickedFile" #append-inner>
+            <v-tooltip text="Xem trước tệp vừa chọn" location="top">
+                <template #activator="{ props: tooltipProps }">
+                    <v-btn
+                        v-bind="tooltipProps"
+                        icon="mdi-eye-outline"
+                        variant="text"
+                        density="comfortable"
+                        size="small"
+                        color="primary"
+                        aria-label="Xem trước tệp vừa chọn"
+                        @click.stop.prevent="previewOpen = true"
+                    />
+                </template>
+            </v-tooltip>
+        </template>
+    </v-file-input>
+
+    <FilePreviewDialog
+        v-if="pickedFile"
+        v-model="previewOpen"
+        :file="pickedFile"
+        :file-name="pickedFile.name"
     />
 </template>

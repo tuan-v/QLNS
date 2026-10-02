@@ -152,7 +152,14 @@ class PayrollService
             : 0.0;
 
         $grossSalary = round($baseSalary + $overtimeAmount, 2);
-        $personalIncomeTax = $this->taxCalculator->calculate($grossSalary - $insuranceAmount);
+        // Luật thuế TNCN đổi mốc 2026 (giảm trừ + biểu lũy tiến), nên phải tính
+        // theo KỲ của bảng lương chứ không phải năm hiện tại — tính lại bảng
+        // lương kỳ cũ vẫn ra đúng số đã chốt. Người phụ thuộc tạm truyền 0:
+        // Employee chưa có trường lưu số người phụ thuộc (giảm trừ 6,2tr/người
+        // theo NQ 110/2025 vì thế CHƯA được áp dụng) — thêm cột là áp dụng ngay.
+        $taxYear = $start->year;
+        $incomeAfterInsurance = $grossSalary - $insuranceAmount;
+        $personalIncomeTax = $this->taxCalculator->calculate($incomeAfterInsurance, $taxYear);
         $netSalary = round($grossSalary - $insuranceAmount - $personalIncomeTax, 2);
 
         return [
@@ -168,7 +175,7 @@ class PayrollService
             'unpaid_leave_deduction' => $unpaidLeaveDeduction,
             'other_deduction' => 0,
             'gross_salary' => $grossSalary,
-            'taxable_income' => max(0, $grossSalary - $insuranceAmount - 11_000_000),
+            'taxable_income' => $this->taxCalculator->taxableIncome($incomeAfterInsurance, $taxYear),
             'personal_income_tax' => $personalIncomeTax,
             'net_salary' => $netSalary,
         ];
