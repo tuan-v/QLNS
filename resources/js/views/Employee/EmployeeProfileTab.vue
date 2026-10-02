@@ -1,9 +1,15 @@
 <template>
     <v-sheet class="border rounded-lg pa-5 glass-panel" color="transparent">
-        <div class="d-flex align-center justify-space-between flex-wrap ga-4 mb-5">
+        <div
+            class="d-flex align-center justify-space-between flex-wrap ga-4 mb-5"
+        >
             <div class="d-flex align-center ga-4">
                 <v-avatar size="72" color="surface-variant">
-                    <v-img v-if="employee.avatar_url" :src="employee.avatar_url" cover />
+                    <v-img
+                        v-if="employee.avatar_url"
+                        :src="employee.avatar_url"
+                        cover
+                    />
                     <v-icon v-else icon="mdi-account" size="36" />
                 </v-avatar>
                 <div>
@@ -77,8 +83,9 @@
                     style="display: flex; flex-direction: column; gap: 0.75rem"
                 >
                     <div class="text-body-2" style="opacity: 0.75">
-                        Email đăng nhập: <strong>{{ employee?.company_email }}</strong>.
-                        Mật khẩu đặt qua email gửi cho nhân viên, không hiển
+                        Email đăng nhập:
+                        <strong>{{ employee?.company_email }}</strong
+                        >. Mật khẩu đặt qua email gửi cho nhân viên, không hiển
                         thị ở đây.
                     </div>
 

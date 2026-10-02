@@ -10,9 +10,7 @@ use Illuminate\Http\JsonResponse;
 
 class EmployeeAccountController extends Controller
 {
-    public function __construct(private readonly EmployeeAccountService $employeeAccountService)
-    {
-    }
+    public function __construct(private readonly EmployeeAccountService $employeeAccountService) {}
 
     public function store(StoreEmployeeAccountRequest $request, Employee $employee): JsonResponse
     {
@@ -31,5 +29,17 @@ class EmployeeAccountController extends Controller
             'status' => $user->status,
             'roles' => $user->roles->pluck('name'),
         ], 201);
+    }
+    public function deactivate(Employee $employee): JsonResponse
+    {
+        $this->employeeAccountService->deactivateAccountOf($employee);
+
+        return response()->json(['message' => 'Tài khoản nhân viên đã bị vô hiệu hóa.']);
+    }
+    public function activate(Employee $employee): JsonResponse
+    {
+        $this->employeeAccountService->reactivateAccountOf($employee);
+
+        return response()->json(['message' => 'Tài khoản nhân viên đã được kích hoạt.']);
     }
 }

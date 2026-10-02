@@ -39,6 +39,8 @@ Route::middleware('auth:api')->prefix('employees')->group(function (): void {
     Route::delete('/{employee}', [EmployeeController::class, 'destroy'])->middleware('permission:employee.delete');
     Route::post('/{employee}/avatar', [EmployeeController::class, 'uploadAvatar'])->middleware('permission:employee.update');
     Route::post('/{employee}/account', [EmployeeAccountController::class, 'store'])->middleware('permission:employee.update');
+    Route::post('/{employee}/account/deactivate', [EmployeeAccountController::class, 'deactivate'])->middleware('permission:employee.lock_account');
+    Route::post('/{employee}/account/activate', [EmployeeAccountController::class, 'activate'])->middleware('permission:employee.lock_account');
     Route::get('/{employee}/contracts', [EmployeeContractController::class, 'index'])->middleware('permission:employee.view');
     Route::post('/{employee}/contracts', [EmployeeContractController::class, 'store'])->middleware('permission:employee.update');
     Route::post('/{employee}/contracts/{contract}/terminate', [EmployeeContractController::class, 'terminate'])->middleware('permission:employee.update');

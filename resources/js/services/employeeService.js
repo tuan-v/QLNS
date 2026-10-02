@@ -46,7 +46,9 @@ export default {
         return axios.post(`${API_BASE}/${id}/contracts`, formData);
     },
     terminateContract(id, contractId) {
-        return axios.post(`${API_BASE}/${id}/contracts/${contractId}/terminate`);
+        return axios.post(
+            `${API_BASE}/${id}/contracts/${contractId}/terminate`,
+        );
     },
     payslips(id) {
         return axios.get(`${API_BASE}/${id}/payslips`);
@@ -77,6 +79,12 @@ export default {
     },
     createAccount(id, payload) {
         return axios.post(`${API_BASE}/${id}/account`, payload);
+    },
+    deactivateAccount(id) {
+        return axios.post(`${API_BASE}/${id}/account/deactivate`);
+    },
+    activateAccount(id) {
+        return axios.post(`${API_BASE}/${id}/account/activate`);
     },
     shiftAssignments(id) {
         return axios.get(`${API_BASE}/${id}/shift-assignments`);

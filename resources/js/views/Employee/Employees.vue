@@ -82,14 +82,24 @@
                         offset-y="3"
                     >
                         <v-avatar
-                            :color="item.avatar_url ? undefined : avatarColor(item.full_name)"
+                            :color="
+                                item.avatar_url
+                                    ? undefined
+                                    : avatarColor(item.full_name)
+                            "
                             variant="tonal"
                             size="36"
                         >
-                            <v-img v-if="item.avatar_url" :src="item.avatar_url" cover />
-                            <span v-else class="text-caption font-weight-bold">{{
-                                initials(item.full_name)
-                            }}</span>
+                            <v-img
+                                v-if="item.avatar_url"
+                                :src="item.avatar_url"
+                                cover
+                            />
+                            <span
+                                v-else
+                                class="text-caption font-weight-bold"
+                                >{{ initials(item.full_name) }}</span
+                            >
                         </v-avatar>
                     </v-badge>
                     <div>
@@ -160,7 +170,8 @@ import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
 import StatCards from "../../components/dashboard/StatCards.vue";
 import EmployeeFormDialog from "./EmployeeForm.vue";
-
+import { useToastStore } from "../../stores/useToastStore";
+const toast = useToastStore();
 const store = useEmployeeStore();
 const departmentStore = useDepartmentStore();
 const auth = useAuthStore();
@@ -173,7 +184,9 @@ const editing = ref(null);
 
 const canCreate = computed(() => auth.permissions.includes("employee.create"));
 const canUpdate = computed(() => auth.permissions.includes("employee.update"));
-
+const canLockAccount = computed(() =>
+    auth.permissions.includes("employee.lock_account"),
+);
 const search = ref("");
 const departmentId = ref(null);
 const positionId = ref(null);
@@ -294,6 +307,49 @@ const actions = computed(() => [
         color: "primary",
         hidden: !canUpdate.value,
         onClick: openEdit,
+    },
+    {
+        icon: "mdi-lock-outline",
+        tooltip: "khóa",
+        color: "error",
+        hidden: (item) =>
+            !canLockAccount.value ||
+            !item.user ||
+            item.user.status === "inactive",
+        confirm: {
+            title: "Khóa tài khoản đăng nhập",
+            message: (item) =>
+                `Bạn có chắc muốn khóa tài khoản đăng nhập của ${item.full_name}?`,
+            confirmText: "Khóa tài khoản",
+            warning: "Nhân viên sẽ không đăng nhập được ngay lập tức.",
+        },
+
+        onClick: async (item) => {
+            await employeeService.deactivateAccount(item.id);
+            fetchData();
+            toast.success("Khóa tài khoản thành công.");
+        },
+    },
+    {
+        icon: "mdi-lock-open-outline",
+        tooltip: "mở khóa",
+        color: "success",
+        hidden: (item) =>
+            !canLockAccount.value ||
+            !item.user ||
+            item.user.status === "active",
+        confirm: {
+            title: "Mở khóa tài khoản đăng nhập",
+            message: (item) =>
+                `Bạn có chắc muốn mở khóa tài khoản đăng nhập của ${item.full_name}?`,
+            confirmText: "Mở khóa tài khoản",
+        },
+
+        onClick: async (item) => {
+            await employeeService.activateAccount(item.id);
+            fetchData();
+            toast.success("Mở khóa tài khoản thành công.");
+        },
     },
 ]);
 

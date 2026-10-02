@@ -473,7 +473,12 @@ import FormSection from "../../components/common/FormSection.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useChangeGuard } from "../../composables/useChangeGuard";
-import { isEmail, maxLength, minValue, notEmpty } from "../../composables/validationRules";
+import {
+    isEmail,
+    maxLength,
+    minValue,
+    notEmpty,
+} from "../../composables/validationRules";
 import { useAuthStore } from "../../stores/authStore";
 import DepartmentFormDialog from "../Department/DepartmentForm.vue";
 import PositionFormDialog from "../Position/PositionForm.vue";
