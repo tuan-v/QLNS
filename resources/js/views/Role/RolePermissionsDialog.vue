@@ -6,6 +6,7 @@
         subtitle="Chọn những quyền vai trò này được phép sử dụng."
         :error="error"
         :loading="loading"
+        :submit-disabled="isSystemAdmin"
         submit-label="Lưu quyền"
         icon="mdi-key-outline"
         max-width="720"
@@ -76,6 +77,17 @@
         </div>
 
         <FormSection title="Danh sách quyền">
+            <v-alert
+                v-if="isSystemAdmin"
+                type="info"
+                variant="tonal"
+                density="compact"
+                class="mb-3"
+                icon="mdi-shield-lock-outline"
+            >
+                Vai trò <strong>Admin</strong> của hệ thống luôn có toàn bộ quyền (kể cả quyền
+                tạo mới sau này) — không thể bỏ quyền nào.
+            </v-alert>
             <div class="d-flex flex-wrap align-center ga-3">
                 <!-- Lọc ngay trên danh sách đã tải sẵn (vài chục dòng) nên để
                      debounce 0, gõ tới đâu lọc tới đó, không gọi lại API. -->
@@ -117,6 +129,7 @@
                             :label="`${permission.name} (${permission.code})`"
                             density="compact"
                             hide-details
+                            :disabled="isSystemAdmin"
                         />
                         <div class="d-flex align-center flex-shrink-0">
                             <v-btn
@@ -153,6 +166,7 @@ import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
 import SearchField from "../../components/common/SearchField.vue";
 import { normalizeVietnamese } from "../../composables/normalizeVietnamese";
+import { SYSTEM_ADMIN_ROLE } from "../../composables/roleLevels";
 
 const props = defineProps({
     modelValue: { type: Boolean, default: false },
@@ -160,6 +174,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["update:modelValue", "saved"]);
+
+const isSystemAdmin = computed(() => props.role?.name === SYSTEM_ADMIN_ROLE);
 
 const permissionStore = usePermissionStore();
 const toast = useToastStore();
@@ -191,6 +207,7 @@ const GROUP_LABELS = {
     payroll: "Lương",
     report: "Báo cáo",
     rbac: "Phân quyền",
+    holiday: "Ngày nghỉ lễ",
     system: "Hệ thống",
 };
 

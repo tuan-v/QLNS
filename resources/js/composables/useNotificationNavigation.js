@@ -14,6 +14,8 @@ import { useNotificationStore } from "../stores/useNotificationStore";
 // điều hướng, chỉ đánh dấu đã đọc).
 const TYPE_ROUTES = {
     "leave.decided": "leave-requests",
+    "holiday.upcoming": "holidays",
+    "holiday.confirm_needed": "holidays",
     "leave.pending_manager": "leave-management",
     "leave.pending_hr": "leave-management",
     "attendance.pending_approval": "attendance-overview",

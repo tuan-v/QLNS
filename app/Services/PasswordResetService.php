@@ -20,8 +20,7 @@ class PasswordResetService
         private readonly UserRepository $userRepository,
         private readonly PasswordResetRepository $passwordResetRepository,
         private readonly RefreshTokenRepository $refreshTokenRepository,
-    ) {
-    }
+    ) {}
 
     // Luôn trả về thành công phía Controller kể cả khi email không tồn tại —
     // nếu báo "email không tồn tại" sẽ lộ ra ai đang có tài khoản trong hệ
@@ -47,7 +46,7 @@ class PasswordResetService
         );
 
         $resetUrl = rtrim((string) config('app.url'), '/')
-            . '/reset-password?token=' . $plainToken
+            . '/dat-lai-mat-khau?token=' . $plainToken
             . '&email=' . urlencode($user->email);
 
         // Gửi đồng bộ vì chưa có worker hàng chờ chạy nền trong docker-compose

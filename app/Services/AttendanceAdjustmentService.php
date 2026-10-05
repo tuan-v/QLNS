@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Attendance;
 use App\Models\AttendanceAdjustment;
 use App\Models\Employee;
+use App\Models\Holiday;
 use App\Models\User;
 use App\Models\WorkShift;
 use App\Repositories\AttendanceAdjustmentRepository;
@@ -25,6 +26,7 @@ class AttendanceAdjustmentService
         'excuse' => 'miễn trừ đi muộn',
         'overtime' => 'duyệt OT',
         'extra_shift' => 'làm ngoài lịch',
+        'overtime_shift' => 'làm OT ngày khác',
     ];
 
     public function __construct(
@@ -61,7 +63,14 @@ class AttendanceAdjustmentService
         $data['type'] = $type;
         $data['employee_id'] = $employee->id;
 
-        if ($type === 'extra_shift') {
+        if ($type === 'overtime_shift') {
+            // Khung giờ OT lưu vào 2 cột giờ đề xuất có sẵn; ca OT chỉ tạo khi HR duyệt.
+            $data['proposed_check_in_at'] = $data['attendance_date'].' '.$data['custom_start_time'].':00';
+            $data['proposed_check_out_at'] = $data['attendance_date'].' '.$data['custom_end_time'].':00';
+            $data['work_shift_id'] = null;
+
+            $this->assertOvertimeShiftRequestIsValid($employee, Carbon::parse($data['attendance_date']));
+        } elseif ($type === 'extra_shift') {
             // "Tự chọn giờ" (2026-09-23, theo yêu cầu người dùng) — không
             // chọn 1 Ca có sẵn mà tự gõ giờ vào/ra, nên tạo NGAY 1 Ca MỚI
             // đúng khung giờ đó rồi xử lý TIẾP HỆT như đã chọn Ca có sẵn
@@ -244,6 +253,34 @@ class AttendanceAdjustmentService
         }
     }
 
+    // 'overtime_shift' — OT ngày khác: chỉ cho ngày nhân viên KHÔNG có ca làm (T7/CN,
+    // ngày ngoài lịch) hoặc ngày lễ. Ngày có ca thì làm thêm sau ca dùng "Xin OT".
+    // Mỗi ngày tối đa 1 đơn OT đang chờ duyệt/đã duyệt.
+    private function assertOvertimeShiftRequestIsValid(Employee $employee, Carbon $date): void
+    {
+        $isHoliday = Holiday::whereDate('holiday_date', $date->toDateString())->exists();
+        $hasRegularShift = $this->attendanceService->listActiveAssignmentsForDate($employee, $date)
+            ->contains(fn ($assignment) => ! $assignment->workShift->is_overtime);
+
+        if ($hasRegularShift && ! $isHoliday) {
+            throw ValidationException::withMessages([
+                'attendance_date' => 'Ngày này bạn có ca làm việc — làm thêm sau giờ tan ca thì dùng "Xin OT" cho ca đó.',
+            ]);
+        }
+
+        $alreadyRequested = AttendanceAdjustment::where('employee_id', $employee->id)
+            ->where('type', 'overtime_shift')
+            ->whereIn('status', ['pending', 'approved'])
+            ->whereDate('attendance_date', $date->toDateString())
+            ->exists();
+
+        if ($alreadyRequested) {
+            throw ValidationException::withMessages([
+                'attendance_date' => 'Bạn đã có đơn OT cho ngày này (đang chờ duyệt hoặc đã duyệt).',
+            ]);
+        }
+    }
+
     // Các ngày trong [from, to] mà nhân viên CHƯA có ca này trong lịch — chính là
     // những ngày cần "mở khóa" bằng bản gán 1 ngày khi đơn được duyệt.
     /** @return array<int, Carbon> */
@@ -313,6 +350,23 @@ class AttendanceAdjustmentService
                 // effective_to=ngày đăng ký). Từ lúc này, luồng Chấm công
                 // (AttendanceService::checkIn()/checkOut()) chạy HỆT như 1
                 // ca bình thường, không cần sửa gì thêm ở đó.
+                // OT ngày khác: tạo ca OT đúng khung giờ đã đăng ký + gán đúng ngày đó.
+                // Nhân viên chấm công bình thường; mọi phút trong khung là OT đã duyệt.
+                if ($adjustment->type === 'overtime_shift') {
+                    $shift = $this->workShiftService->createOvertimeOneOff(
+                        $adjustment->proposed_check_in_at->format('H:i'),
+                        $adjustment->proposed_check_out_at->format('H:i'),
+                    );
+                    $this->employeeShiftAssignmentService->createOneOffAssignment(
+                        $adjustment->employee,
+                        $shift,
+                        Carbon::parse($adjustment->attendance_date),
+                    );
+                    $adjustment->forceFill(['work_shift_id' => $shift->id])->save();
+
+                    return $adjustment;
+                }
+
                 if ($adjustment->type === 'extra_shift') {
                     // Đơn có thể phủ NHIỀU ngày liền nhau (attendance_date_to): mỗi
                     // ngày chưa có ca này trong lịch được mở khóa bằng 1 bản gán 1 ngày.

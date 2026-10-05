@@ -118,7 +118,7 @@ const actions = computed(() => [
         icon: "mdi-eye-outline",
         tooltip: "Xem chi tiết",
         color: "primary",
-        onClick: (item) => router.push(`/payrolls/${item.id}`),
+        onClick: (item) => router.push(`/bang-luong/${item.id}`),
     },
 
     {

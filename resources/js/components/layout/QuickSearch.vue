@@ -70,6 +70,12 @@ const ALL_ITEMS = [
         keywords: ["resignation", "nghi viec", "don nghi viec", "thoi viec"],
     },
     {
+        name: "holidays",
+        title: "Ngày nghỉ lễ",
+        icon: "mdi-calendar-star",
+        keywords: ["holiday", "ngay le", "nghi le", "tet", "am lich", "lich nghi"],
+    },
+    {
         name: "work-shifts",
         title: "Ca làm việc",
         icon: "mdi-timetable",

@@ -37,6 +37,10 @@ export default {
     dailyOverview(params = {}) {
         return axios.get(`${API_BASE}/overview`, { params });
     },
+    // Bảng chấm công tháng dạng Excel — trả về Blob để tải file.
+    exportSheet(params) {
+        return axios.get(`${API_BASE}/sheet/export`, { params, responseType: "blob" });
+    },
     decideApproval(id, payload) {
         return axios.put(`${API_BASE}/${id}/approval`, payload);
     },

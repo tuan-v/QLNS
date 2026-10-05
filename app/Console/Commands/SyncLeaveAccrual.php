@@ -21,7 +21,7 @@ class SyncLeaveAccrual extends Command
 
     public function handle(LeaveAccrualService $leaveAccrualService): int
     {
-        $employees = Employee::whereIn('employment_status', ['active', 'probation'])->get();
+        $employees = Employee::whereIn('employment_status', Employee::WORKING_STATUSES)->get();
         // Loại phép annual_entitlement_days = 0 ("Nghỉ khác theo chế độ/luật",
         // "Nghỉ không lương") không có quỹ theo năm — không cần đồng bộ (xem
         // targetAllocatedDays()).

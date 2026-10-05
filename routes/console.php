@@ -29,3 +29,8 @@ Schedule::command('leave:sync-accrual')->dailyAt('00:20');
 // RemindMissingCheckout.php. Mỗi bản ghi chỉ được nhắc đúng 1 lần (cột
 // checkout_reminder_sent_at) nên chạy dày không tạo trùng lặp thông báo.
 Schedule::command('attendance:remind-checkout')->everyMinute();
+
+// Ngày nghỉ lễ: tự sinh theo quy tắc (dương + âm lịch) cho năm nay và năm sau mỗi
+// đầu tháng (sang năm mới luôn có sẵn lịch), và gửi thông báo trước mỗi dịp nghỉ.
+Schedule::command('holidays:generate')->monthlyOn(1, '00:30');
+Schedule::command('holidays:notify')->dailyAt('08:00');

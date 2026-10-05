@@ -32,7 +32,7 @@ class AssignMissingDefaultShift extends Command
 
     public function handle(EmployeeShiftAssignmentService $employeeShiftAssignmentService): int
     {
-        $employees = Employee::whereIn('employment_status', ['active', 'probation'])
+        $employees = Employee::whereIn('employment_status', Employee::WORKING_STATUSES)
             ->whereDoesntHave('shiftAssignments', fn ($query) => $query->where('status', 'active'))
             ->get();
 

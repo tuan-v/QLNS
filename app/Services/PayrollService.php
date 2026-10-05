@@ -9,6 +9,7 @@ use App\Models\LeaveRequest;
 use App\Models\Payroll;
 use App\Models\PayrollDetail;
 use App\Models\User;
+use App\Models\WorkShift;
 use App\Repositories\PayrollDetailRepository;
 use App\Repositories\PayrollRepository;
 use App\Services\Payroll\PersonalIncomeTaxCalculator;
@@ -19,9 +20,18 @@ use Illuminate\Validation\ValidationException;
 
 class PayrollService
 {
-    // Hệ số OT cố định 150%, chưa phân biệt OT ngày thường/cuối tuần/lễ
-    // (300%) như luật thực tế (KISS, có thể nâng cấp sau).
-    private const OVERTIME_MULTIPLIER = 1.5;
+    // Hệ số OT theo BLLĐ 2019 Điều 98: ngày thường 150%, ngày nghỉ hằng tuần
+    // (T7/CN) 200%, ngày lễ 300%. Ngày đi làm bù (hoán đổi) tính như ngày thường.
+    // Xem overtimeMultiplierFor().
+    private const OVERTIME_MULTIPLIER_WEEKDAY = 1.5;
+
+    private const OVERTIME_MULTIPLIER_WEEKEND = 2.0;
+
+    private const OVERTIME_MULTIPLIER_HOLIDAY = 3.0;
+
+    // Đơn giá giờ cho ca OT ngày khác (ca chỉ dài vài tiếng) lấy theo số phút
+    // chuẩn của ca mặc định, không lấy độ dài ca OT; chưa có ca mặc định thì 8 giờ.
+    private const FALLBACK_STANDARD_WORK_MINUTES = 480;
 
     // OT chỉ được TRẢ LƯƠNG khi (1) đã được HR duyệt (Attendance::
     // overtime_approved, xem AttendanceAdjustmentService type "overtime") VÀ
@@ -65,7 +75,10 @@ class PayrollService
 
         $start = Carbon::create($year, $month, 1)->startOfDay();
         $end = $start->copy()->endOfMonth();
+        // Công chuẩn riêng cho thực tập sinh: ngày lễ không hưởng lương (intern_paid=false)
+        // vẫn nằm trong công chuẩn nhưng không có công -> bị trừ đúng ngày đó.
         $standardWorkDays = $this->standardWorkDaysFor($start, $end);
+        $internStandardWorkDays = $this->standardWorkDaysFor($start, $end, forIntern: true);
 
         // Bảng lương chỉ tính MỘT LẦN và không tự tính lại, mà chỉ bản ghi đã
         // duyệt mới có công — tạo khi còn lượt chấm công chờ duyệt sẽ làm nhân
@@ -83,7 +96,7 @@ class PayrollService
             ]);
         }
 
-        $payroll = DB::transaction(function () use ($start, $end, $month, $year, $creator, $standardWorkDays) {
+        $payroll = DB::transaction(function () use ($start, $end, $month, $year, $creator, $standardWorkDays, $internStandardWorkDays) {
             $payroll = $this->payrollRepository->create([
                 'period_month' => $month,
                 'period_year' => $year,
@@ -98,7 +111,7 @@ class PayrollService
             // hợp đồng đang active của họ, không tự áp % giảm cho thử việc:
             // hợp đồng thử việc thường đã ký sẵn đúng mức lương thỏa thuận
             // (tối thiểu 85% theo luật), Payroll không nên tự đoán lại số đó.
-            $employees = Employee::whereIn('employment_status', ['active', 'probation'])->get();
+            $employees = Employee::whereIn('employment_status', Employee::WORKING_STATUSES)->get();
 
             foreach ($employees as $employee) {
                 $contract = $this->contractDuringPeriod($employee, $start, $end);
@@ -107,7 +120,13 @@ class PayrollService
                     continue; // Không có hợp đồng nào hiệu lực trong kỳ thì bỏ qua, không chặn cả lô.
                 }
 
-                $detail = $this->buildDetailForEmployee($employee, $contract, $start, $end, $standardWorkDays);
+                $detail = $this->buildDetailForEmployee(
+                    $employee,
+                    $contract,
+                    $start,
+                    $end,
+                    $contract->contract_type === 'thuc_tap' ? $internStandardWorkDays : $standardWorkDays,
+                );
                 $this->payrollDetailRepository->createForPayroll($payroll, $detail);
                 $totalNet += $detail['net_salary'];
             }
@@ -178,7 +197,8 @@ class PayrollService
     // class. $paidDays = công thực tế + nghỉ phép CÓ lương (tức "ngày hưởng lương").
     private function insuranceApplies($contract, float $paidDays, float $unpaidLeaveDays): bool
     {
-        if ($contract->contract_type === 'thu_viec') {
+        // Thử việc và thực tập không thuộc diện đóng bảo hiểm.
+        if (in_array($contract->contract_type, ['thu_viec', 'thuc_tap'], true)) {
             return false;
         }
 
@@ -237,8 +257,10 @@ class PayrollService
 
             if ($isPayableOvertime) {
                 $overtimeMinutes += $attendance->overtime_minutes;
-                $hourlyRateForShift = $dailyRate / ($standardMinutes / 60);
-                $overtimeAmount += ($attendance->overtime_minutes / 60) * $hourlyRateForShift * self::OVERTIME_MULTIPLIER;
+                $baseMinutes = $attendance->workShift->is_overtime ? $this->defaultStandardWorkMinutes() : $standardMinutes;
+                $hourlyRateForShift = $dailyRate / ($baseMinutes / 60);
+                $overtimeAmount += ($attendance->overtime_minutes / 60) * $hourlyRateForShift
+                    * $this->overtimeMultiplierFor($attendance->attendance_date);
             }
         }
 
@@ -247,6 +269,25 @@ class PayrollService
             'overtime_minutes' => $overtimeMinutes,
             'overtime_amount' => round($overtimeAmount, 2),
         ];
+    }
+
+    // Hệ số OT của 1 ngày: lễ 300% > T7/CN 200% (trừ ngày đi làm bù) > 150%.
+    public function overtimeMultiplierFor(Carbon $date): float
+    {
+        if (Holiday::whereDate('holiday_date', $date->toDateString())->exists()) {
+            return self::OVERTIME_MULTIPLIER_HOLIDAY;
+        }
+
+        if ($date->isWeekend() && ! Holiday::whereDate('makeup_date', $date->toDateString())->exists()) {
+            return self::OVERTIME_MULTIPLIER_WEEKEND;
+        }
+
+        return self::OVERTIME_MULTIPLIER_WEEKDAY;
+    }
+
+    private function defaultStandardWorkMinutes(): int
+    {
+        return (int) (WorkShift::default()->value('standard_work_minutes') ?: self::FALLBACK_STANDARD_WORK_MINUTES);
     }
 
     // Lấy hợp đồng ÁP DỤNG CHO ĐÚNG KỲ đang tính lương — dựa vào KHOẢNG THỜI
@@ -277,7 +318,11 @@ class PayrollService
     // cầu người dùng) cần đúng công thức NÀY cho "Công tháng này" (mẫu số) —
     // tái dùng thay vì viết lại 1 bản tính ngày công chuẩn khác dễ lệch số
     // với bảng lương thật.
-    public function standardWorkDaysFor(Carbon $start, Carbon $end): int
+    //
+    // $forIntern (hợp đồng 'thuc_tap'): chỉ trừ ngày lễ thực tập sinh ĐƯỢC hưởng lương
+    // (intern_paid=true) — ngày lễ không lương vẫn tính vào công chuẩn, nghỉ mà
+    // không có công nên lương bị trừ đúng ngày đó.
+    public function standardWorkDaysFor(Carbon $start, Carbon $end, bool $forIntern = false): int
     {
         $weekdayCount = 0;
 
@@ -288,11 +333,15 @@ class PayrollService
         }
 
         $holidaysOnWeekdays = Holiday::whereBetween('holiday_date', [$start->toDateString(), $end->toDateString()])
+            ->when($forIntern, fn ($query) => $query->where('intern_paid', true))
             ->get()
             ->filter(fn (Holiday $holiday) => ! $holiday->holiday_date->isWeekend())
             ->count();
 
-        return $weekdayCount - $holidaysOnWeekdays;
+        // Ngày đi làm bù của hoán đổi (Thứ 7/CN) trở thành ngày làm việc.
+        $makeupDays = Holiday::whereBetween('makeup_date', [$start->toDateString(), $end->toDateString()])->count();
+
+        return $weekdayCount - $holidaysOnWeekdays + $makeupDays;
     }
 
     // "Chi tiết ngày công" của 1 dòng bảng lương (2026-10-01, theo yêu cầu: HR cần kiểm nhanh

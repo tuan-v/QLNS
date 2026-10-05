@@ -8,6 +8,7 @@ use App\Models\Attendance;
 use App\Models\AttendanceLog;
 use App\Models\Employee;
 use App\Models\EmployeeShiftAssignment;
+use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Models\WorkShift;
@@ -83,6 +84,7 @@ class AttendanceService
             ->listForEmployeeInRange($employee, $dateFrom, $dateTo)
             ->keyBy(fn (Attendance $a) => $a->attendance_date->toDateString() . '|' . $a->work_shift_id);
         $approvedLeaveDates = $this->approvedLeaveDatesForEmployee($employee, $dateFrom, $dateTo);
+        $holidayNames = $this->holidayNamesInRange($dateFrom, $dateTo);
 
         $rows = collect();
 
@@ -101,7 +103,7 @@ class AttendanceService
                 // Đơn nghỉ phép đã DUYỆT (mục 19-20) phủ đúng ngày này — ngày
                 // 41 chỉ xử lý đơn phủ CẢ NGÀY (full/am/pm), bỏ qua đơn
                 // 'hourly' (nghỉ vài tiếng không nên che mất cả ngày công).
-                $rowStatus = $this->displayStatusFor($attendance, $approvedLeaveDates->has($dateStr));
+                $rowStatus = $this->displayStatusFor($attendance, $approvedLeaveDates->has($dateStr), $holidayNames->has($dateStr));
 
                 if ($status && $rowStatus !== $status) {
                     continue;
@@ -112,6 +114,7 @@ class AttendanceService
                     'work_shift' => $assignment->workShift,
                     'attendance' => $attendance,
                     'status' => $rowStatus,
+                    'holiday_name' => $holidayNames->get($dateStr),
                     // Công của dòng này — cùng quy tắc summarizeHistory()/lương: chỉ
                     // bản ghi đã duyệt mới có công; còn lại null (hiện "—" ở giao diện).
                     'day_equivalent' => $attendance && $attendance->approval_status === Attendance::APPROVAL_APPROVED
@@ -152,16 +155,21 @@ class AttendanceService
     // hợp chấm công" của HR) — 2026-09-29, theo yêu cầu người dùng đồng bộ 2
     // màn (trước đó HR thấy "Hoàn tất/Đang trong ca/Cần xem lại" còn nhân viên
     // thấy "Đủ công/Đi muộn/Thiếu công" cho CÙNG 1 ca). Thứ tự:
-    //   1. Không có lượt chấm vào -> 'on_leave' (có đơn phép đã duyệt) / 'absent'.
+    //   1. Không có lượt chấm vào -> 'holiday' (ngày nghỉ lễ, xem bảng holidays)
+    //      / 'on_leave' (có đơn phép đã duyệt) / 'absent'.
     //   2. Bị từ chối -> 'rejected'; chưa duyệt -> 'pending_approval' — công
     //      CHỈ được cộng sau khi duyệt (summarizeHistory()/PayrollService), nên
     //      nhân viên cũng phải thấy "Chờ duyệt" mới hiểu vì sao công chưa lên.
     //   3. Đã duyệt -> kết quả ngày công theo deriveHistoryStatus().
     // Đã chấm vào thì THẮNG đơn nghỉ phép (người đó thật sự đã đi làm — trước
     // đây history() làm ngược lại, lệch với dailyOverview()).
-    private function displayStatusFor(?Attendance $attendance, bool $onApprovedLeave): string
+    private function displayStatusFor(?Attendance $attendance, bool $onApprovedLeave, bool $onHoliday = false): string
     {
         if (! $attendance || ! $attendance->first_check_in_at) {
+            if ($onHoliday) {
+                return 'holiday';
+            }
+
             return $onApprovedLeave ? 'on_leave' : 'absent';
         }
         if ($attendance->approval_status === Attendance::APPROVAL_REJECTED) {
@@ -194,6 +202,10 @@ class AttendanceService
         if (! $attendance->last_check_out_at && $attendance->attendance_date?->isToday()) {
             return 'in_progress';
         }
+        // Ca OT ngày khác: không có công ngày, chỉ có giờ OT.
+        if ($attendance->workShift?->is_overtime) {
+            return 'overtime';
+        }
         if (! $attendance->last_check_out_at || $attendance->early_leave_minutes > 0) {
             return 'insufficient';
         }
@@ -225,6 +237,16 @@ class AttendanceService
         return $dates;
     }
 
+    // Ngày nghỉ lễ trong khoảng ["Y-m-d" => tên dịp] — mọi ngày trong bảng holidays
+    // (kể cả chưa xác nhận), cùng nguồn với PayrollService::standardWorkDaysFor().
+    private function holidayNamesInRange(string $dateFrom, string $dateTo): Collection
+    {
+        return Holiday::whereDate('holiday_date', '>=', $dateFrom)
+            ->whereDate('holiday_date', '<=', $dateTo)
+            ->get(['holiday_date', 'name'])
+            ->mapWithKeys(fn (Holiday $holiday) => [$holiday->holiday_date->toDateString() => $holiday->name]);
+    }
+
     // Tổng ngày công tính qua WorkTimeCalculationService (dùng CHUNG với
     // PayrollService) — bậc thang theo % giờ làm so với ca + trần theo phút
     // đi muộn/về sớm, NHÂN với work_coefficient của ca đó (ca nửa ngày vẫn
@@ -238,7 +260,7 @@ class AttendanceService
     // 'unapproved_count' để nhân viên thấy vì sao "công" chưa lên.
     private function summarizeHistory(Collection $rows): array
     {
-        $withAttendance = $rows->filter(fn (array $row) => ! in_array($row['status'], ['absent', 'on_leave'], true));
+        $withAttendance = $rows->filter(fn (array $row) => ! in_array($row['status'], ['absent', 'on_leave', 'holiday'], true));
         $approved = $withAttendance->filter(fn (array $row) => $row['attendance']->approval_status === Attendance::APPROVAL_APPROVED);
 
         return [
@@ -247,7 +269,8 @@ class AttendanceService
             // (actual_work_minutes > 0), cộng late_minutes vào tổng giờ làm —
             // nhất quán với dayEquivalentFor() ép ratio=1.0 cho ca đó,
             // tránh hiển thị giờ làm thấp hơn thực tế (ví dụ: 7h43 thay vì 8h).
-            'total_work_minutes' => (int) $approved->sum(function (array $row): int {
+            // Không cộng ca OT ngày khác — giờ đó là OT, không phải giờ làm trong công.
+            'total_work_minutes' => (int) $approved->reject(fn (array $row) => $row['work_shift']->is_overtime)->sum(function (array $row): int {
                 $a = $row['attendance'];
                 $minutes = (int) ($a->actual_work_minutes ?? 0);
                 if ($a->late_excused && ($a->late_minutes ?? 0) > 0 && $minutes > 0) {
@@ -260,6 +283,8 @@ class AttendanceService
             'late_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->late_minutes ?? 0) > 0 && ! ($row['attendance']->late_excused ?? false))->count(),
             'early_leave_count' => $rows->filter(fn (array $row) => $row['status'] !== 'on_leave' && ($row['attendance']->early_leave_minutes ?? 0) > 0)->count(),
             'on_leave_count' => $rows->filter(fn (array $row) => $row['status'] === 'on_leave')->count(),
+            // Đếm theo NGÀY (1 ngày lễ có 2 ca vẫn là 1 ngày nghỉ lễ).
+            'holiday_count' => $rows->filter(fn (array $row) => $row['status'] === 'holiday')->pluck('date')->unique()->count(),
         ];
     }
 
@@ -285,7 +310,8 @@ class AttendanceService
     // — xem displayStatusFor().
     public function dailyOverview(string $date, ?int $departmentId, ?int $workShiftId, ?string $status, ?string $approvalStatus): array
     {
-        $dayIso = Carbon::parse($date)->dayOfWeekIso;
+        // Ngày đi làm bù (hoán đổi) được xét ca như chính ngày thường được nghỉ thay.
+        $dayIso = Holiday::effectiveWeekdayIso($date);
 
         $assignments = $this->attendanceRepository
             ->listAssignmentsForDate($date, $departmentId, $workShiftId)
@@ -293,6 +319,7 @@ class AttendanceService
 
         $attendancesByKey = $this->attendanceRepository->listAttendancesForDate($date);
         $onLeaveEmployeeIds = $this->approvedLeaveEmployeeIdsForDate($date);
+        $holidayName = $this->holidayNamesInRange($date, $date)->first();
 
         $rows = $assignments
             // Bản gán "mồ côi" — employee/workShift đã bị xóa mềm nhưng bản
@@ -303,14 +330,15 @@ class AttendanceService
             // dưới sập nguyên trang với lỗi "Attempt to read property id on
             // null".
             ->filter(fn (EmployeeShiftAssignment $a) => $a->employee !== null && $a->workShift !== null)
-            ->map(function (EmployeeShiftAssignment $assignment) use ($attendancesByKey, $onLeaveEmployeeIds) {
+            ->map(function (EmployeeShiftAssignment $assignment) use ($attendancesByKey, $onLeaveEmployeeIds, $holidayName) {
                 $attendance = $attendancesByKey->get($assignment->employee_id.'|'.$assignment->work_shift_id);
 
                 return [
                     'employee' => $assignment->employee,
                     'work_shift' => $assignment->workShift,
                     'attendance' => $attendance,
-                    'status' => $this->displayStatusFor($attendance, $onLeaveEmployeeIds->contains($assignment->employee_id)),
+                    'status' => $this->displayStatusFor($attendance, $onLeaveEmployeeIds->contains($assignment->employee_id), $holidayName !== null),
+                    'holiday_name' => $holidayName,
                 ];
             })
             // Cùng lý do dedupe ở history(): 1 ca có thể bị lặp qua 2 lượt gán
@@ -341,6 +369,7 @@ class AttendanceService
                 'work_shift' => $attendance->workShift,
                 'attendance' => $attendance,
                 'status' => $this->displayStatusFor($attendance, false),
+                'holiday_name' => $holidayName,
             ])
             ->values();
 
@@ -382,7 +411,7 @@ class AttendanceService
     // là sự thật NGAY LÚC NÀY), cuối cùng đủ công > nghỉ phép (chỉ khi TẤT CẢ
     // ca của người đó đều nghỉ phép).
     private const EMPLOYEE_STATUS_PRIORITY = [
-        'rejected', 'pending_approval', 'insufficient', 'late', 'in_progress', 'absent', 'full', 'on_leave',
+        'rejected', 'pending_approval', 'insufficient', 'late', 'in_progress', 'absent', 'full', 'overtime', 'on_leave', 'holiday',
     ];
 
     private function summarizeDailyOverview(Collection $rows): array
@@ -407,6 +436,8 @@ class AttendanceService
             'insufficient' => $countOf('insufficient'),
             'absent' => $countOf('absent'),
             'on_leave' => $countOf('on_leave'),
+            'holiday' => $countOf('holiday'),
+            'overtime' => $countOf('overtime'),
             // Số người ĐÃ có mặt (có ít nhất 1 lượt chấm vào, bất kể đã duyệt
             // hay chưa) — DashboardService dùng cho "Tỷ lệ đi làm".
             'present' => $rowsByEmployee->filter(fn (Collection $employeeRows) => $employeeRows->contains(
@@ -577,7 +608,7 @@ class AttendanceService
         $effectiveOut = $checkOut ?? $attendance->last_check_out_at;
         if ($effectiveIn && $effectiveOut) {
             $data['actual_work_minutes'] = $this->calculateActualWorkMinutes($effectiveIn, $effectiveOut, $workShift);
-            $data['overtime_minutes'] = $this->calculateOvertimeMinutes($workShift, $effectiveOut);
+            $data['overtime_minutes'] = $this->calculateOvertimeMinutes($workShift, $effectiveOut, $effectiveIn);
         }
 
         // Chỉ 'completed' khi đã có ĐỦ cả giờ vào lẫn giờ ra hiệu lực — nếu yêu
@@ -636,6 +667,8 @@ class AttendanceService
                 'first_check_in_at' => $now,
                 'late_minutes' => $lateMinutes,
                 'status' => 'pending',
+                // Ca OT ngày khác: đơn đã được HR duyệt trước nên OT được duyệt sẵn.
+                'overtime_approved' => $workShift->is_overtime || (bool) $attendance->overtime_approved,
             ])->save();
 
             return $this->attendanceLogRepository->create($this->logPayload(
@@ -707,7 +740,7 @@ class AttendanceService
                 // OT tính từ lúc HẾT CA — chỉ phần thời gian chấm công RA
                 // sau end_time mới tính là làm thêm, không phải toàn bộ
                 // (tổng giờ làm - giờ chuẩn) như trước.
-                'overtime_minutes' => $this->calculateOvertimeMinutes($workShift, $now),
+                'overtime_minutes' => $this->calculateOvertimeMinutes($workShift, $now, $attendance->first_check_in_at),
                 'status' => 'completed',
                 // Giờ ra là một lần duyệt RIÊNG, luôn bắt đầu ở "chờ duyệt".
                 'check_out_approval_status' => Attendance::APPROVAL_PENDING,
@@ -781,7 +814,7 @@ class AttendanceService
     // công theo đúng 1 ca cụ thể).
     public function listActiveAssignmentsForDate(Employee $employee, Carbon $date): Collection
     {
-        $dayIso = $date->dayOfWeekIso;
+        $dayIso = Holiday::effectiveWeekdayIso($date);
         $dateStr = $date->toDateString();
 
         return $employee->shiftAssignments()
@@ -865,6 +898,11 @@ class AttendanceService
 
     private function calculateLateMinutes(WorkShift $workShift, Carbon $checkInAt): int
     {
+        // Ca OT: chỉ trả theo phút làm thực tế trong khung, không có khái niệm đi muộn.
+        if ($workShift->is_overtime) {
+            return 0;
+        }
+
         $graceDeadline = $this->shiftTimeToday($workShift->start_time, $checkInAt)
             ->addMinutes($workShift->late_grace_minutes);
 
@@ -873,6 +911,10 @@ class AttendanceService
 
     private function calculateEarlyLeaveMinutes(WorkShift $workShift, Carbon $checkOutAt): int
     {
+        if ($workShift->is_overtime) {
+            return 0;
+        }
+
         $graceThreshold = $this->shiftTimeToday($workShift->end_time, $checkOutAt)
             ->subMinutes($workShift->early_leave_grace_minutes);
 
@@ -885,8 +927,24 @@ class AttendanceService
     // trừ ân hạn) dù có đạt ngưỡng tối thiểu để được TRẢ LƯƠNG hay không —
     // ngưỡng đó chỉ áp dụng ở PayrollService::calculateWorkedMetrics(),
     // không zero ở đây để HR vẫn thấy đúng dữ liệu chấm công thật.
-    private function calculateOvertimeMinutes(WorkShift $workShift, Carbon $checkOutAt): int
+    //
+    // Ca OT ngày khác (is_overtime): OT = số phút làm NẰM TRONG khung đã đăng ký
+    // (giao giữa [vào, ra] và [start_time, end_time]) — làm ngoài khung chưa được
+    // duyệt nên không tính; không trừ ân hạn.
+    private function calculateOvertimeMinutes(WorkShift $workShift, Carbon $checkOutAt, ?Carbon $checkInAt = null): int
     {
+        if ($workShift->is_overtime) {
+            if ($checkInAt === null) {
+                return 0;
+            }
+            $windowStart = $this->shiftTimeToday($workShift->start_time, $checkInAt);
+            $windowEnd = $this->shiftTimeToday($workShift->end_time, $checkInAt);
+            $from = $checkInAt->greaterThan($windowStart) ? $checkInAt : $windowStart;
+            $to = $checkOutAt->lessThan($windowEnd) ? $checkOutAt : $windowEnd;
+
+            return $to->greaterThan($from) ? (int) $from->diffInMinutes($to) : 0;
+        }
+
         $shiftEnd = $this->shiftTimeToday($workShift->end_time, $checkOutAt);
 
         if ($checkOutAt->lte($shiftEnd)) {

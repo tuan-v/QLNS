@@ -87,6 +87,21 @@ export function formatMinutesAsHours(minutes) {
     return `${hours}h (${minutes} phút)`;
 }
 
+// Nhãn/màu chip loại đơn trong "Đơn xin làm ngoài lịch / OT của tôi".
+export const REQUEST_TYPE_CHIPS = {
+    extra_shift: { label: "Ngoài lịch", color: "indigo" },
+    overtime: { label: "OT", color: "teal" },
+    overtime_shift: { label: "OT ngày khác", color: "deep-orange" },
+};
+
+// Ca của đơn: đơn OT ngày khác chưa có ca tới lúc duyệt nên hiện khung giờ đăng ký.
+export function requestShiftLabel(item) {
+    if (item.type === "overtime_shift") {
+        return `OT ${formatTime(item.proposed_check_in_at)}–${formatTime(item.proposed_check_out_at)}`;
+    }
+    return item.work_shift?.name ?? "—";
+}
+
 export function useCheckIn() {
     const toast = useToastStore();
 
@@ -457,7 +472,7 @@ export function useCheckIn() {
             // ra) ở chỗ target là ca ĐANG làm hôm nay, nhưng cùng type nên
             // không cần lọc phân biệt, HR/nhân viên đều xem chung 1 nơi.
             myExtraShiftRequests.value = response.data.filter(
-                (item) => item.type === "extra_shift" || item.type === "overtime",
+                (item) => ["extra_shift", "overtime", "overtime_shift"].includes(item.type),
             );
         } catch {
             myExtraShiftRequests.value = [];
@@ -484,7 +499,18 @@ export function useCheckIn() {
                 value: entry.attendance.id,
             })),
     );
-    const otRequestForm = ref({ attendanceId: null, reason: "" });
+    // mode "today" = OT sau ca đang làm hôm nay (type overtime) | "other_day" = OT
+    // ngày khác, đăng ký trước ngày + khung giờ (type overtime_shift — toàn bộ giờ
+    // trong khung là OT, hệ số theo ngày: thường 150%, T7/CN 200%, lễ 300%).
+    const emptyOtRequestForm = () => ({
+        mode: "today",
+        attendanceId: null,
+        attendanceDate: "",
+        startTime: "",
+        endTime: "",
+        reason: "",
+    });
+    const otRequestForm = ref(emptyOtRequestForm());
     const otRequestErrors = ref({});
     const otRequestGeneralError = ref("");
     const otRequestSubmitting = ref(false);
@@ -502,7 +528,7 @@ export function useCheckIn() {
         };
         extraShiftErrors.value = {};
         extraShiftGeneralError.value = "";
-        otRequestForm.value = { attendanceId: null, reason: "" };
+        otRequestForm.value = emptyOtRequestForm();
         otRequestErrors.value = {};
         otRequestGeneralError.value = "";
         extraShiftDialog.value = true;
@@ -577,18 +603,32 @@ export function useCheckIn() {
         otRequestErrors.value = {};
         otRequestGeneralError.value = "";
 
-        if (!otRequestForm.value.attendanceId || !otRequestForm.value.reason) {
-            otRequestGeneralError.value = "Vui lòng chọn ca đang làm và nhập lý do.";
+        const form = otRequestForm.value;
+        const otherDay = form.mode === "other_day";
+
+        if (
+            !form.reason ||
+            (otherDay ? !form.attendanceDate || !form.startTime || !form.endTime : !form.attendanceId)
+        ) {
+            otRequestGeneralError.value = otherDay
+                ? "Vui lòng chọn ngày, giờ bắt đầu, giờ kết thúc và nhập lý do."
+                : "Vui lòng chọn ca đang làm và nhập lý do.";
             return;
         }
 
         otRequestSubmitting.value = true;
         try {
-            await attendanceService.requestAdjustment({
-                type: "overtime",
-                attendance_id: otRequestForm.value.attendanceId,
-                reason: otRequestForm.value.reason,
-            });
+            await attendanceService.requestAdjustment(
+                otherDay
+                    ? {
+                          type: "overtime_shift",
+                          attendance_date: form.attendanceDate,
+                          custom_start_time: form.startTime,
+                          custom_end_time: form.endTime,
+                          reason: form.reason,
+                      }
+                    : { type: "overtime", attendance_id: form.attendanceId, reason: form.reason },
+            );
             toast.success("Đã gửi yêu cầu xin OT, chờ duyệt.");
             closeExtraShiftDialog();
             await loadMyExtraShiftRequests();
@@ -596,7 +636,12 @@ export function useCheckIn() {
             const status = e.response?.status;
             const data = e.response?.data;
             if (status === 422 && data?.errors) {
-                otRequestErrors.value = { reason: data.errors.reason?.[0] };
+                otRequestErrors.value = {
+                    reason: data.errors.reason?.[0],
+                    attendance_date: data.errors.attendance_date?.[0],
+                    custom_start_time: data.errors.custom_start_time?.[0],
+                    custom_end_time: data.errors.custom_end_time?.[0],
+                };
                 otRequestGeneralError.value = data.errors.attendance_id?.[0] ?? "";
             } else {
                 otRequestGeneralError.value = data?.message ?? "Không thể gửi yêu cầu, vui lòng thử lại.";

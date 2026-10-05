@@ -207,7 +207,7 @@ const statusOptions = [
 // 4 thẻ thống kê đầu trang — chỉ đếm theo employment_status thật có trong DB
 // (xem EmployeeService::stats()), KHÔNG có "Đang nghỉ phép" vì đó là trạng
 // thái tạm thời theo ngày, thuộc module Nghỉ phép (Ngày 36-40) chưa xây.
-const stats = ref({ total: 0, active: 0, probation: 0, resigned: 0 });
+const stats = ref({ total: 0, active: 0, probation: 0, intern: 0, resigned: 0 });
 const statCards = computed(() => [
     {
         label: "Tổng nhân viên",
@@ -226,6 +226,12 @@ const statCards = computed(() => [
         value: stats.value.probation,
         color: "warning",
         icon: "mdi-clock-outline",
+    },
+    {
+        label: "Thực tập",
+        value: stats.value.intern,
+        color: "info",
+        icon: "mdi-school-outline",
     },
     {
         label: "Đã nghỉ việc",

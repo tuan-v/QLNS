@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeShiftAssignment;
+use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\WorkShift;
@@ -137,6 +138,28 @@ class AttendanceOverviewTest extends TestCase
 
         $this->putJson('/api/v1/attendances/'.$attendance->id.'/approval', ['status' => 'approved'], ['Authorization' => 'Bearer '.$managerToken])
             ->assertStatus(403);
+    }
+
+    public function test_overview_shows_holiday_instead_of_absent(): void
+    {
+        $workShift = $this->makeWorkShift();
+        $resting = $this->makeEmployee();
+        $this->assignShift($resting, $workShift, '2026-01-01');
+        $working = $this->makeEmployee();
+        $this->assignShift($working, $workShift, '2026-01-01');
+        $this->makeAttendance($working, $workShift, '2026-01-01');
+        Holiday::create(['holiday_date' => '2026-01-01', 'name' => 'Tết Dương lịch', 'group_code' => 'manual-test', 'source' => 'manual']);
+
+        $hrToken = $this->loginAs('hr@qlns.local', 'Hr@123456');
+        $data = $this->getJson($this->overviewUrl(['date' => '2026-01-01']), ['Authorization' => 'Bearer '.$hrToken])
+            ->assertStatus(200)->json('data');
+        $byEmployee = collect($data['rows'])->keyBy('employee.id');
+
+        $this->assertSame('holiday', $byEmployee[$resting->id]['status']);
+        $this->assertSame('Tết Dương lịch', $byEmployee[$resting->id]['holiday_name']);
+        $this->assertSame('pending_approval', $byEmployee[$working->id]['status']);
+        $this->assertSame(1, $data['summary']['holiday']);
+        $this->assertSame(0, $data['summary']['absent']);
     }
 
     public function test_overview_combines_checked_in_absent_and_on_leave_employees(): void

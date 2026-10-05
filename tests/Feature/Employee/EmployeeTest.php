@@ -259,6 +259,53 @@ class EmployeeTest extends TestCase
         $this->assertDatabaseHas('employees', ['company_email' => 'nva@qlns.local']);
     }
 
+    // Lịch sử luân chuyển: nhân viên mới có ngay dòng "Tiếp nhận" (phòng ban + chức vụ
+    // đầu tiên, ngày vào làm); đổi phòng ban/chức vụ ở form Sửa ghi dòng "Cập nhật".
+    public function test_create_and_profile_edit_are_recorded_in_transfer_history(): void
+    {
+        $headers = ['Authorization' => 'Bearer '.$this->loginAs('admin@qlns.local', 'Admin@123')];
+        [$departmentId, $positionId] = $this->organisationIds();
+
+        $id = $this->postJson('/api/v1/employees', $this->validPayload(['hire_date' => '2024-03-01']), $headers)
+            ->assertStatus(201)->json('data.id');
+
+        $history = $this->getJson("/api/v1/employees/{$id}/transfers", $headers)->assertOk()->json('data');
+        $this->assertCount(1, $history);
+        $this->assertSame('onboard', $history[0]['type']);
+        $this->assertNull($history[0]['from_department']);
+        $this->assertSame($departmentId, $history[0]['to_department']['id']);
+        $this->assertSame($positionId, $history[0]['new_position']['id']);
+        $this->assertSame('2024-03-01', $history[0]['effective_date']);
+
+        $newDepartment = Department::create(['name' => 'Phong Moi', 'code' => 'PB-MOI']);
+        $newPosition = Position::create(['department_id' => $newDepartment->id, 'code' => 'CV-MOI', 'name' => 'Ke toan']);
+        $employee = Employee::find($id);
+        $this->putJson("/api/v1/employees/{$id}", $this->validPayload([
+            'full_name' => $employee->full_name,
+            'company_email' => $employee->company_email,
+            'hire_date' => '2024-03-01',
+            'department_id' => $newDepartment->id,
+            'position_id' => $newPosition->id,
+        ]), $headers)->assertOk();
+
+        $latest = $this->getJson("/api/v1/employees/{$id}/transfers", $headers)->json('data.0');
+        $this->assertSame('adjustment', $latest['type']);
+        $this->assertSame($departmentId, $latest['from_department']['id']);
+        $this->assertSame($positionId, $latest['old_position']['id']);
+        $this->assertSame($newDepartment->id, $latest['to_department']['id']);
+        $this->assertSame($newPosition->id, $latest['new_position']['id']);
+
+        // Sửa thông tin khác (không đổi phòng ban/chức vụ) thì không ghi thêm.
+        $this->putJson("/api/v1/employees/{$id}", $this->validPayload([
+            'full_name' => 'Ten khac',
+            'company_email' => $employee->company_email,
+            'hire_date' => '2024-03-01',
+            'department_id' => $newDepartment->id,
+            'position_id' => $newPosition->id,
+        ]), $headers)->assertOk();
+        $this->assertCount(2, $this->getJson("/api/v1/employees/{$id}/transfers", $headers)->json('data'));
+    }
+
     public function test_client_supplied_code_is_ignored_on_create(): void
     {
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');

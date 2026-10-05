@@ -6,8 +6,7 @@
             align-items: center;
             justify-content: center;
             padding: 2rem;
-            background:
-                rgb(var(--v-theme-background));
+            background: rgb(var(--v-theme-background));
         "
     >
         <div
@@ -200,7 +199,7 @@
                             hide-details
                         /> -->
                         <router-link
-                            to="/forgot-password"
+                            to="/quen-mat-khau"
                             class="text-caption"
                             style="color: rgb(var(--v-theme-primary))"
                             >Quên mật khẩu?</router-link
@@ -266,7 +265,9 @@ async function handleLogin() {
                 data?.message ?? "Email hoặc mật khẩu không đúng.";
         } else if (status === 429) {
             // Bị giới hạn số lần thử (chống dò mật khẩu) — hiện đúng thông báo của server.
-            passwordError.value = data?.message ?? "Bạn thao tác quá nhiều lần. Vui lòng thử lại sau ít phút.";
+            passwordError.value =
+                data?.message ??
+                "Bạn thao tác quá nhiều lần. Vui lòng thử lại sau ít phút.";
         } else {
             passwordError.value = "Có lỗi xảy ra, vui lòng thử lại.";
         }

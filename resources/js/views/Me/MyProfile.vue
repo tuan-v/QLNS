@@ -492,7 +492,7 @@ const hasOpenResignation = computed(() =>
 const canSubmitResignation = computed(
     () =>
         canRequestResignation.value &&
-        ["probation", "active"].includes(employee.value?.employment_status) &&
+        ["probation", "active", "intern"].includes(employee.value?.employment_status) &&
         !hasOpenResignation.value,
 );
 

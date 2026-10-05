@@ -250,7 +250,7 @@ const route = useRoute();
 const toast = useToastStore();
 const resourceSync = useResourceSyncStore();
 
-const CONTRACT_TYPE_LABELS = { thu_viec: "Thử việc", chinh_thuc: "Chính thức" };
+const CONTRACT_TYPE_LABELS = { thu_viec: "Thử việc", chinh_thuc: "Chính thức", thuc_tap: "Thực tập" };
 
 const headers = [
     { title: "Nhân viên", key: "employee", sortable: false },

@@ -17,6 +17,10 @@ export const ROLE_LEVEL_OPTIONS = [
 
 export const DEFAULT_ROLE_LEVEL = 100;
 
+// Vai trò hệ thống (mirror `Role::SYSTEM_ADMIN`): luôn có toàn bộ quyền, không
+// đổi tên/cấp bậc, không bỏ quyền, không xóa được — backend chặn ở RoleService.
+export const SYSTEM_ADMIN_ROLE = "Admin";
+
 /** Nhãn ngắn để hiện trong bảng, vd 60 -> "60 — Ngang Nhân sự (HR)". */
 export function roleLevelLabel(level) {
     return (

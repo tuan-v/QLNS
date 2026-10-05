@@ -197,7 +197,7 @@ class DashboardService
     // khi có bộ lọc ngày).
     private function attendanceTrend(string $endDate): array
     {
-        $totalActive = Employee::whereIn('employment_status', ['active', 'probation'])->count();
+        $totalActive = Employee::whereIn('employment_status', Employee::WORKING_STATUSES)->count();
         $totalActive = max($totalActive, 1);
 
         $days = [];
@@ -368,7 +368,7 @@ class DashboardService
         return [
             'monthly_work' => [
                 'actual_days' => $history['summary']['total_work_days'],
-                'standard_days' => $this->payrollService->standardWorkDaysFor($monthStart, $monthEnd),
+                'standard_days' => $this->payrollService->standardWorkDaysFor($monthStart, $monthEnd, forIntern: $employee->employment_status === 'intern'),
             ],
             'recent_attendance' => collect($history['rows'])->take(5)->map(fn (array $row) => [
                 'date' => $row['date'],

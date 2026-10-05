@@ -3,6 +3,24 @@
         <PageHeader
             title="Tổng hợp chấm công"
             subtitle="Tình hình chấm công toàn công ty theo ngày — ai đã chấm công, ai đang trong ca, ai vắng, ai nghỉ phép."
+        >
+            <template #actions>
+                <v-btn
+                    color="success"
+                    variant="flat"
+                    prepend-icon="mdi-microsoft-excel"
+                    @click="exportDialog = true"
+                >
+                    Xuất bảng chấm công
+                </v-btn>
+            </template>
+        </PageHeader>
+
+        <AttendanceSheetExportDialog
+            v-model="exportDialog"
+            :date="date"
+            :department-id="departmentId"
+            :department-options="departmentOptions"
         />
 
         <v-alert
@@ -170,6 +188,13 @@
                     >
                         {{ item.attendance.approval_note }}
                     </div>
+                    <div
+                        v-if="item.status === 'holiday' && item.holiday_name"
+                        class="text-caption mt-1"
+                        style="opacity: 0.7"
+                    >
+                        {{ item.holiday_name }}
+                    </div>
                 </template>
             </DataTable>
         </v-sheet>
@@ -245,6 +270,7 @@ import StatCards from "../../components/dashboard/StatCards.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate, { todayIso } from "../../components/common/InputDate.vue";
 import AttendanceLogList from "../../components/attendance/AttendanceLogList.vue";
+import AttendanceSheetExportDialog from "./AttendanceSheetExportDialog.vue";
 import {
     APPROVAL_STATUS_MAP,
     formatDate,
@@ -280,6 +306,7 @@ const date = ref(
     typeof route.query.date === "string" ? route.query.date : todayIso(),
 );
 const departmentId = ref(null);
+const exportDialog = ref(false);
 const workShiftId = ref(null);
 const statusFilter = ref(null);
 
@@ -331,8 +358,8 @@ const loadError = ref("");
 // 1 người có 2 ca cùng ngày (mục 14) chỉ tính 1 lần ở đây, xem quy tắc gộp ở
 // AttendanceService::summarizeDailyOverview(). Bảng bên dưới vẫn 1 dòng/ca.
 // Nhãn/màu lấy thẳng từ ATTENDANCE_STATUS_MAP (dùng chung) — chỉ icon là
-// riêng của thẻ tổng quan. "Từ chối" chỉ hiện khi có (hiếm, tránh thêm 1 thẻ
-// số 0 thường trực).
+// riêng của thẻ tổng quan. "Từ chối" và "Nghỉ lễ" chỉ hiện khi có (hiếm, tránh
+// thêm thẻ số 0 thường trực).
 const SUMMARY_ICONS = {
     pending_approval: "mdi-clipboard-clock-outline",
     rejected: "mdi-close-circle-outline",
@@ -342,6 +369,8 @@ const SUMMARY_ICONS = {
     insufficient: "mdi-alert-circle-outline",
     absent: "mdi-account-off-outline",
     on_leave: "mdi-calendar-remove-outline",
+    holiday: "mdi-party-popper",
+    overtime: "mdi-clock-plus-outline",
 };
 
 const summaryStats = computed(() => [
@@ -353,7 +382,9 @@ const summaryStats = computed(() => [
     },
     ...Object.entries(ATTENDANCE_STATUS_MAP)
         .filter(
-            ([status]) => status !== "rejected" || summary.value.rejected > 0,
+            ([status]) =>
+                !["rejected", "holiday", "overtime"].includes(status) ||
+                summary.value[status] > 0,
         )
         .map(([status, { label, color }]) => ({
             label,

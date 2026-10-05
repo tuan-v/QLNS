@@ -43,6 +43,11 @@ class WorkTimeCalculationService
             return 0.0; // Ca đã bị xóa hoặc thiếu số phút chuẩn — bỏ qua an toàn.
         }
 
+        // Ca OT ngày khác: cả ca được trả theo giờ OT (PayrollService), không có công ngày.
+        if ($workShift->is_overtime) {
+            return 0.0;
+        }
+
         $actualWorkMinutes = (float) ($attendance->actual_work_minutes ?? 0);
         $dayWeight = (float) ($workShift->work_coefficient ?? 1.0);
 

@@ -24,7 +24,7 @@ function toggleTheme() {
 
 async function handleLogout() {
     await auth.logout();
-    router.push("/login");
+    router.push("/dang-nhap");
 }
 </script>
 
@@ -62,7 +62,9 @@ async function handleLogout() {
             @click="quickSearch?.open()"
         >
             <template #append-inner>
-                <v-chip size="x-small" variant="outlined" style="opacity: 0.6">Ctrl K</v-chip>
+                <v-chip size="x-small" variant="outlined" style="opacity: 0.6"
+                    >Ctrl K</v-chip
+                >
             </template>
         </v-text-field>
         <v-btn
@@ -84,7 +86,9 @@ async function handleLogout() {
             icon
             variant="text"
             class="qlns-icon-btn mr-2"
-            :aria-label="theme.global.current.value.dark ? 'Chế độ sáng' : 'Chế độ tối'"
+            :aria-label="
+                theme.global.current.value.dark ? 'Chế độ sáng' : 'Chế độ tối'
+            "
             @click="toggleTheme"
         >
             <v-icon size="20">{{
@@ -105,7 +109,11 @@ async function handleLogout() {
                     rounded="pill"
                 >
                     <v-avatar color="primary" size="36" class="mr-2">
-                        <v-img v-if="auth.user?.avatar_url" :src="auth.user.avatar_url" cover />
+                        <v-img
+                            v-if="auth.user?.avatar_url"
+                            :src="auth.user.avatar_url"
+                            cover
+                        />
                         <span v-else class="text-body-2 font-weight-medium">{{
                             auth.user?.user_name?.charAt(0)
                         }}</span>

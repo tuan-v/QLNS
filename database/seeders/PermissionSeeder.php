@@ -44,6 +44,7 @@ class PermissionSeeder extends Seeder
             ['code' => 'resignation.request', 'name' => 'Nộp đơn xin nghỉ việc'],
             ['code' => 'resignation.approve', 'name' => 'Duyệt đơn xin nghỉ việc'],
             ['code' => 'resignation.view_all', 'name' => 'Xem & duyệt đơn nghỉ việc toàn công ty'],
+            ['code' => 'holiday.manage', 'name' => 'Quản lý ngày nghỉ lễ'],
 
             // Payroll
             ['code' => 'payroll.view_own', 'name' => 'Xem phiếu lương của bản thân'],

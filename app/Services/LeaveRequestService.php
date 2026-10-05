@@ -236,7 +236,7 @@ class LeaveRequestService
         $today = now()->toDateString();
 
         $query = Employee::query()
-            ->whereIn('employment_status', ['active', 'probation'])
+            ->whereIn('employment_status', Employee::WORKING_STATUSES)
             ->when($departmentId, fn ($q, $id) => $q->where('department_id', $id))
             ->when($search, fn ($q, $term) => $q->where(fn ($w) => $w
                 ->where('full_name', 'like', "%{$term}%")

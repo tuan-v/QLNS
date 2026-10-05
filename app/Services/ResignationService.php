@@ -77,6 +77,8 @@ class ResignationService
 
         if ($contract?->contract_type === 'thu_viec') {
             [$days, $basis] = [0, 'Hợp đồng thử việc — không cần báo trước (BLLĐ 2019 Điều 27).'];
+        } elseif ($contract?->contract_type === 'thuc_tap') {
+            [$days, $basis] = [0, 'Hợp đồng thực tập — không áp dụng thời hạn báo trước của hợp đồng lao động.'];
         } elseif ($contract === null || $contract->end_date === null) {
             [$days, $basis] = [45, 'Hợp đồng không xác định thời hạn — báo trước ít nhất 45 ngày (BLLĐ 2019 Điều 35).'];
         } else {
@@ -97,7 +99,7 @@ class ResignationService
 
     public function create(Employee $employee, array $data): ResignationRequest
     {
-        if (! in_array($employee->employment_status, ['probation', 'active'], true)) {
+        if (! in_array($employee->employment_status, Employee::WORKING_STATUSES, true)) {
             throw ValidationException::withMessages([
                 'last_working_date' => 'Hồ sơ của bạn không còn ở trạng thái đang làm việc, không thể nộp đơn nghỉ việc.',
             ]);

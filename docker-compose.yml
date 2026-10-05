@@ -36,6 +36,24 @@ services:
     networks:
       - qlns
 
+  # Chạy các lệnh định kỳ khai báo ở routes/console.php (nhắc/thông báo nghỉ lễ,
+  # sinh lịch nghỉ, hết hạn hợp đồng, nghỉ việc có hiệu lực, tích lũy phép, nhắc
+  # quên chấm ra...). Không có service này thì không lệnh định kỳ nào tự chạy.
+  scheduler:
+    image: qlns-app:local
+    restart: unless-stopped
+    working_dir: /var/www/html
+    command: php artisan schedule:work
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - qlns
+
   reverb:
     build:
       context: .

@@ -46,6 +46,15 @@ class RoleService
 
     public function update(Role $role, array $data): Role
     {
+        if ($role->isSystemAdmin()) {
+            if (isset($data['name']) && $data['name'] !== $role->name) {
+                throw ValidationException::withMessages(['name' => 'Không thể đổi tên vai trò Admin của hệ thống.']);
+            }
+            if (isset($data['level']) && (int) $data['level'] !== $role->level) {
+                throw ValidationException::withMessages(['level' => 'Không thể đổi cấp bậc vai trò Admin của hệ thống.']);
+            }
+        }
+
         $role = DB::transaction(fn () => $this->roleRepository->update($role, $data));
 
         ResourceChanged::dispatch('roles');
@@ -57,6 +66,10 @@ class RoleService
     // xóa cứng). Controller/Frontend tự cảnh báo trước bằng usersForRole().
     public function delete(Role $role): void
     {
+        if ($role->isSystemAdmin()) {
+            throw ValidationException::withMessages(['role' => 'Không thể xóa vai trò Admin của hệ thống.']);
+        }
+
         $this->roleRepository->delete($role);
 
         ResourceChanged::dispatch('roles');
@@ -143,6 +156,12 @@ class RoleService
      */
     public function syncPermissions(Role $role, array $permissionIds, User $actor): Role
     {
+        if ($role->isSystemAdmin()) {
+            throw ValidationException::withMessages([
+                'permission_ids' => 'Vai trò Admin luôn có toàn bộ quyền — không thể thêm hoặc bỏ quyền của vai trò này.',
+            ]);
+        }
+
         $this->guardAgainstRbacLockout($role, $permissionIds);
 
         DB::transaction(function () use ($role, $permissionIds, $actor) {

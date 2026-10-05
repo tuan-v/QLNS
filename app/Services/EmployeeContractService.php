@@ -18,6 +18,9 @@ class EmployeeContractService
     public const EMPLOYMENT_STATUS_BY_CONTRACT_TYPE = [
         'thu_viec' => 'probation',
         'chinh_thuc' => 'active',
+        // Thực tập sinh: không đóng bảo hiểm; ngày lễ có hưởng lương hay không theo
+        // cờ intern_paid của từng dịp nghỉ (PayrollService::standardWorkDaysFor()).
+        'thuc_tap' => 'intern',
     ];
 
     public function __construct(

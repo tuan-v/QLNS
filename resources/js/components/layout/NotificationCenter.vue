@@ -199,6 +199,8 @@ const TYPE_CATEGORY = {
     "leave.pending_manager": "Nghỉ phép",
     "leave.pending_hr": "Nghỉ phép",
     "leave.decided": "Nghỉ phép",
+    "holiday.upcoming": "Ngày nghỉ lễ",
+    "holiday.confirm_needed": "Ngày nghỉ lễ",
     "attendance.pending_approval": "Chấm công",
     "attendance.checkout_reminder": "Nhắc nhở",
     "attendance_adjustment.pending": "Điều chỉnh công",
@@ -213,6 +215,12 @@ function systemIcon(item) {
         return item.data?.status === "approved"
             ? { icon: "mdi-check-circle-outline", color: "success" }
             : { icon: "mdi-close-circle-outline", color: "error" };
+    }
+    if (item.type === "holiday.confirm_needed") {
+        return { icon: "mdi-calendar-alert", color: "warning" };
+    }
+    if (item.type === "holiday.upcoming") {
+        return { icon: "mdi-party-popper", color: "primary" };
     }
     if (item.type === "attendance.checkout_reminder") {
         return { icon: "mdi-clock-alert-outline", color: "warning" };

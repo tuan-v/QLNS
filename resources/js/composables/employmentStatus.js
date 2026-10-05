@@ -7,6 +7,7 @@
 export const EMPLOYMENT_STATUS_MAP = {
     probation: { label: "Thử việc", color: "warning" },
     active: { label: "Chính thức", color: "success" },
+    intern: { label: "Thực tập", color: "info" },
     resigned: { label: "Đã nghỉ việc", color: "default" },
     terminated: { label: "Đã chấm dứt HĐ", color: "error" },
 };
@@ -16,4 +17,5 @@ export const EMPLOYMENT_STATUS_MAP = {
 export const CONTRACT_TYPE_OPTIONS = [
     { title: "Thử việc", value: "thu_viec" },
     { title: "Chính thức", value: "chinh_thuc" },
+    { title: "Thực tập", value: "thuc_tap" },
 ];

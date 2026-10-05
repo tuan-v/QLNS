@@ -4,19 +4,19 @@ import { useAuthStore } from "../stores/authStore";
 
 const routes = [
     {
-        path: "/login",
+        path: "/dang-nhap",
         name: "login",
         component: () => import("../views/Login.vue"),
         meta: { layout: "blank" },
     },
     {
-        path: "/forgot-password",
+        path: "/quen-mat-khau",
         name: "forgot-password",
         component: () => import("../views/ForgotPassword.vue"),
         meta: { layout: "blank" },
     },
     {
-        path: "/reset-password",
+        path: "/dat-lai-mat-khau/:token",
         name: "reset-password",
         component: () => import("../views/ResetPassword.vue"),
         meta: { layout: "blank" },
@@ -28,13 +28,13 @@ const routes = [
         component: () => import("../views/Dashboard.vue"),
     },
     {
-        path: "/my-profile",
+        path: "/ho-so-cua-toi",
         name: "my-profile",
         meta: { title: "Hồ sơ của tôi" },
         component: () => import("../views/Me/MyProfile.vue"),
     },
     {
-        path: "/notifications",
+        path: "/thong-bao",
         name: "notifications",
         // Không cần permission riêng — ai đăng nhập cũng xem được thông báo
         // của mình. Tab "Toàn công ty" tự ẩn/hiện trong trang theo
@@ -43,7 +43,7 @@ const routes = [
         component: () => import("../views/Notification/Notifications.vue"),
     },
     {
-        path: "/departments",
+        path: "/phong-ban",
         name: "departments",
         // permission: mã quyền bắt buộc để vào route này — thiếu thì router
         // guard bên dưới tự đá về Dashboard, không cần khai riêng chỗ khác.
@@ -51,7 +51,7 @@ const routes = [
         component: () => import("../views/Department/Departments.vue"),
     },
     {
-        path: "/positions",
+        path: "/chuc-vu",
         name: "positions",
         // Chức vụ dùng chung mã quyền với Phòng ban (xem CODE_MAP mục 7) —
         // không tách quyền riêng, guard route cũng theo đúng quy ước đó.
@@ -59,32 +59,36 @@ const routes = [
         component: () => import("../views/Position/Positions.vue"),
     },
     {
-        path: "/roles",
+        path: "/vai-tro-va-phan-quyen",
         name: "roles",
         meta: { title: "Vai trò & Phân quyền", permission: "rbac.manage" },
         component: () => import("../views/Role/Roles.vue"),
     },
     {
-        path: "/payrolls",
+        path: "/bang-luong",
         name: "payrolls",
         meta: { title: "Bảng lương", permission: "payroll.view_all" },
         component: () => import("../views/Payroll/PayrollList.vue"),
     },
     {
-        path: "/payrolls/:id",
+        path: "/bang-luong/:id",
         name: "payroll-detail",
-        meta: { title: "Chi tiết bảng lương", permission: "payroll.view_all" },
+        meta: {
+            title: "Chi tiết bảng lương",
+            parent: "payrolls",
+            permission: "payroll.view_all",
+        },
         component: () => import("../views/Payroll/PayrollDetail.vue"),
     },
 
     {
-        path: "/employees",
+        path: "/nhan-vien",
         name: "employees",
         meta: { title: "Nhân viên", permission: "employee.view" },
         component: () => import("../views/Employee/Employees.vue"),
     },
     {
-        path: "/employees/:id",
+        path: "/nhan-vien/:id",
         name: "employee-detail",
         meta: {
             title: "Chi tiết nhân viên",
@@ -95,21 +99,21 @@ const routes = [
         props: true,
     },
     {
-        path: "/resignations",
+        path: "/don-nghi-viec",
         name: "resignations",
         // HR thấy mọi đơn, Manager chỉ đơn của nhân viên mình quản lý trực tiếp
         // (Backend tự lọc — ResignationService).
         meta: { title: "Đơn nghỉ việc", permission: "resignation.approve" },
         component: () => import("../views/Resignation/Resignations.vue"),
     },
+    // {
+    //     path: "/ca-lam-viec",
+    //     name: "work-shifts",
+    //     meta: { title: "Ca làm việc", permission: "shift.view" },
+    //     component: () => import("../views/WorkShift/WorkShifts.vue"),
+    // },
     {
-        path: "/work-shifts",
-        name: "work-shifts",
-        meta: { title: "Ca làm việc", permission: "shift.view" },
-        component: () => import("../views/WorkShift/WorkShifts.vue"),
-    },
-    {
-        path: "/settings",
+        path: "/cai-dat-he-thong",
         name: "settings",
         // shift.manage — Admin có mọi quyền, HR cũng quản lý Ca làm việc
         // (mục 12) nên hợp lý được sửa luôn ca mặc định ở đây.
@@ -117,13 +121,13 @@ const routes = [
         component: () => import("../views/Settings/Settings.vue"),
     },
     {
-        path: "/check-in",
+        path: "/cham-cong",
         name: "check-in",
         meta: { title: "Chấm công", permission: "attendance.check" },
         component: () => import("../views/Attendance/CheckIn.vue"),
     },
     {
-        path: "/attendance-adjustments",
+        path: "/duyet-dieu-chinh-cong",
         name: "attendance-adjustments",
         meta: {
             title: "Duyệt điều chỉnh công",
@@ -133,37 +137,47 @@ const routes = [
             import("../views/Attendance/AttendanceAdjustments.vue"),
     },
     {
-        path: "/attendance-overview",
+        path: "/tong-hop-cham-cong",
         name: "attendance-overview",
         // Quyền view_all (không phải approve) — Manager xem được, nút
         // Duyệt/Từ chối trong trang tự ẩn nếu không có attendance.approve
         // (xem AttendanceOverview.vue), Backend vẫn tự chặn ở API duyệt.
-        meta: { title: "Tổng hợp chấm công", permission: "attendance.view_all" },
+        meta: {
+            title: "Tổng hợp chấm công",
+            permission: "attendance.view_all",
+        },
         component: () => import("../views/Attendance/AttendanceOverview.vue"),
     },
     {
-        path: "/attendance-history",
+        path: "/lich-su-cham-cong",
         name: "attendance-history",
         meta: { title: "Lịch sử chấm công", permission: "attendance.view_own" },
         component: () => import("../views/Attendance/AttendanceHistory.vue"),
     },
     {
-        path: "/leave-requests",
+        path: "/nghi-phep",
         name: "leave-requests",
         meta: { title: "Nghỉ phép", permission: "leave.request" },
         component: () => import("../views/Leave/LeaveRequests.vue"),
     },
     {
-        path: "/leave-management",
+        path: "/duyet-nghi-phep",
         name: "leave-management",
         meta: { title: "Duyệt nghỉ phép", permission: "leave.view_all" },
         component: () => import("../views/Leave/LeaveManagement.vue"),
     },
     {
-        path: "/leave-overview",
+        path: "/tong-hop-nghi-phep",
         name: "leave-overview",
         meta: { title: "Tổng hợp nghỉ phép", permission: "leave.view_all" },
         component: () => import("../views/Leave/LeaveOverview.vue"),
+    },
+    {
+        path: "/ngay-nghi-le",
+        name: "holidays",
+        // Ai đăng nhập cũng xem được lịch nghỉ lễ; nút quản lý trong trang theo holiday.manage.
+        meta: { title: "Ngày nghỉ lễ" },
+        component: () => import("../views/Holiday/Holidays.vue"),
     },
 ];
 

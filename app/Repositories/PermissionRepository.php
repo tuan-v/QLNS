@@ -34,8 +34,10 @@ class PermissionRepository
         $permission->delete();
     }
 
-    public function isAttachedToAnyRole(Permission $permission): bool
+    public function isAttachedToAnyRole(Permission $permission, ?int $exceptRoleId = null): bool
     {
-        return $permission->roles()->exists();
+        return $permission->roles()
+            ->when($exceptRoleId, fn ($q) => $q->whereKeyNot($exceptRoleId))
+            ->exists();
     }
 }

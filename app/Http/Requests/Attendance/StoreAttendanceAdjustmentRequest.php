@@ -35,9 +35,18 @@ class StoreAttendanceAdjustmentRequest extends FormRequest
             // 'excuse' (miễn trừ đi muộn) và 'early_leave' (xin về sớm) đã bỏ: nay
             // HR duyệt giờ vào/giờ ra trực tiếp, đi muộn/về sớm thì công tính tới
             // đúng giờ làm thực tế. Dữ liệu cũ của 2 loại này vẫn hiển thị được.
-            'type' => ['nullable', 'in:correction,supplement,overtime,extra_shift'],
+            'type' => ['nullable', 'in:correction,supplement,overtime,extra_shift,overtime_shift'],
             'reason' => ['required', 'string', 'max:1000'],
         ];
+
+        // 'overtime_shift' — OT ngày khác: đăng ký trước 1 ngày + khung giờ làm OT.
+        if ($type === 'overtime_shift') {
+            $rules['attendance_date'] = ['required', 'date', 'after_or_equal:today'];
+            $rules['custom_start_time'] = ['required', 'date_format:H:i'];
+            $rules['custom_end_time'] = ['required', 'date_format:H:i', 'after:custom_start_time'];
+
+            return $rules;
+        }
 
         if ($type === 'supplement') {
             $rules['work_shift_id'] = ['required', 'integer', 'exists:work_shifts,id'];
@@ -100,6 +109,8 @@ class StoreAttendanceAdjustmentRequest extends FormRequest
             'work_shift_id.required_without_all' => 'Vui lòng chọn ca làm việc hoặc tự chọn giờ',
             'custom_start_time.date_format' => 'Giờ bắt đầu không đúng định dạng (HH:mm)',
             'custom_start_time.required_without' => 'Vui lòng nhập giờ bắt đầu',
+            'custom_start_time.required' => 'Vui lòng nhập giờ bắt đầu',
+            'custom_end_time.required' => 'Vui lòng nhập giờ kết thúc',
             'custom_end_time.date_format' => 'Giờ kết thúc không đúng định dạng (HH:mm)',
             'custom_end_time.required_without' => 'Vui lòng nhập giờ kết thúc',
             'custom_end_time.after' => 'Giờ kết thúc phải sau giờ bắt đầu',

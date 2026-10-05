@@ -27,7 +27,10 @@
                     rounded="lg"
                     placeholder="Ví dụ: Kế toán"
                     :rules="[notEmpty('Tên vai trò'), maxLength(100, 'Tên vai trò')]"
-                        :error-messages="store.errors.name"
+                    :error-messages="store.errors.name"
+                    :disabled="isSystemAdmin"
+                    :hint="isSystemAdmin ? 'Vai trò Admin của hệ thống — không đổi tên hoặc cấp bậc được.' : ''"
+                    :persistent-hint="isSystemAdmin"
                 />
             </div>
 
@@ -43,6 +46,7 @@
                     rounded="lg"
                     :rules="[notEmpty('Cấp bậc')]"
                     :error-messages="store.errors.level"
+                    :disabled="isSystemAdmin"
                     hint="Người dùng chỉ gán được cho người khác những vai trò có cấp bậc THẤP HƠN vai trò của chính mình. Để 100 nghĩa là chỉ Quản trị hệ thống gán được."
                     persistent-hint
                 />
@@ -75,7 +79,7 @@ import { useRoleStore } from "../../stores/useRoleStore";
 import { useToastStore } from "../../stores/useToastStore";
 import { useChangeGuard } from "../../composables/useChangeGuard";
 import { maxLength, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
-import { DEFAULT_ROLE_LEVEL, ROLE_LEVEL_OPTIONS } from "../../composables/roleLevels";
+import { DEFAULT_ROLE_LEVEL, ROLE_LEVEL_OPTIONS, SYSTEM_ADMIN_ROLE } from "../../composables/roleLevels";
 import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
 
@@ -92,6 +96,8 @@ const toast = useToastStore();
 const guard = useChangeGuard(() => form);
 
 const isEdit = computed(() => props.role !== null);
+// Admin của hệ thống: chỉ sửa được mô tả, không đổi tên/cấp bậc.
+const isSystemAdmin = computed(() => props.role?.name === SYSTEM_ADMIN_ROLE);
 
 const form = reactive({
     name: "",

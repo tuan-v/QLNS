@@ -1,11 +1,11 @@
-import axios from 'axios';
-import { useLoadingStore } from './stores/useLoadingStore';
+import axios from "axios";
+import { useLoadingStore } from "./stores/useLoadingStore";
 window.axios = axios;
 
-window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+window.axios.defaults.headers.common["X-Requested-With"] = "XMLHttpRequest";
 axios.interceptors.request.use((config) => {
     useLoadingStore().start();
-    const token = localStorage.getItem('access_token');
+    const token = localStorage.getItem("access_token");
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
@@ -33,10 +33,14 @@ axios.interceptors.response.use(
         useLoadingStore().stop();
 
         const originalRequest = error.config;
-        const isLoginRequest = originalRequest.url?.includes('/auth/login');
-        const isRefreshRequest = originalRequest.url?.includes('/auth/refresh');
+        const isLoginRequest = originalRequest.url?.includes("/auth/login");
+        const isRefreshRequest = originalRequest.url?.includes("/auth/refresh");
 
-        if (error.response?.status === 401 && !isLoginRequest && !isRefreshRequest) {
+        if (
+            error.response?.status === 401 &&
+            !isLoginRequest &&
+            !isRefreshRequest
+        ) {
             if (isRefreshing) {
                 return new Promise((resolve) => {
                     subscribeTokenRefresh((newToken) => {
@@ -49,19 +53,27 @@ axios.interceptors.response.use(
             isRefreshing = true;
 
             try {
-                const refreshToken = localStorage.getItem('refresh_token');
-                const response = await axios.post('/api/v1/auth/refresh', { refresh_token: refreshToken });
+                const refreshToken = localStorage.getItem("refresh_token");
+                const response = await axios.post("/api/v1/auth/refresh", {
+                    refresh_token: refreshToken,
+                });
 
-                localStorage.setItem('access_token', response.data.access_token);
-                localStorage.setItem('refresh_token', response.data.refresh_token);
+                localStorage.setItem(
+                    "access_token",
+                    response.data.access_token,
+                );
+                localStorage.setItem(
+                    "refresh_token",
+                    response.data.refresh_token,
+                );
                 onTokenRefreshed(response.data.access_token);
 
                 originalRequest.headers.Authorization = `Bearer ${response.data.access_token}`;
                 return axios(originalRequest);
             } catch (refreshError) {
-                localStorage.removeItem('access_token');
-                localStorage.removeItem('refresh_token');
-                window.location.href = '/login';
+                localStorage.removeItem("access_token");
+                localStorage.removeItem("refresh_token");
+                window.location.href = "/dang-nhap";
                 return Promise.reject(refreshError);
             } finally {
                 isRefreshing = false;
@@ -69,11 +81,9 @@ axios.interceptors.response.use(
         }
 
         if (error.response?.status === 403) {
-            console.warn('Không đủ quyền truy cập.');
+            console.warn("Không đủ quyền truy cập.");
         }
 
         return Promise.reject(error);
     },
 );
-
-

@@ -66,20 +66,22 @@
             <v-list-item
                 prepend-icon="mdi-account-circle-outline"
                 title="Hồ sơ của tôi"
-                to="/my-profile"
+                to="/ho-so-cua-toi"
                 rounded="lg"
             />
             <v-list-item
                 prepend-icon="mdi-bell-outline"
                 title="Thông báo"
-                to="/notifications"
+                to="/thong-bao"
                 rounded="lg"
             />
 
             <v-list-subheader
                 v-if="
                     showLabels &&
-                    (can('employee.view') || can('department.view') || can('resignation.approve'))
+                    (can('employee.view') ||
+                        can('department.view') ||
+                        can('resignation.approve'))
                 "
                 >Nhân sự</v-list-subheader
             >
@@ -88,27 +90,27 @@
                 prepend-icon="mdi-account-group-outline"
                 title="Nhân viên"
                 rounded="lg"
-                to="/employees"
+                to="/nhan-vien"
             />
             <v-list-item
                 v-if="can('department.view')"
                 prepend-icon="mdi-office-building-outline"
                 title="Phòng ban"
-                to="/departments"
+                to="/phong-ban"
                 rounded="lg"
             />
             <v-list-item
                 v-if="can('department.view')"
                 prepend-icon="mdi-badge-account-outline"
                 title="Chức vụ"
-                to="/positions"
+                to="/chuc-vu"
                 rounded="lg"
             />
             <v-list-item
                 v-if="can('resignation.approve')"
                 prepend-icon="mdi-account-arrow-right-outline"
                 title="Đơn nghỉ việc"
-                to="/resignations"
+                to="/don-nghi-viec"
                 rounded="lg"
             />
 
@@ -126,42 +128,48 @@
                 v-if="can('attendance.check')"
                 prepend-icon="mdi-calendar-check-outline"
                 title="Chấm công"
-                to="/check-in"
+                to="/cham-cong"
                 rounded="lg"
             />
             <v-list-item
                 v-if="can('attendance.view_all')"
                 prepend-icon="mdi-clipboard-check-outline"
                 title="Tổng hợp chấm công"
-                to="/attendance-overview"
+                to="/tong-hop-cham-cong"
                 rounded="lg"
             />
             <v-list-item
                 v-if="can('attendance.adjust')"
                 prepend-icon="mdi-file-clock-outline"
                 title="Duyệt điều chỉnh công"
-                to="/attendance-adjustments"
+                to="/duyet-dieu-chinh-cong"
                 rounded="lg"
             />
             <v-list-item
                 v-if="can('leave.request')"
                 prepend-icon="mdi-calendar-blank-outline"
                 title="Nghỉ phép"
-                to="/leave-requests"
+                to="/nghi-phep"
                 rounded="lg"
             />
             <v-list-item
                 v-if="can('leave.view_all')"
                 prepend-icon="mdi-calendar-check-outline"
                 title="Duyệt nghỉ phép"
-                to="/leave-management"
+                to="/duyet-nghi-phep"
                 rounded="lg"
             />
             <v-list-item
                 v-if="can('leave.view_all')"
                 prepend-icon="mdi-calendar-month-outline"
                 title="Tổng hợp nghỉ phép"
-                to="/leave-overview"
+                to="/tong-hop-nghi-phep"
+                rounded="lg"
+            />
+            <v-list-item
+                prepend-icon="mdi-calendar-star"
+                title="Ngày nghỉ lễ"
+                to="/ngay-nghi-le"
                 rounded="lg"
             />
 
@@ -172,7 +180,7 @@
                 v-if="can('payroll.view_all')"
                 prepend-icon="mdi-cash-multiple"
                 title="Bảng lương"
-                to="/payrolls"
+                to="/bang-luong"
                 rounded="lg"
             />
 
@@ -188,14 +196,14 @@
                 v-if="can('shift.manage')"
                 prepend-icon="mdi-cog-outline"
                 title="Cài đặt"
-                to="/settings"
+                to="/cai-dat-he-thong"
                 rounded="lg"
             />
             <v-list-item
                 v-if="can('rbac.manage')"
                 prepend-icon="mdi-shield-account-outline"
                 title="Vai trò &amp; Phân quyền"
-                to="/roles"
+                to="/vai-tro-va-phan-quyen"
                 rounded="lg"
             />
             <v-list-item

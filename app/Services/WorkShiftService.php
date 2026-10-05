@@ -56,6 +56,16 @@ class WorkShiftService
     // trang "Ca làm việc", KHÔNG đánh dấu is_default. Chuẩn giờ chuẩn/châm
     // chước lấy mặc định hợp lý giống nhân viên mới không có gì đặc biệt để
     // dựa vào (5 phút — cùng giá trị demo dùng khắp dự án).
+    // Ca OT cho đúng 1 ngày khi HR duyệt đơn "OT ngày khác": mọi phút làm trong
+    // khung giờ này là OT (AttendanceService), không có công ngày.
+    public function createOvertimeOneOff(string $startTime, string $endTime): WorkShift
+    {
+        $shift = $this->createCustomOneOff($startTime, $endTime);
+        $shift->forceFill(['name' => "Ca OT {$startTime}-{$endTime}", 'is_overtime' => true])->save();
+
+        return $shift;
+    }
+
     public function createCustomOneOff(string $startTime, string $endTime): WorkShift
     {
         $standardMinutes = max(1, (int) Carbon::parse($startTime)->diffInMinutes(Carbon::parse($endTime)));

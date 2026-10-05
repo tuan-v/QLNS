@@ -183,18 +183,12 @@
                             <v-chip
                                 size="x-small"
                                 variant="tonal"
-                                :color="
-                                    item.type === 'overtime' ? 'teal' : 'indigo'
-                                "
+                                :color="REQUEST_TYPE_CHIPS[item.type]?.color ?? 'indigo'"
                                 class="mr-1"
                             >
-                                {{
-                                    item.type === "overtime"
-                                        ? "OT"
-                                        : "Ngoài lịch"
-                                }}
+                                {{ REQUEST_TYPE_CHIPS[item.type]?.label ?? "Ngoài lịch" }}
                             </v-chip>
-                            {{ item.work_shift?.name ?? "—" }} ·
+                            {{ requestShiftLabel(item) }} ·
                             {{ formatDateRange(item.attendance_date, item.attendance_date_to) }}
                         </div>
                         <div class="text-caption" style="opacity: 0.7">
@@ -563,7 +557,7 @@
         OT" đăng ký TRƯỚC cho OT của 1 ca ĐANG làm hôm nay (tính từ giờ kết
         thúc ca tới lúc chấm công ra). Xem useCheckIn.js. -->
         <v-dialog v-model="extraShiftDialog" fullscreen persistent>
-            <v-card>
+            <v-card class="dialog-scroll-card">
                 <v-toolbar>
                     <v-toolbar-title class="font-weight-bold"
                         >Xin làm ngoài lịch / OT</v-toolbar-title
@@ -578,7 +572,7 @@
                     <v-tab value="extra_shift">Làm ngoài lịch</v-tab>
                     <v-tab value="overtime">Xin OT</v-tab>
                 </v-tabs>
-                <v-window v-model="extraShiftTab">
+                <v-window v-model="extraShiftTab" class="dialog-scroll-body">
                     <v-window-item value="extra_shift">
                         <v-form class="v-card-text" ref="extraShiftFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(extraShiftFormRef, submitExtraShiftRequest)"
                             style="
@@ -589,10 +583,11 @@
                         >
                             <div class="text-body-2" style="opacity: 0.75">
                                 Đăng ký TRƯỚC để xin phép làm thêm 1 ngày không
-                                có trong lịch của bạn (làm OT cả ngày, làm bù
-                                Thứ 7/Chủ nhật…). Sau khi được duyệt, bạn tự bấm
-                                Chấm công vào/ra bình thường vào đúng ngày đã
-                                đăng ký.
+                                có trong lịch của bạn (làm bù Thứ 7/Chủ nhật…) —
+                                tính công như ngày thường. Muốn tính OT thì dùng
+                                tab "Xin OT" → "OT ngày khác". Sau khi được duyệt,
+                                bạn tự bấm Chấm công vào/ra bình thường vào đúng
+                                ngày đã đăng ký.
                             </div>
 
                             <div>
@@ -762,7 +757,78 @@
                                 gap: 0.75rem;
                             "
                         >
-                            <div class="text-body-2" style="opacity: 0.75">
+                            <v-btn-toggle
+                                v-model="otRequestForm.mode"
+                                mandatory
+                                density="comfortable"
+                                color="primary"
+                                variant="outlined"
+                                divided
+                                class="align-self-start"
+                            >
+                                <v-btn value="today" size="small">OT sau ca hôm nay</v-btn>
+                                <v-btn value="other_day" size="small">OT ngày khác</v-btn>
+                            </v-btn-toggle>
+
+                            <template v-if="otRequestForm.mode === 'other_day'">
+                                <div class="text-body-2" style="opacity: 0.75">
+                                    Đăng ký TRƯỚC làm OT vào ngày bạn không có ca
+                                    (Thứ 7, Chủ nhật, ngày lễ…). Sau khi được duyệt,
+                                    bạn chấm công vào/ra bình thường — toàn bộ giờ làm
+                                    trong khung đã đăng ký tính là OT (ngày thường
+                                    150%, Thứ 7/Chủ nhật 200%, ngày lễ 300%).
+                                </div>
+                                <div>
+                                    <div class="text-body-2 font-weight-medium mb-1">
+                                        Ngày làm OT <span class="text-error">*</span>
+                                    </div>
+                                    <InputDate
+                                        v-model="otRequestForm.attendanceDate"
+                                        :rules="[notEmpty('Ngày làm OT')]"
+                                        :min="todayIso()"
+                                        :error-messages="otRequestErrors.attendance_date"
+                                    />
+                                </div>
+                                <v-row dense>
+                                    <v-col cols="6">
+                                        <div class="text-body-2 font-weight-medium mb-1">
+                                            Giờ bắt đầu <span class="text-error">*</span>
+                                        </div>
+                                        <v-text-field
+                                            v-model="otRequestForm.startTime"
+                                            :rules="[notEmpty('Giờ bắt đầu')]"
+                                            type="time"
+                                            variant="outlined"
+                                            density="comfortable"
+                                            rounded="lg"
+                                            :error-messages="otRequestErrors.custom_start_time"
+                                        />
+                                    </v-col>
+                                    <v-col cols="6">
+                                        <div class="text-body-2 font-weight-medium mb-1">
+                                            Giờ kết thúc <span class="text-error">*</span>
+                                        </div>
+                                        <v-text-field
+                                            v-model="otRequestForm.endTime"
+                                            :rules="[
+                                                notEmpty('Giờ kết thúc'),
+                                                (v) => !otRequestForm.startTime || !v || v > otRequestForm.startTime || 'Giờ kết thúc phải sau giờ bắt đầu',
+                                            ]"
+                                            type="time"
+                                            variant="outlined"
+                                            density="comfortable"
+                                            rounded="lg"
+                                            :error-messages="otRequestErrors.custom_end_time"
+                                        />
+                                    </v-col>
+                                </v-row>
+                            </template>
+
+                            <div
+                                v-if="otRequestForm.mode === 'today'"
+                                class="text-body-2"
+                                style="opacity: 0.75"
+                            >
                                 Đăng ký TRƯỚC cho ca bạn ĐANG làm hôm nay — OT
                                 tính từ giờ kết thúc ca tới lúc bạn thực sự chấm
                                 công ra, không cần biết trước sẽ làm tới mấy
@@ -770,7 +836,7 @@
                             </div>
 
                             <div
-                                v-if="!otTodayOptions.length"
+                                v-if="otRequestForm.mode === 'today' && !otTodayOptions.length"
                                 class="text-body-2"
                                 style="opacity: 0.6"
                             >
@@ -778,7 +844,7 @@
                                 xin OT hết cho các ca đang có), không có gì để
                                 chọn.
                             </div>
-                            <div v-else>
+                            <div v-else-if="otRequestForm.mode === 'today'">
                                 <div
                                     class="text-body-2 font-weight-medium mb-1"
                                 >
@@ -828,7 +894,7 @@
                                 variant="flat"
                                 block
                                 size="large"
-                                :disabled="!otTodayOptions.length"
+                                :disabled="otRequestForm.mode === 'today' && !otTodayOptions.length"
                                 :loading="otRequestSubmitting"
                                 @click="validateThen(otRequestFormRef, submitOtRequestFromToday)"
                             >
@@ -928,6 +994,8 @@ import {
     formatMinutesAsHours,
     formatTime,
     mergedAttendanceStatus,
+    REQUEST_TYPE_CHIPS,
+    requestShiftLabel,
     useCheckIn,
 } from "../../composables/useCheckIn";
 import PageHeader from "../../components/common/PageHeader.vue";

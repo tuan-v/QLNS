@@ -29,6 +29,7 @@ class WorkShift extends Model
         'work_coefficient',
         'is_active',
         'is_default',
+        'is_overtime',
         'work_days',
     ];
 
@@ -43,6 +44,8 @@ class WorkShift extends Model
     protected $casts = [
         'work_coefficient' => 'float',
         'is_default' => 'boolean',
+        // Ca OT 1 ngày của đơn "OT ngày khác" — xem WorkShiftService::createOvertimeOneOff().
+        'is_overtime' => 'boolean',
         // Chỉ CA MẶC ĐỊNH thật sự dùng cột này (xem migration
         // add_work_days_to_work_shifts_table) — NULL nếu chưa từng cấu hình
         // ở trang Cài đặt, EmployeeShiftAssignmentService::assignDefaultShift()

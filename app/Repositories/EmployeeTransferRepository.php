@@ -13,6 +13,7 @@ class EmployeeTransferRepository
         return $employee->transfers()
             ->with(['fromDepartment', 'toDepartment', 'newManager', 'oldPosition', 'newPosition', 'approver'])
             ->latest('effective_date')
+            ->latest('id')
             ->get();
     }
 

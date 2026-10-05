@@ -45,7 +45,7 @@ class StoreEmployeeRequest extends FormRequest
             // "Thử việc", chinh_thuc -> "Chính thức"), start_date = hire_date.
             // Xem EmployeeService::create(). insurance_salary = agreed_salary
             // (EmployeeContractService::create()).
-            'contract_type' => ['required', 'in:thu_viec,chinh_thuc'],
+            'contract_type' => ['required', 'in:thu_viec,chinh_thuc,thuc_tap'],
             'agreed_salary' => ['required', 'numeric', 'min:0'],
         ];
     }

@@ -17,6 +17,11 @@ class Employee extends Model
 
     protected array $realtimeOwn = ['profile'];
 
+    // Trạng thái "đang làm việc" (đi theo loại hợp đồng hiệu lực, xem
+    // EmployeeContractService::EMPLOYMENT_STATUS_BY_CONTRACT_TYPE) — nguồn chung cho
+    // mọi chỗ lọc nhân viên đang làm: tính lương, bảng công, cộng phép, gán ca...
+    public const WORKING_STATUSES = ['active', 'probation', 'intern'];
+
     /** @return array<int, int> */
     protected function realtimeEmployeeIds(): array
     {

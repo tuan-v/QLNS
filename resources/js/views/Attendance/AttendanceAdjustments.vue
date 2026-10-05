@@ -86,10 +86,17 @@
                     {{ formatDateRange(item.attendance_date, item.attendance_date_to) }} — chưa chấm công
                     (đăng ký trước)
                 </div>
-                <div v-if="item.proposed_check_in_at">
+                <div v-if="item.type === 'overtime_shift'" style="opacity: 0.75">
+                    Đăng ký làm OT {{ formatTime(item.proposed_check_in_at) }}–{{
+                        formatTime(item.proposed_check_out_at)
+                    }}
+                    ngày {{ formatDate(item.attendance_date) }} — toàn bộ giờ trong
+                    khung tính OT ({{ otRateLabel(item.attendance_date) }})
+                </div>
+                <div v-else-if="item.proposed_check_in_at">
                     Vào: {{ formatDateTime(item.proposed_check_in_at) }}
                 </div>
-                <div v-if="item.proposed_check_out_at">
+                <div v-if="item.proposed_check_out_at && item.type !== 'overtime_shift'">
                     Ra: {{ formatDateTime(item.proposed_check_out_at) }}
                 </div>
             </template>
@@ -131,6 +138,7 @@ const ADJUSTMENT_TYPE_MAP = {
     early_leave: { label: "Xin về sớm", color: "orange" },
     overtime: { label: "Duyệt OT", color: "teal" },
     extra_shift: { label: "Làm ngoài lịch", color: "indigo" },
+    overtime_shift: { label: "OT ngày khác", color: "deep-orange" },
 };
 
 const statusOptions = [
@@ -164,6 +172,19 @@ function formatDate(value) {
         return "—";
     }
     return new Date(value).toLocaleDateString("vi-VN");
+}
+
+function formatTime(value) {
+    if (!value) {
+        return "--:--";
+    }
+    return new Date(value).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+}
+
+// Gợi ý hệ số cho HR khi duyệt (ngày lễ 300% do backend xác định theo lịch nghỉ lễ).
+function otRateLabel(date) {
+    const day = new Date(date).getDay();
+    return day === 0 || day === 6 ? "Thứ 7/Chủ nhật 200%, ngày lễ 300%" : "ngày thường 150%, ngày lễ 300%";
 }
 
 function formatDateTime(value) {
@@ -214,9 +235,11 @@ const actions = computed(() => [
         confirm: {
             title: "Duyệt điều chỉnh công",
             message: (item) =>
-                item.type === "extra_shift"
-                    ? `Cho phép làm ca "${item.work_shift?.name ?? "—"}" ngày ${formatDateRange(item.attendance_date, item.attendance_date_to)}? Nhân viên sẽ tự chấm công vào/ra vào đúng những ngày này.`
-                    : `Áp dụng giờ đề xuất vào ngày công ${formatDate(item.attendance_date)}?`,
+                item.type === "overtime_shift"
+                    ? `Cho phép làm OT ${formatTime(item.proposed_check_in_at)}–${formatTime(item.proposed_check_out_at)} ngày ${formatDate(item.attendance_date)}? Nhân viên tự chấm công vào/ra hôm đó, giờ làm trong khung tính OT.`
+                    : item.type === "extra_shift"
+                      ? `Cho phép làm ca "${item.work_shift?.name ?? "—"}" ngày ${formatDateRange(item.attendance_date, item.attendance_date_to)}? Nhân viên sẽ tự chấm công vào/ra vào đúng những ngày này.`
+                      : `Áp dụng giờ đề xuất vào ngày công ${formatDate(item.attendance_date)}?`,
             confirmText: "Duyệt",
             input: { required: false, label: "Ghi chú (tùy chọn)" },
         },

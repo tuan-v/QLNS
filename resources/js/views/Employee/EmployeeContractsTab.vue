@@ -291,6 +291,7 @@
                             :items="[
                                 { title: 'Thử việc', value: 'thu_viec' },
                                 { title: 'Chính thức', value: 'chinh_thuc' },
+                                { title: 'Thực tập', value: 'thuc_tap' },
                             ]"
                             placeholder="Chọn loại hợp đồng"
                             variant="outlined"
@@ -445,6 +446,7 @@ const CONTRACT_STATUS_MAP = {
 const CONTRACT_TYPE_MAP = {
     thu_viec: "Thử việc",
     chinh_thuc: "Chính thức",
+    thuc_tap: "Thực tập",
 };
 
 /* ---------------------------------------------------------------------------
@@ -555,7 +557,7 @@ function openCreateDialog() {
     // vẫn đổi được tay (vd chuyển từ thử việc sang chính thức thì chính lúc
     // này employment_status có thể CHƯA kịp cập nhật), chỉ là giá trị mặc định.
     createForm.contract_type =
-        props.employmentStatus === "probation" ? "thu_viec" : "chinh_thuc";
+        { probation: "thu_viec", intern: "thuc_tap" }[props.employmentStatus] ?? "chinh_thuc";
     createForm.signed_at = "";
     createForm.start_date = "";
     createForm.end_date = "";

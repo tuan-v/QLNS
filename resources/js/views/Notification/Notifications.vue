@@ -171,6 +171,8 @@ const TYPE_LABELS = {
     "leave.pending_manager": "Đơn phép chờ quản lý duyệt",
     "leave.pending_hr": "Đơn phép chờ HR duyệt",
     "leave.decided": "Kết quả duyệt phép",
+    "holiday.upcoming": "Thông báo nghỉ lễ",
+    "holiday.confirm_needed": "Nhắc xác nhận lịch nghỉ",
     "attendance.pending_approval": "Chấm công chờ duyệt",
     "attendance_adjustment.pending": "Đơn điều chỉnh công chờ duyệt",
     "resignation.pending": "Đơn nghỉ việc chờ duyệt",

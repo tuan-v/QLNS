@@ -19,8 +19,16 @@ class EmployeeTransfer extends Model
     // Lịch sử luân chuyển là bản ghi sự kiện đã xảy ra — không xóa mềm vì
     // không có khái niệm "xóa 1 lần luân chuyển trong quá khứ", giống hợp
     // đồng lao động (chỉ Tạo, không Sửa/Xóa).
+    // Loại sự kiện trong lịch sử luân chuyển.
+    public const TYPE_ONBOARD = 'onboard';       // Tiếp nhận: phòng ban + chức vụ đầu tiên
+
+    public const TYPE_TRANSFER = 'transfer';     // Điều chuyển sang phòng ban khác
+
+    public const TYPE_ADJUSTMENT = 'adjustment'; // Đổi ngoài màn điều chuyển (sửa hồ sơ, bổ nhiệm/thôi Trưởng phòng)
+
     protected $fillable = [
         'employee_id',
+        'type',
         'from_department_id',
         'to_department_id',
         'new_manager_id',

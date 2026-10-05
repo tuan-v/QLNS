@@ -41,6 +41,36 @@ class EmployeeTransferTest extends TestCase
         ], $overrides));
     }
 
+    // Bổ nhiệm Trưởng phòng ở trang Phòng ban đổi chức vụ -> có dòng "Cập nhật" ghi
+    // chức vụ cũ -> "Trưởng phòng"; điều chuyển ghi type 'transfer' + chức vụ mới thực tế.
+    public function test_head_appointment_and_transfer_are_recorded_with_old_and_new_position(): void
+    {
+        $department = Department::create(['name' => 'Phong A', 'code' => 'PB-A']);
+        $staff = Position::create(['department_id' => $department->id, 'name' => 'Nhan vien A', 'code' => 'CV-A']);
+        $employee = $this->makeEmployee(['department_id' => $department->id, 'position_id' => $staff->id]);
+        $headers = ['Authorization' => 'Bearer '.$this->loginAs('admin@qlns.local', 'Admin@123')];
+
+        $this->putJson('/api/v1/departments/'.$department->id, ['name' => 'Phong A', 'manager_id' => $employee->id], $headers)->assertOk();
+
+        $appointment = $this->getJson('/api/v1/employees/'.$employee->id.'/transfers', $headers)->json('data.0');
+        $this->assertSame('adjustment', $appointment['type']);
+        $this->assertSame($staff->id, $appointment['old_position']['id']);
+        $this->assertSame($employee->fresh()->position_id, $appointment['new_position']['id']);
+        $this->assertStringContainsString('Bổ nhiệm Trưởng phòng', $appointment['reason']);
+
+        $toDept = Department::create(['name' => 'Phong B', 'code' => 'PB-B']);
+        $this->postJson('/api/v1/employees/'.$employee->id.'/transfers', [
+            'to_department_id' => $toDept->id, 'effective_date' => '2026-10-10',
+        ], $headers)->assertCreated();
+
+        $transfer = $this->getJson('/api/v1/employees/'.$employee->id.'/transfers', $headers)->json('data.0');
+        $this->assertSame('transfer', $transfer['type']);
+        $this->assertSame($department->id, $transfer['from_department']['id']);
+        $this->assertSame($toDept->id, $transfer['to_department']['id']);
+        // Trưởng phòng rời đi -> tự hạ về chức vụ mặc định của phòng mới, lịch sử ghi đúng chức vụ đó.
+        $this->assertSame($employee->fresh()->position_id, $transfer['new_position']['id']);
+    }
+
     public function test_unauthenticated_cannot_list_transfers(): void
     {
         $employee = $this->makeEmployee();
