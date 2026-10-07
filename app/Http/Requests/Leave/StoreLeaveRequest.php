@@ -83,6 +83,19 @@ class StoreLeaveRequest extends FormRequest
             if ($fromDate && $toDate && $fromDate === $toDate && $startSession !== $endSession) {
                 $validator->errors()->add('end_session', 'Xin nghỉ 1 ngày thì buổi bắt đầu và kết thúc phải giống nhau.');
             }
+
+            // Nghỉ nhiều ngày liền: ngày đầu chỉ có thể nghỉ cả ngày hoặc TỪ
+            // buổi chiều, ngày cuối chỉ có thể nghỉ hết ngày hoặc ĐẾN HẾT buổi
+            // sáng — "ngày đầu chỉ nghỉ sáng" / "ngày cuối chỉ nghỉ chiều" nghĩa
+            // là có 1 buổi đi làm xen giữa, không còn là 1 lần nghỉ liền mạch.
+            if ($fromDate && $toDate && $fromDate !== $toDate) {
+                if ($startSession === 'am') {
+                    $validator->errors()->add('start_session', 'Nghỉ nhiều ngày thì ngày đầu chỉ chọn được "Nghỉ cả ngày" hoặc "Nghỉ từ buổi chiều".');
+                }
+                if ($endSession === 'pm') {
+                    $validator->errors()->add('end_session', 'Nghỉ nhiều ngày thì ngày cuối chỉ chọn được "Nghỉ hết ngày" hoặc "Chỉ nghỉ buổi sáng".');
+                }
+            }
         });
 
         // "Nghỉ khác theo chế độ/luật" (gộp ốm/thai sản/chế độ cha-mẹ...,

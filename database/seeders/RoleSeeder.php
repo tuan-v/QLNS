@@ -18,6 +18,8 @@ class RoleSeeder extends Seeder
             ['name' => 'HR', 'guard_name' => 'api', 'level' => 60, 'description' => 'Nhân sự - quản lý hồ sơ, chấm công, nghỉ phép, lương'],
             ['name' => 'Manager', 'guard_name' => 'api', 'level' => 40, 'description' => 'Trưởng phòng - duyệt nghỉ phép, xem báo cáo phòng ban'],
             ['name' => 'Employee', 'guard_name' => 'api', 'level' => 20, 'description' => 'Nhân viên - tự chấm công, xin nghỉ phép, xem phiếu lương'],
+            // Tự gán/gỡ theo hợp đồng thực tập (EmployeeAccountService::syncInternRole()).
+            ['name' => 'Intern', 'guard_name' => 'api', 'level' => 0, 'description' => 'Thực tập sinh - chỉ chấm công, xin nghỉ ốm/không lương, xem phiếu lương'],
         ];
 
         foreach ($roles as $role) {

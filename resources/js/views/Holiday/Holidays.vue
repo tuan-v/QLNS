@@ -359,6 +359,8 @@ import HolidayRuleForm from "./HolidayRuleForm.vue";
 import HolidayAdjustDialog from "./HolidayAdjustDialog.vue";
 import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/useToastStore";
+import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
+import { useRouteAction } from "../../composables/useRouteAction";
 
 const auth = useAuthStore();
 const toast = useToastStore();
@@ -604,6 +606,12 @@ async function onRuleSaved() {
 }
 
 watch(year, loadData);
+
+// Realtime: HR xác nhận/điều chỉnh lịch, đổi quy tắc... -> mọi người đang xem tự cập nhật.
+useRealtimeRefresh(() => Promise.all([loadData(), loadRules()]), { shared: ["holidays"] });
+
+// Mở thẳng thao tác khi vào trang bằng ?action=... (lệnh Ctrl+K).
+useRouteAction({ create: () => canManage.value && (formDialog.value = true) });
 
 onMounted(() => {
     loadData();

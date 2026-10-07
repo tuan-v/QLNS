@@ -306,6 +306,22 @@ class EmployeeTest extends TestCase
         $this->assertCount(2, $this->getJson("/api/v1/employees/{$id}/transfers", $headers)->json('data'));
     }
 
+    // API trả ngày hết thử việc + loại/ngày hết hạn hợp đồng dạng "Y-m-d" — dùng cho cảnh
+    // báo nhanh ở danh sách và để form Sửa điền lại đúng (trước đây thiếu, Lưu sẽ xóa mất).
+    public function test_resource_exposes_probation_and_contract_end_dates(): void
+    {
+        $headers = ['Authorization' => 'Bearer '.$this->loginAs('admin@qlns.local', 'Admin@123')];
+        $id = $this->postJson('/api/v1/employees', $this->validPayload([
+            'hire_date' => '2026-01-01', 'probation_end_date' => '2026-03-01',
+        ]), $headers)->assertCreated()->json('data.id');
+        Employee::find($id)->activeContract->update(['end_date' => '2026-12-31']);
+
+        $this->getJson("/api/v1/employees/{$id}", $headers)->assertOk()
+            ->assertJsonPath('data.probation_end_date', '2026-03-01')
+            ->assertJsonPath('data.contract_type', 'thu_viec')
+            ->assertJsonPath('data.contract_end_date', '2026-12-31');
+    }
+
     public function test_client_supplied_code_is_ignored_on_create(): void
     {
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
@@ -787,11 +803,11 @@ class EmployeeTest extends TestCase
         ]);
 
         $response->assertStatus(200);
-        $this->assertNull($response->json('data.leave_allocated_days'));
-        $this->assertNull($response->json('data.leave_remaining_days'));
+        $this->assertEquals(0, $response->json('data.leave_allocated_days'));
+        $this->assertEquals(0, $response->json('data.leave_remaining_days'));
     }
 
-    public function test_employee_without_leave_balance_shows_null_leave_days(): void
+    public function test_employee_without_leave_balance_shows_zero_leave_days(): void
     {
         $employee = $this->makeEmployee();
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
@@ -801,8 +817,8 @@ class EmployeeTest extends TestCase
         ]);
 
         $response->assertStatus(200);
-        $this->assertNull($response->json('data.leave_allocated_days'));
-        $this->assertNull($response->json('data.leave_remaining_days'));
+        $this->assertEquals(0, $response->json('data.leave_allocated_days'));
+        $this->assertEquals(0, $response->json('data.leave_remaining_days'));
     }
 
     // Coi số ngày nghỉ phép nhạy cảm y hệt lương — cùng cơ chế ẩn theo quan hệ

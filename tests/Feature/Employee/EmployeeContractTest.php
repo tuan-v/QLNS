@@ -364,6 +364,26 @@ class EmployeeContractTest extends TestCase
         $this->assertSame('active', $employee->fresh()->employment_status);
     }
 
+    // Hợp đồng thử việc là căn cứ ngày hết thử việc — ô nhập tay trong hồ sơ
+    // phải được ghi đè theo, tránh cảnh báo "quá hạn thử việc" sai.
+    public function test_probation_contract_syncs_probation_end_date(): void
+    {
+        $employee = $this->makeEmployee([
+            'employment_status' => 'probation',
+            'probation_end_date' => now()->subDays(5)->toDateString(),
+        ]);
+        $token = $this->loginAs('admin@qlns.local', 'Admin@123');
+        $endDate = now()->addDays(20)->toDateString();
+
+        $this->postJson('/api/v1/employees/'.$employee->id.'/contracts', $this->contractPayload([
+            'contract_type' => 'thu_viec',
+            'start_date' => now()->toDateString(),
+            'end_date' => $endDate,
+        ]), ['Authorization' => 'Bearer '.$token])->assertStatus(201);
+
+        $this->assertSame($endDate, $employee->fresh()->probation_end_date->toDateString());
+    }
+
     public function test_future_official_contract_changes_status_only_when_activated(): void
     {
         $employee = $this->makeEmployee(['employment_status' => 'probation']);

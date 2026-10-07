@@ -17,7 +17,11 @@
              editingId) — tránh dựng thêm 2 ô nhập chen vào từng dòng quyền
              trong lưới 2 cột vốn đã chật. -->
         <div ref="formAnchor">
-            <FormSection :title="editingId ? `Sửa quyền — ${editingCode}` : 'Tạo quyền mới'">
+            <FormSection
+                :title="
+                    editingId ? `Sửa quyền — ${editingCode}` : 'Tạo quyền mới'
+                "
+            >
                 <div class="d-flex flex-wrap ga-2 align-start">
                     <v-text-field
                         v-model="permissionForm.code"
@@ -70,8 +74,9 @@
                     class="mt-3"
                     icon="mdi-alert-outline"
                 >
-                    Đổi <strong>mã quyền</strong> sẽ làm mọi route backend đang khóa theo mã cũ
-                    mất hiệu lực — chỉ đổi khi chắc chắn, hoặc chỉ sửa tên hiển thị.
+                    Đổi <strong>mã quyền</strong> sẽ làm mọi route backend đang
+                    khóa theo mã cũ mất hiệu lực — chỉ đổi khi chắc chắn, hoặc
+                    chỉ sửa tên hiển thị.
                 </v-alert>
             </FormSection>
         </div>
@@ -85,8 +90,8 @@
                 class="mb-3"
                 icon="mdi-shield-lock-outline"
             >
-                Vai trò <strong>Admin</strong> của hệ thống luôn có toàn bộ quyền (kể cả quyền
-                tạo mới sau này) — không thể bỏ quyền nào.
+                Vai trò <strong>Admin</strong> của hệ thống luôn có toàn bộ
+                quyền (kể cả quyền tạo mới sau này) — không thể bỏ quyền nào.
             </v-alert>
             <div class="d-flex flex-wrap align-center ga-3">
                 <!-- Lọc ngay trên danh sách đã tải sẵn (vài chục dòng) nên để
@@ -179,7 +184,9 @@ const isSystemAdmin = computed(() => props.role?.name === SYSTEM_ADMIN_ROLE);
 
 const permissionStore = usePermissionStore();
 const toast = useToastStore();
-const guard = useChangeGuard(() => [...selectedIds.value].sort((a, b) => a - b));
+const guard = useChangeGuard(() =>
+    [...selectedIds.value].sort((a, b) => a - b),
+);
 
 const loading = ref(false);
 const error = ref("");
@@ -208,6 +215,8 @@ const GROUP_LABELS = {
     report: "Báo cáo",
     rbac: "Phân quyền",
     holiday: "Ngày nghỉ lễ",
+    recruitment: "Tuyển dụng",
+    onboarding: "Onboarding / Offboarding",
     system: "Hệ thống",
 };
 
@@ -258,7 +267,10 @@ const listSummary = computed(() => {
     if (!keyword.value.trim()) {
         return `Đang chọn ${selected}/${total} quyền.`;
     }
-    const shown = filteredGroups.value.reduce((sum, group) => sum + group.items.length, 0);
+    const shown = filteredGroups.value.reduce(
+        (sum, group) => sum + group.items.length,
+        0,
+    );
     // Bộ lọc chỉ ẩn bớt dòng để nhìn, KHÔNG đụng tới selectedIds — những quyền
     // đã tick nhưng đang bị ẩn vẫn được lưu bình thường khi bấm "Lưu quyền".
     return `Khớp ${shown}/${total} quyền · vai trò này đang chọn ${selected} quyền.`;
@@ -273,12 +285,15 @@ async function loadRolePermissions() {
     try {
         const [roleDetail] = await Promise.all([
             roleService.show(props.role.id).then((r) => r.data),
-            permissionStore.permissions.length ? Promise.resolve() : permissionStore.fetchList(),
+            permissionStore.permissions.length
+                ? Promise.resolve()
+                : permissionStore.fetchList(),
         ]);
         selectedIds.value = (roleDetail.permissions ?? []).map((p) => p.id);
         guard.takeSnapshot();
     } catch (e) {
-        error.value = e.response?.data?.message ?? "Không thể tải dữ liệu quyền.";
+        error.value =
+            e.response?.data?.message ?? "Không thể tải dữ liệu quyền.";
     } finally {
         loading.value = false;
     }
@@ -310,7 +325,10 @@ async function submit() {
     loading.value = true;
     error.value = "";
     try {
-        const response = await roleService.updatePermissions(props.role.id, selectedIds.value);
+        const response = await roleService.updatePermissions(
+            props.role.id,
+            selectedIds.value,
+        );
         toast.success("Đã cập nhật quyền cho vai trò.");
         emit("saved", response.data);
         close();
@@ -340,13 +358,20 @@ function startEdit(permission) {
     permissionStore.resetErrors();
     // Form nằm ở ĐẦU hộp thoại còn nút bút chì có thể ở tận cuối danh sách —
     // không kéo lên thì bấm xong tưởng như không có gì xảy ra.
-    nextTick(() => formAnchor.value?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+    nextTick(() =>
+        formAnchor.value?.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+        }),
+    );
 }
 
 async function savePermission() {
     try {
         if (editingId.value) {
-            await permissionStore.update(editingId.value, { ...permissionForm });
+            await permissionStore.update(editingId.value, {
+                ...permissionForm,
+            });
             toast.success(`Đã cập nhật quyền "${permissionForm.code}".`);
             resetForm();
             return;
@@ -365,7 +390,9 @@ async function savePermission() {
 async function deletePermission(permission) {
     try {
         await permissionStore.remove(permission.id);
-        selectedIds.value = selectedIds.value.filter((id) => id !== permission.id);
+        selectedIds.value = selectedIds.value.filter(
+            (id) => id !== permission.id,
+        );
         if (editingId.value === permission.id) {
             resetForm();
         }

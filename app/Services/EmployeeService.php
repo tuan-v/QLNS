@@ -18,6 +18,8 @@ class EmployeeService
         private readonly ReportingLineService $reportingLineService,
         private readonly EmployeeAccountService $employeeAccountService,
         private readonly EmployeeTransferService $employeeTransferService,
+        private readonly RecruitmentService $recruitmentService,
+        private readonly ChecklistService $checklistService,
     ) {
     }
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -61,8 +63,16 @@ class EmployeeService
         // không nhận từ client.
         unset($data['manager_id']);
 
-        $employee = DB::transaction(function () use ($data, $agreedSalary, $contractType) {
+        // Tạo từ ứng viên tuyển dụng ("Nhận việc"): đánh dấu ứng viên đã nhận việc trong
+        // CÙNG transaction — lỗi ở bước nào thì cả nhân viên lẫn ứng viên đều không đổi.
+        $candidateId = $data['candidate_id'] ?? null;
+        unset($data['candidate_id']);
+
+        $employee = DB::transaction(function () use ($data, $agreedSalary, $contractType, $candidateId) {
             $employee = $this->employeeRepository->create($data);
+            if ($candidateId !== null) {
+                $this->recruitmentService->markHired((int) $candidateId, $employee);
+            }
             $this->reportingLineService->syncEmployee($employee);
             // Dòng đầu của lịch sử luân chuyển: vào phòng ban nào, chức vụ gì, từ ngày nào.
             $this->employeeTransferService->recordOnboarding($employee);
@@ -86,6 +96,9 @@ class EmployeeService
                 'start_date' => $employee->hire_date->toDateString(),
                 'agreed_salary' => $agreedSalary,
             ]);
+
+            // Checklist nhận việc theo mẫu mặc định (không có mẫu nào đang dùng thì bỏ qua).
+            $this->checklistService->startOnboarding($employee);
 
             return $employee;
         });

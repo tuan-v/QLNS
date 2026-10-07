@@ -9,7 +9,7 @@
                 ? 'Cập nhật thông tin nhân viên.'
                 : 'Tạo hồ sơ nhân viên mới.'
         "
-        :error="store.loadError"
+        :error="store.errors.candidate_id?.[0] || store.loadError"
         :loading="store.loading"
         :submit-label="isEdit ? 'Lưu thay đổi' : 'Thêm mới'"
         max-width="760"
@@ -31,6 +31,7 @@
                             rounded="lg"
                             placeholder="Nhập họ tên"
                             :error-messages="store.errors.full_name"
+                            @blur="suggestCompanyEmail"
                         />
                     </v-col>
 
@@ -62,6 +63,8 @@
                             rounded="lg"
                             placeholder="ten@congty.com"
                             :error-messages="fieldErrors('company_email')"
+                            :hint="emailSuggested ? 'Gợi ý tự động theo họ tên — sửa lại nếu cần.' : ''"
+                            :persistent-hint="emailSuggested"
                             @blur="checkUnique('company_email')"
                         />
                     </v-col>
@@ -482,6 +485,7 @@ import {
 import { useAuthStore } from "../../stores/authStore";
 import DepartmentFormDialog from "../Department/DepartmentForm.vue";
 import PositionFormDialog from "../Position/PositionForm.vue";
+import { normalizeVietnamese } from "../../composables/normalizeVietnamese";
 import InputDate, {
     shiftIsoDate,
     todayIso,
@@ -502,6 +506,14 @@ const props = defineProps({
     departmentOptions: {
         type: Array,
         default: () => [],
+    },
+    // Chỉ dùng khi THÊM MỚI từ trang Tuyển dụng ("Nhận việc"): điền sẵn thông tin
+    // ứng viên { candidate_id, full_name, personal_email, phone, department_id,
+    // position_id, contract_type }. candidate_id gửi kèm để backend đánh dấu ứng
+    // viên "Đã nhận việc" trong cùng transaction tạo nhân viên.
+    prefill: {
+        type: Object,
+        default: null,
     },
 });
 
@@ -650,6 +662,43 @@ function fieldErrors(key) {
     ];
 }
 
+/* ------- Gợi ý email công ty khi THÊM MỚI: "Nguyễn Văn An" -> annv@<tên miền công ty> ------- */
+// Tên miền lấy theo email của người đang đăng nhập (HR/Admin dùng email công ty).
+// Trùng thì thử annv2, annv3... Chỉ điền khi ô email còn trống, người dùng sửa được.
+const emailSuggested = ref(false);
+let suggestedEmail = "";
+
+async function suggestCompanyEmail() {
+    if (isEdit.value || String(form.company_email ?? "").trim()) {
+        return;
+    }
+    const parts = normalizeVietnamese(form.full_name).replace(/[^a-z\s]/g, "").trim().split(/\s+/).filter(Boolean);
+    const domain = String(auth.user?.email ?? "").split("@")[1];
+    if (!parts.length || !domain) {
+        return;
+    }
+    const local = parts[parts.length - 1] + parts.slice(0, -1).map((p) => p[0]).join("");
+
+    for (const suffix of ["", 2, 3, 4, 5, 6, 7, 8, 9]) {
+        const candidate = `${local}${suffix}@${domain}`;
+        try {
+            const response = await employeeService.checkUnique({ field: "company_email", value: candidate });
+            // Người dùng đã tự gõ email trong lúc chờ -> không ghi đè.
+            if (String(form.company_email ?? "").trim()) {
+                return;
+            }
+            if (response.data.available) {
+                suggestedEmail = candidate;
+                form.company_email = candidate;
+                emailSuggested.value = true;
+                return;
+            }
+        } catch {
+            return;
+        }
+    }
+}
+
 async function checkUnique(key) {
     const value = String(form[key] ?? "").trim();
     const { label, rule } = UNIQUE_FIELDS[key];
@@ -689,6 +738,12 @@ for (const key of Object.keys(form)) {
         },
     );
 }
+watch(
+    () => form.company_email,
+    (value) => {
+        if (emailSuggested.value && value !== suggestedEmail) emailSuggested.value = false;
+    },
+);
 
 // Giới hạn của picker phản chiếu đúng rule trong StoreEmployeeRequest /
 // UpdateEmployeeRequest, để người dùng không chọn được ngày mà backend chắc
@@ -717,6 +772,15 @@ function fillForm() {
     form.department_id = e?.department?.id ?? null;
     form.position_id = e?.position?.id ?? null;
     form.probation_end_date = toDateInput(e?.probation_end_date);
+
+    const p = !e ? props.prefill : null;
+    if (p) {
+        form.full_name = p.full_name ?? "";
+        form.personal_email = p.personal_email ?? "";
+        form.phone = p.phone ?? "";
+        form.department_id = p.department_id ?? null;
+        form.position_id = p.position_id ?? null;
+    }
 }
 
 function formatDateVi(value) {
@@ -748,13 +812,14 @@ watch(
             // Tài khoản đăng nhập chỉ áp dụng lúc Thêm mới — reset lại mỗi lần
             // mở modal, không giữ trạng thái tick của lần thêm trước.
             createAccount.value = false;
+            emailSuggested.value = false;
             accountRoleIds.value = [];
             accountError.value = "";
             loadRoles();
             // Lương & Hợp đồng cũng chỉ áp dụng lúc Thêm mới — cùng lý do reset
             // như createAccount ở trên, không giữ số cũ của lần thêm trước.
             agreedSalary.value = null;
-            contractType.value = null;
+            contractType.value = props.employee ? null : (props.prefill?.contract_type ?? null);
             // Nạp lại danh sách Xã/Phường đúng theo Tỉnh đã có sẵn (modal Sửa) —
             // KHÔNG gọi qua onProvinceChange() vì hàm đó xóa luôn commune_code,
             // ở đây form.commune_code vừa được fillForm() gán đúng giá trị cũ.
@@ -806,6 +871,9 @@ async function submit() {
     if (!isEdit.value) {
         payload.agreed_salary = agreedSalary.value;
         payload.contract_type = contractType.value;
+        if (props.prefill?.candidate_id) {
+            payload.candidate_id = props.prefill.candidate_id;
+        }
     }
 
     try {

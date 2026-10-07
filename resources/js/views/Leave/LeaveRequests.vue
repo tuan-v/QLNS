@@ -128,6 +128,9 @@
                             :rules="[notEmpty('Loại phép')]"
                         :error-messages="errors.leave_type_id"
                         />
+                        <div v-if="selectedBalanceHint" class="text-caption mt-1 text-primary font-weight-medium">
+                            {{ selectedBalanceHint }}
+                        </div>
                         <div class="text-caption mt-1" style="opacity: 0.6">
                             Chỉ "Nghỉ phép năm" bị giới hạn số ngày trong năm (hết quỹ sẽ không chọn
                             được nữa) — các loại khác không giới hạn nhưng có thể không được trả lương.
@@ -147,13 +150,13 @@
                         </v-col>
                         <v-col cols="6">
                             <div class="text-body-2 font-weight-medium mb-1">
-                                Đến ngày <span class="text-error">*</span>
+                                Đến hết ngày <span class="text-error">*</span>
                             </div>
                             <InputDate
                                 v-model="form.toDate"
                                 :min="form.fromDate || undefined"
-                                :rules="[notEmpty('Đến ngày'), (v) => !v || !form.fromDate || v >= form.fromDate || 'Đến ngày không được trước Từ ngày']"
-                        :error-messages="errors.to_date"
+                                :rules="[notEmpty('Đến hết ngày')]"
+                                :error-messages="errors.to_date || dateRangeError"
                             />
                         </v-col>
                     </v-row>
@@ -200,36 +203,55 @@
                             </v-col>
                         </v-row>
                     </div>
+                    <!-- Nhiều ngày: chỉ cho chọn những gì có nghĩa — ngày ĐẦU nghỉ cả
+                    ngày hoặc từ buổi chiều, ngày CUỐI nghỉ hết ngày hoặc chỉ buổi
+                    sáng (khớp StoreLeaveRequest::withValidator()). -->
                     <v-row v-else dense>
-                        <v-col cols="6">
-                            <div class="text-body-2 font-weight-medium mb-1">Buổi bắt đầu</div>
-                            <v-select
+                        <v-col cols="12" sm="6">
+                            <div class="text-body-2 font-weight-medium mb-1">
+                                Ngày đầu ({{ formatWeekdayDate(form.fromDate) }})
+                            </div>
+                            <v-radio-group
                                 v-model="form.startSession"
-                                :items="SESSION_OPTIONS"
-                                variant="outlined"
-                                density="comfortable"
-                                rounded="lg"
+                                density="compact"
+                                hide-details="auto"
                                 :error-messages="errors.start_session"
-                            />
+                            >
+                                <v-radio label="Nghỉ cả ngày" value="full" />
+                                <v-radio label="Nghỉ từ buổi chiều" value="pm" />
+                            </v-radio-group>
                         </v-col>
-                        <v-col cols="6">
-                            <div class="text-body-2 font-weight-medium mb-1">Buổi kết thúc</div>
-                            <v-select
+                        <v-col cols="12" sm="6">
+                            <div class="text-body-2 font-weight-medium mb-1">
+                                Ngày cuối ({{ formatWeekdayDate(form.toDate) }})
+                            </div>
+                            <v-radio-group
                                 v-model="form.endSession"
-                                :items="SESSION_OPTIONS"
-                                variant="outlined"
-                                density="comfortable"
-                                rounded="lg"
+                                density="compact"
+                                hide-details="auto"
                                 :error-messages="errors.end_session"
-                            />
+                            >
+                                <v-radio label="Nghỉ hết ngày" value="full" />
+                                <v-radio label="Chỉ nghỉ buổi sáng" value="am" />
+                            </v-radio-group>
                         </v-col>
                     </v-row>
-                    <div class="text-caption" style="opacity: 0.65">
-                        Thứ 7/Chủ nhật là ngày nghỉ cố định, không tính vào số ngày phép.
-                        <span v-if="previewTotalDays !== null">
-                            Số ngày: <strong>{{ previewTotalDays }}</strong>
-                        </span>
-                    </div>
+                    <v-alert
+                        v-if="leaveSummary"
+                        type="info"
+                        variant="tonal"
+                        density="compact"
+                        icon="mdi-calendar-check-outline"
+                    >
+                        <div>{{ leaveSummary.range }}</div>
+                        <div v-if="leaveSummary.returnAt">
+                            Đi làm lại: <strong>{{ leaveSummary.returnAt }}</strong>
+                        </div>
+                        <div v-if="previewTotalDays !== null">
+                            Số ngày tính phép: <strong>{{ previewTotalDays }}</strong>
+                            <span style="opacity: 0.7">&nbsp;(không tính Thứ 7/Chủ nhật)</span>
+                        </div>
+                    </v-alert>
 
                     <div>
                         <div class="text-body-2 font-weight-medium mb-1">
@@ -297,7 +319,7 @@
 // v-dialog + validate tay thay vì FormDialog/FormSection (những component đó
 // dành cho CRUD admin như EmployeeForm.vue, không phù hợp cho luồng tự phục
 // vụ đơn giản này).
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useDisplay } from "vuetify";
 import leaveRequestService from "../../services/leaveRequestService";
 import leaveTypeService from "../../services/leaveTypeService";
@@ -309,7 +331,9 @@ import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue"
 import StatCards from "../../components/dashboard/StatCards.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
+import { useRememberedRef } from "../../composables/useRememberedRef";
 import { maxLength, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
+import { useRouteAction } from "../../composables/useRouteAction";
 
 const toast = useToastStore();
 const { mobile } = useDisplay();
@@ -321,11 +345,17 @@ const LEAVE_STATUS_MAP = {
     rejected: { label: "Từ chối", color: "error" },
 };
 
-const SESSION_OPTIONS = [
-    { title: "Cả ngày", value: "full" },
-    { title: "Sáng", value: "am" },
-    { title: "Chiều", value: "pm" },
-];
+const WEEKDAY_LABELS = ["Chủ nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
+
+// "YYYY-MM-DD" -> "Thứ Năm 08/10"
+function formatWeekdayDate(value) {
+    const date = typeof value === "string" ? parseLocalDate(value) : value;
+    if (!date) {
+        return "";
+    }
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${WEEKDAY_LABELS[date.getDay()]} ${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
+}
 
 function formatDate(value) {
     if (!value) {
@@ -425,10 +455,23 @@ const generalError = ref("");
 // với `balances` — xem leaveTypeOptions computed bên dưới).
 const rawLeaveTypes = ref([]);
 
+// Ngày làm việc kế tiếp (bỏ T7/CN) dạng "YYYY-MM-DD" theo giờ máy — mặc định của đơn mới.
+function nextWorkingDayIso() {
+    const d = new Date();
+    do {
+        d.setDate(d.getDate() + 1);
+    } while (d.getDay() === 0 || d.getDay() === 6);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// Nhớ loại phép đã dùng lần trước để chọn sẵn.
+const lastLeaveTypeId = useRememberedRef("leave-requests.last-type", null);
+
 const defaultForm = () => ({
     leaveTypeId: null,
-    fromDate: "",
-    toDate: "",
+    fromDate: nextWorkingDayIso(),
+    toDate: nextWorkingDayIso(),
     // "session" dùng khi 1 ngày (radio Cả ngày/Sáng/Chiều/Theo giờ),
     // "startSession"/"endSession" dùng khi nhiều ngày (2 ô riêng như cũ).
     session: "full",
@@ -441,11 +484,73 @@ const defaultForm = () => ({
 });
 const form = ref(defaultForm());
 
+// Đổi "Từ ngày" sang sau "Đến ngày" (hoặc "Đến ngày" còn trống) thì "Đến ngày"
+// tự nhảy theo — người dùng không phải sửa 2 lần, cũng không thấy lỗi vô lý.
+watch(
+    () => form.value.fromDate,
+    (fromDate) => {
+        if (fromDate && (!form.value.toDate || form.value.toDate < fromDate)) {
+            form.value.toDate = fromDate;
+        }
+    },
+);
+
+// Tính lại theo CẢ 2 ô mỗi lần đổi (không dùng :rules vì rules chỉ chạy lại khi
+// chính ô "Đến ngày" đổi — sửa "Từ ngày" xong lỗi cũ vẫn treo).
+const dateRangeError = computed(() =>
+    form.value.fromDate && form.value.toDate && form.value.toDate < form.value.fromDate
+        ? "Đến hết ngày phải cùng hoặc sau Từ ngày"
+        : "",
+);
+
 const isSingleDay = computed(
     () => !!form.value.fromDate && !!form.value.toDate && form.value.fromDate === form.value.toDate,
 );
 
 const isHourly = computed(() => isSingleDay.value && form.value.session === "hourly");
+
+// Ngày làm việc kế tiếp sau `date` (bỏ T7/CN — cùng quy ước tính ngày phép).
+function nextWorkingDay(date) {
+    const d = new Date(date);
+    do {
+        d.setDate(d.getDate() + 1);
+    } while (d.getDay() === 0 || d.getDay() === 6);
+    return d;
+}
+
+// Câu tóm tắt "nghỉ từ … đến hết … — đi làm lại …" để người dùng khỏi phải
+// đoán "Đến ngày" là ngày đi làm lại hay ngày nghỉ cuối cùng.
+const leaveSummary = computed(() => {
+    const from = parseLocalDate(form.value.fromDate);
+    const to = parseLocalDate(form.value.toDate);
+    if (!from || !to || to < from) {
+        return null;
+    }
+
+    if (isSingleDay.value) {
+        const day = formatWeekdayDate(from);
+        if (form.value.session === "hourly") {
+            return form.value.startTime && form.value.endTime
+                ? { range: `Nghỉ từ ${form.value.startTime} đến ${form.value.endTime} ${day}.`, returnAt: `${form.value.endTime} cùng ngày` }
+                : null;
+        }
+        if (form.value.session === "am") {
+            return { range: `Nghỉ buổi sáng ${day}.`, returnAt: `buổi chiều ${day}` };
+        }
+        if (form.value.session === "pm") {
+            return { range: `Nghỉ buổi chiều ${day}.`, returnAt: `buổi sáng ${formatWeekdayDate(nextWorkingDay(from))}` };
+        }
+        return { range: `Nghỉ cả ngày ${day}.`, returnAt: `buổi sáng ${formatWeekdayDate(nextWorkingDay(from))}` };
+    }
+
+    const start = `${form.value.startSession === "pm" ? "chiều" : "sáng"} ${formatWeekdayDate(from)}`;
+    const end = `${form.value.endSession === "am" ? "sáng" : "chiều"} ${formatWeekdayDate(to)}`;
+    const returnAt = form.value.endSession === "am"
+        ? `buổi chiều ${formatWeekdayDate(to)}`
+        : `buổi sáng ${formatWeekdayDate(nextWorkingDay(to))}`;
+
+    return { range: `Nghỉ từ ${start} đến hết ${end}.`, returnAt };
+});
 
 const attachmentRequired = computed(() => {
     const option = leaveTypeOptions.value.find((o) => o.value === form.value.leaveTypeId);
@@ -551,7 +656,30 @@ async function loadLeaveTypeOptions() {
     } catch {
         rawLeaveTypes.value = [];
     }
+    preselectLeaveType();
 }
+
+// Chọn sẵn loại phép: loại dùng lần trước nếu còn chọn được, không thì để trống.
+function preselectLeaveType() {
+    if (form.value.leaveTypeId || !lastLeaveTypeId.value) return;
+    const option = leaveTypeOptions.value.find((o) => o.value === lastLeaveTypeId.value);
+    if (option && !option.props?.disabled) {
+        form.value.leaveTypeId = option.value;
+    }
+}
+
+// Số ngày còn lại của loại phép đang chọn — hiện ngay dưới ô, không phải nhìn lên thẻ thống kê.
+const selectedBalanceHint = computed(() => {
+    const id = form.value.leaveTypeId;
+    if (!id) return "";
+    const lt = rawLeaveTypes.value.find((t) => t.id === id);
+    const balance = balances.value.find((b) => b.leave_type.id === id);
+    if (!lt || !(lt.annual_entitlement_days > 0) || !balance) return "";
+    const pending = balance.pending_days > 0 ? ` (đang chờ duyệt ${Number(balance.pending_days)} ngày)` : "";
+    return `Còn ${Number(balance.available_days)} ngày khả dụng${pending}.`;
+});
+
+watch(balances, preselectLeaveType);
 
 function openDialog() {
     form.value = defaultForm();
@@ -578,7 +706,7 @@ useClearErrorsOnEdit(() => form.value, () => () => errors.value, { leaveTypeId: 
 
 async function submit() {
     const { valid } = await leaveFormRef.value.validate();
-    if (!valid) {
+    if (!valid || dateRangeError.value) {
         return;
     }
     errors.value = {};
@@ -619,6 +747,7 @@ async function submit() {
     submitting.value = true;
     try {
         await leaveRequestService.create(formData);
+        lastLeaveTypeId.value = form.value.leaveTypeId;
         toast.success("Đã gửi đơn xin nghỉ phép, chờ duyệt.");
         closeDialog();
         await Promise.all([loadMine(), loadBalances()]);
@@ -648,6 +777,9 @@ async function submit() {
 useRealtimeRefresh((opts) => Promise.all([loadBalances(), loadMine(opts)]), {
     mine: ["leave_requests", "leave_balances"],
 });
+
+// Mở thẳng thao tác khi vào trang bằng ?action=... (lệnh Ctrl+K).
+useRouteAction({ create: openDialog });
 
 onMounted(() => {
     loadMine();

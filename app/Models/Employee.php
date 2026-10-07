@@ -122,15 +122,19 @@ class Employee extends Model
     {
         return $this->hasMany(ResignationRequest::class);
     }
+    // Checklist Onboarding/Offboarding (ChecklistService).
+    public function checklists()
+    {
+        return $this->hasMany(EmployeeChecklist::class);
+    }
     // "Nghỉ phép năm" hiện tại (2026-09-24) — dùng để hiện cột "Nghỉ phép" ở
     // danh sách nhân viên. Đúng 1 loại phép có quỹ theo năm tại 1 thời điểm
     // (`annual_entitlement_days > 0` — hiện chỉ có "annual", 2 loại còn lại
     // "other"/"unpaid" đều = 0, xem mục 30 CODE_MAP) nên hasOne + whereHas là
     // đủ, không cần ofMany(). KHÔNG tự tạo/tính chiếu như
     // LeaveAccrualService::targetAllocatedDays() — nhân viên chưa có bản ghi
-    // nào (hiếm, tự hết sau tối đa 1 ngày nhờ job `leave:sync-accrual` chạy
-    // hằng ngày — mục 29) thì cột hiện "—", giống cách cột "Lương" xử lý khi
-    // chưa có Hợp đồng.
+    // nào (hiếm, tự hết sau tối đa 1 giờ nhờ job `leave:sync-accrual` chạy
+    // mỗi giờ — mục 29) thì cột hiện "0/0 ngày".
     public function currentYearLeaveBalance()
     {
         return $this->hasOne(LeaveBalance::class)

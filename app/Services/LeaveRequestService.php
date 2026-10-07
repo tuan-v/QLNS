@@ -40,6 +40,14 @@ class LeaveRequestService
     public function create(Employee $employee, array $data, ?UploadedFile $evidenceFile = null): LeaveRequest
     {
         $leaveType = LeaveType::findOrFail($data['leave_type_id']);
+
+        // Thực tập sinh chỉ được xin loại nghỉ có allow_intern (nghỉ ốm, nghỉ không lương).
+        if ($employee->employment_status === 'intern' && ! $leaveType->allow_intern) {
+            throw ValidationException::withMessages([
+                'leave_type_id' => 'Thực tập sinh chỉ được xin nghỉ ốm hoặc nghỉ không lương.',
+            ]);
+        }
+
         $fromDate = Carbon::parse($data['from_date']);
         $toDate = Carbon::parse($data['to_date']);
         $startSession = $data['start_session'] ?? 'full';
@@ -199,30 +207,33 @@ class LeaveRequestService
             ->get()
             ->keyBy('leave_type_id');
 
-        return LeaveType::active()->orderBy('name')->get()->map(function (LeaveType $leaveType) use ($balancesByLeaveType, $employee, $year) {
-            $balance = $balancesByLeaveType->get($leaveType->id);
-            $allocated = (float) ($balance->allocated_days ?? $this->leaveAccrualService->targetAllocatedDays($employee, $leaveType, $year, now()));
-            $carriedForward = (float) ($balance->carried_forward_days ?? 0);
-            $adjusted = (float) ($balance->adjusted_days ?? 0);
-            $used = (float) ($balance->used_days ?? 0);
-            $remaining = round($allocated + $carriedForward + $adjusted - $used, 2);
-            $pending = $this->leaveRequestRepository->sumPendingDaysForYear($employee->id, $leaveType->id, $year);
+        // Thực tập sinh chỉ có các loại nghỉ được phép xin (không có phép năm).
+        return LeaveType::active()
+            ->when($employee->employment_status === 'intern', fn ($query) => $query->where('allow_intern', true))
+            ->orderBy('name')->get()->map(function (LeaveType $leaveType) use ($balancesByLeaveType, $employee, $year) {
+                $balance = $balancesByLeaveType->get($leaveType->id);
+                $allocated = (float) ($balance->allocated_days ?? $this->leaveAccrualService->targetAllocatedDays($employee, $leaveType, $year, now()));
+                $carriedForward = (float) ($balance->carried_forward_days ?? 0);
+                $adjusted = (float) ($balance->adjusted_days ?? 0);
+                $used = (float) ($balance->used_days ?? 0);
+                $remaining = round($allocated + $carriedForward + $adjusted - $used, 2);
+                $pending = $this->leaveRequestRepository->sumPendingDaysForYear($employee->id, $leaveType->id, $year);
 
-            return [
-                'leave_type' => $leaveType,
-                'year' => $year,
-                'allocated_days' => $allocated,
-                'carried_forward_days' => $carriedForward,
-                'adjusted_days' => $adjusted,
-                'used_days' => $used,
-                // Đang chờ duyệt (pending/manager_approved) — CHƯA cộng vào
-                // used_days (chỉ cộng lúc duyệt xong), nhưng phải trừ ra khỏi
-                // "khả dụng" để không cho đăng ký chồng vượt quỹ (xem create()).
-                'pending_days' => $pending,
-                'remaining_days' => $remaining,
-                'available_days' => round($remaining - $pending, 2),
-            ];
-        });
+                return [
+                    'leave_type' => $leaveType,
+                    'year' => $year,
+                    'allocated_days' => $allocated,
+                    'carried_forward_days' => $carriedForward,
+                    'adjusted_days' => $adjusted,
+                    'used_days' => $used,
+                    // Đang chờ duyệt (pending/manager_approved) — CHƯA cộng vào
+                    // used_days (chỉ cộng lúc duyệt xong), nhưng phải trừ ra khỏi
+                    // "khả dụng" để không cho đăng ký chồng vượt quỹ (xem create()).
+                    'pending_days' => $pending,
+                    'remaining_days' => $remaining,
+                    'available_days' => round($remaining - $pending, 2),
+                ];
+            });
     }
 
     // "Tổng hợp nghỉ phép" (2026-09-30, theo yêu cầu người dùng — để quản lý

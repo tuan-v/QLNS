@@ -271,6 +271,7 @@ import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate, { todayIso } from "../../components/common/InputDate.vue";
 import AttendanceLogList from "../../components/attendance/AttendanceLogList.vue";
 import AttendanceSheetExportDialog from "./AttendanceSheetExportDialog.vue";
+import { useRememberedRef } from "../../composables/useRememberedRef";
 import {
     APPROVAL_STATUS_MAP,
     formatDate,
@@ -282,6 +283,7 @@ import {
 } from "../../composables/attendanceStatus";
 import { useToastStore } from "../../stores/useToastStore";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
+import { useRouteAction } from "../../composables/useRouteAction";
 
 const toast = useToastStore();
 const auth = useAuthStore();
@@ -305,9 +307,10 @@ const statusOptions = ATTENDANCE_STATUS_OPTIONS;
 const date = ref(
     typeof route.query.date === "string" ? route.query.date : todayIso(),
 );
-const departmentId = ref(null);
+// Nhớ phạm vi đang xem (phòng ban, ca); không nhớ trạng thái để link từ thông báo luôn thấy đủ.
+const departmentId = useRememberedRef("attendance-overview.department", null);
 const exportDialog = ref(false);
-const workShiftId = ref(null);
+const workShiftId = useRememberedRef("attendance-overview.work-shift", null);
 const statusFilter = ref(null);
 
 function flattenDepartments(nodes) {
@@ -323,7 +326,19 @@ const departmentOptions = computed(() =>
     })),
 );
 
+// Giá trị đã nhớ mà nay không còn trong danh sách (phòng ban/ca bị xóa) -> bỏ lọc.
+watch(departmentOptions, (options) => {
+    if (departmentId.value && options.length && !options.some((o) => o.value === departmentId.value)) {
+        departmentId.value = null;
+    }
+});
+
 const shiftOptions = ref([]);
+watch(shiftOptions, (options) => {
+    if (workShiftId.value && options.length && !options.some((o) => o.value === workShiftId.value)) {
+        workShiftId.value = null;
+    }
+});
 async function loadShiftOptions() {
     try {
         const response = await workShiftService.list({ per_page: 1000 });
@@ -651,6 +666,13 @@ useRealtimeRefresh(loadData, {
             ],
         },
     ],
+});
+
+// Mở thẳng thao tác khi vào trang bằng ?action=... (lệnh Ctrl+K).
+useRouteAction({
+    export: () => (exportDialog.value = true),
+    // Từ lệnh "Duyệt chấm công hôm nay": lọc sẵn các lượt chờ duyệt.
+    pending: () => (statusFilter.value = "pending_approval"),
 });
 
 onMounted(() => {

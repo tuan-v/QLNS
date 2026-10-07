@@ -19,7 +19,7 @@ class EnsurePermission
         $userPermission = $user->cachedPermissionCodes();
         $phanGiao = array_intersect($userPermission, $permission);
         if (empty($phanGiao)) {
-            return response()->json(["message" => "khong co quyen nao khop"], 403);
+            return response()->json(["message" => "Bạn không có quyền thực hiện thao tác này."], 403);
         }
         return $next($request);
 

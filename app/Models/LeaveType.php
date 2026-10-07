@@ -13,6 +13,7 @@ class LeaveType extends Model
         'name',
         'annual_entitlement_days',
         'is_paid',
+        'allow_intern',
         'allow_carry_forward',
         'max_carry_forward_days',
         'is_active',
@@ -23,6 +24,8 @@ class LeaveType extends Model
         'annual_entitlement_days' => 'float',
         'max_carry_forward_days' => 'float',
         'is_paid' => 'boolean',
+        // Thực tập sinh được xin loại nghỉ này (nghỉ ốm, nghỉ không lương).
+        'allow_intern' => 'boolean',
         'allow_carry_forward' => 'boolean',
         'is_active' => 'boolean',
     ];

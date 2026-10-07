@@ -63,6 +63,17 @@
             </v-alert>
         </v-sheet>
 
+        <!-- Chấm công một chạm: chỉ khi hôm nay có từ 2 ca — chỉ ra đúng ca cần bấm.
+        1 ca thì thẻ ca bên dưới đã có sẵn nút, hiện thêm sẽ bị trùng. -->
+        <QuickCheckInCard
+            v-if="!loadingToday && todayShifts.length > 1"
+            :action="quickAction"
+            :submitting="submitting"
+            :submitting-shift-id="submittingShiftId"
+            :block="true"
+            @submit="submit"
+        />
+
         <!-- Trạng thái từng ca hôm nay — luôn 1 cột trên mobile (khác desktop
         chia 2 cột md="6"), mỗi ca 1 thẻ riêng để dễ bấm bằng ngón tay. -->
         <div v-if="loadingToday" class="d-flex justify-center py-6">
@@ -1000,9 +1011,11 @@ import {
 } from "../../composables/useCheckIn";
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
+import QuickCheckInCard from "../../components/attendance/QuickCheckInCard.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate from "../../components/common/InputDate.vue";
 import { maxLength, notEmpty, validateThen } from "../../composables/validationRules";
+import { useRouteAction } from "../../composables/useRouteAction";
 
 const adjustFormRef = ref(null);
 const supplementFormRef = ref(null);
@@ -1013,6 +1026,7 @@ const otApprovalFormRef = ref(null);
 const {
     todayIso,
     todayShifts,
+    quickAction,
     loadingToday,
     loadError,
     history,
@@ -1066,4 +1080,12 @@ const {
     otRequestSubmitting,
     submitOtRequestFromToday,
 } = useCheckIn();
+
+// Mở thẳng thao tác khi vào trang bằng ?action=... (lệnh Ctrl+K).
+useRouteAction({
+    supplement: openSupplementDialog,
+    "extra-shift": () => openExtraShiftDialog("extra_shift"),
+    ot: () => openExtraShiftDialog("overtime"),
+});
+
 </script>

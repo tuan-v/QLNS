@@ -31,6 +31,8 @@ class RolePermissionSeeder extends Seeder
                 'resignation.approve',
                 'resignation.view_all',
                 'holiday.manage',
+                'recruitment.manage',
+                'onboarding.manage',
                 'payroll.view_all',
                 'payroll.manage',
                 'report.view',
@@ -51,6 +53,7 @@ class RolePermissionSeeder extends Seeder
                 // trực tiếp (không có view_all — xem ResignationService).
                 'resignation.request',
                 'resignation.approve',
+                'onboarding.team',
                 'payroll.view_own',
                 'report.view',
             ],
@@ -65,6 +68,15 @@ class RolePermissionSeeder extends Seeder
                 'leave.request',
                 'leave.view_own',
                 'resignation.request',
+                'payroll.view_own',
+            ],
+            // Thực tập sinh: chấm công (kèm xin điều chỉnh/bổ sung/OT), xin nghỉ ốm/không
+            // lương (lọc theo leave_types.allow_intern), xem phiếu lương.
+            'Intern' => [
+                'attendance.check',
+                'attendance.view_own',
+                'leave.request',
+                'leave.view_own',
                 'payroll.view_own',
             ],
         ];

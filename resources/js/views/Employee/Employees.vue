@@ -123,6 +123,7 @@
                     </div>
                 </div>
             </template>
+            <template #item.phone="{ item }">{{ item.phone ?? "—" }}</template>
             <template #item.agreed_salary="{ item }">{{
                 formatCurrency(item.agreed_salary)
             }}</template>
@@ -130,9 +131,9 @@
                 formatDate(item.hire_date)
             }}</template>
             <!-- Cột "Nghỉ phép" (2026-09-24, theo yêu cầu người dùng) — còn
-                 lại/tổng được cấp của "Nghỉ phép năm" NĂM NAY. null (chưa có
-                 bản ghi LeaveBalance nào, hoặc bị ẩn vì người xem là cấp
-                 dưới — EmployeeResource) hiện "—", giống cột "Lương". -->
+                 lại/tổng được cấp của "Nghỉ phép năm" NĂM NAY. null (bị ẩn vì
+                 người xem là cấp dưới — EmployeeResource) hiện "—"; chưa có
+                 bản ghi LeaveBalance thì API trả 0 → "0/0 ngày". -->
             <template #item.leave_remaining_days="{ item }">{{
                 formatLeaveDays(item)
             }}</template>
@@ -141,8 +142,21 @@
                     :status="item.employment_status"
                     :map="EMPLOYMENT_STATUS_MAP"
                 />
+                <!-- Cảnh báo nhanh (HĐ sắp/đã hết hạn, sắp hết thử việc) — xem employeeAlerts.js -->
+                <div v-for="alert in employeeAlerts(item)" :key="alert.text" class="mt-1">
+                    <v-chip :color="alert.color" size="x-small" variant="tonal" :prepend-icon="alert.icon">
+                        {{ alert.text }}
+                    </v-chip>
+                </div>
             </template>
         </DataTable>
+
+        <EmployeeQuickView
+            v-model="quickViewOpen"
+            :employee="quickViewEmployee"
+            :can-update="canUpdate"
+            @edit="(e) => { quickViewOpen = false; openEdit(e); }"
+        />
 
         <EmployeeFormDialog
             v-model="formDialog"
@@ -170,7 +184,11 @@ import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
 import StatCards from "../../components/dashboard/StatCards.vue";
 import EmployeeFormDialog from "./EmployeeForm.vue";
+import EmployeeQuickView from "./EmployeeQuickView.vue";
+import { employeeAlerts } from "../../composables/employeeAlerts";
+import { useRememberedRef } from "../../composables/useRememberedRef";
 import { useToastStore } from "../../stores/useToastStore";
+import { useRouteAction } from "../../composables/useRouteAction";
 const toast = useToastStore();
 const store = useEmployeeStore();
 const departmentStore = useDepartmentStore();
@@ -188,11 +206,12 @@ const canLockAccount = computed(() =>
     auth.permissions.includes("employee.lock_account"),
 );
 const search = ref("");
-const departmentId = ref(null);
+// Nhớ bộ lọc + số dòng/trang của lần xem trước (theo từng người dùng).
+const departmentId = useRememberedRef("employees.department", null);
 const positionId = ref(null);
-const employmentStatus = ref(null);
+const employmentStatus = useRememberedRef("employees.status", null);
 const page = ref(1);
-const perPage = ref(10);
+const perPage = useRememberedRef("employees.per-page", 10);
 
 // Nhãn + màu employment_status lấy từ composables/employmentStatus.js (dùng
 // chung toàn app) — cho cả StatusChip trong bảng lẫn dropdown lọc.
@@ -207,7 +226,13 @@ const statusOptions = [
 // 4 thẻ thống kê đầu trang — chỉ đếm theo employment_status thật có trong DB
 // (xem EmployeeService::stats()), KHÔNG có "Đang nghỉ phép" vì đó là trạng
 // thái tạm thời theo ngày, thuộc module Nghỉ phép (Ngày 36-40) chưa xây.
-const stats = ref({ total: 0, active: 0, probation: 0, intern: 0, resigned: 0 });
+const stats = ref({
+    total: 0,
+    active: 0,
+    probation: 0,
+    intern: 0,
+    resigned: 0,
+});
 const statCards = computed(() => [
     {
         label: "Tổng nhân viên",
@@ -259,6 +284,7 @@ async function fetchStats() {
 // năm" của năm nay, cùng cơ chế ẩn với cấp dưới như "Lương").
 const headers = [
     { title: "Nhân viên", key: "full_name" },
+    { title: "Điện thoại", key: "phone" },
     { title: "Lương", key: "agreed_salary" },
     { title: "Ngày vào làm", key: "hire_date" },
     { title: "Nghỉ phép", key: "leave_remaining_days" },
@@ -286,8 +312,8 @@ function formatCurrency(value) {
 
 // "còn lại/tổng được cấp" — cùng cách trình bày "X/Y ngày" đã dùng ở thẻ
 // "Quỹ phép còn lại" của LeaveRequests.vue, cho nhất quán trong cả app.
-// null (chưa có bản ghi LeaveBalance nào, hoặc bị ẩn vì người xem là cấp
-// dưới — EmployeeResource) hiện "—", giống cột "Lương".
+// null (bị ẩn vì người xem là cấp dưới — EmployeeResource) hiện "—", giống
+// cột "Lương"; chưa có bản ghi LeaveBalance thì API đã trả 0 → "0/0 ngày".
 function formatLeaveDays(item) {
     if (
         item.leave_allocated_days === null ||
@@ -302,10 +328,13 @@ function formatLeaveDays(item) {
 const actions = computed(() => [
     {
         icon: "mdi-eye-outline",
-        tooltip: "Xem chi tiết",
+        tooltip: "Xem nhanh",
         color: "primary",
-        onClick: (item) =>
-            router.push({ name: "employee-detail", params: { id: item.id } }),
+        // Mở ngăn bên phải, không rời danh sách; trong ngăn có nút "Mở hồ sơ đầy đủ".
+        onClick: (item) => {
+            quickViewEmployee.value = item;
+            quickViewOpen.value = true;
+        },
     },
     {
         icon: "mdi-pencil-outline",
@@ -360,6 +389,17 @@ const actions = computed(() => [
 ]);
 
 // Dùng cho dropdown LỌC (có thêm lựa chọn "Tất cả phòng ban" = không lọc).
+// Phòng ban đã nhớ mà nay không còn (bị xóa) -> bỏ lọc, tránh ô lọc hiện mã thô + danh sách trống.
+watch(
+    () => departmentStore.tree,
+    () => {
+        const ids = flattenDepartments(departmentStore.tree).map((d) => d.id);
+        if (departmentId.value && ids.length && !ids.includes(departmentId.value)) {
+            departmentId.value = null;
+        }
+    },
+);
+
 const departmentOptions = computed(() => [
     { title: "Tất cả phòng ban", value: null },
     ...flattenDepartments(departmentStore.tree).map((dept) => ({
@@ -386,6 +426,9 @@ function openCreate() {
     editing.value = null;
     formDialog.value = true;
 }
+
+const quickViewOpen = ref(false);
+const quickViewEmployee = ref(null);
 
 function openEdit(employee) {
     editing.value = employee;
@@ -432,6 +475,9 @@ watch(
         fetchStats();
     },
 );
+
+// Mở thẳng thao tác khi vào trang bằng ?action=... (lệnh Ctrl+K).
+useRouteAction({ create: () => canCreate.value && openCreate() });
 
 onMounted(() => {
     fetchData();

@@ -6,6 +6,7 @@ use App\Models\Holiday;
 use App\Models\HolidayRule;
 use App\Models\User;
 use App\Repositories\HolidayRepository;
+use App\Support\Realtime;
 use App\Support\LunarCalendar;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -365,6 +366,8 @@ class HolidayService
     {
         $this->groupDays($groupCode);
         Holiday::where('group_code', $groupCode)->update(['intern_paid' => $internPaid]);
+        // update() hàng loạt không phát event Eloquent -> báo realtime tay.
+        Realtime::shared('holidays');
 
         return $this->showGroup($groupCode);
     }
@@ -377,6 +380,7 @@ class HolidayService
             'confirmed_at' => $confirmed ? now() : null,
             'confirmed_by' => $confirmed ? $actor->id : null,
         ]);
+        Realtime::shared('holidays');
 
         return $this->showGroup($groupCode);
     }
@@ -505,6 +509,7 @@ class HolidayService
     private function markChanged(string $groupCode): void
     {
         Holiday::where('group_code', $groupCode)->update(['confirmed_at' => null, 'confirmed_by' => null]);
+        Realtime::shared('holidays');
 
         // Dịp sinh từ quy tắc mà chưa có ngày nào do HR thêm: gắn cờ "đã điều chỉnh"
         // bằng cách đổi nguồn của ngày gốc đầu tiên còn lại, để lệnh tính tự động
@@ -581,6 +586,7 @@ class HolidayService
             Holiday::where('holiday_rule_id', $rule->id)
                 ->whereDate('holiday_date', '>=', now()->toDateString())
                 ->update(['intern_paid' => (bool) $data['intern_paid']]);
+            Realtime::shared('holidays');
         }
         $this->regenerateUpcoming();
 
@@ -602,6 +608,7 @@ class HolidayService
                 ->forceDelete();
             $rule->delete();
         });
+        Realtime::shared('holidays');
     }
 
     // Quy tắc đổi thì tính lại năm nay và năm sau (chỉ các ngày từ hôm nay trở đi).
@@ -731,6 +738,7 @@ class HolidayService
         }
 
         Holiday::whereIn('id', $days->pluck('id'))->update(['notified_at' => now()]);
+        Realtime::shared('holidays');
 
         return $recipients->count();
     }

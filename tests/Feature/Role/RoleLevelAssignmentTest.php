@@ -101,7 +101,7 @@ class RoleLevelAssignmentTest extends TestCase
             ->assertStatus(200)
             ->json('*.name');
 
-        $this->assertEqualsCanonicalizing(['Employee', 'Manager'], $names);
+        $this->assertEqualsCanonicalizing(['Employee', 'Intern', 'Manager'], $names);
     }
 
     public function test_admin_dropdown_still_lists_every_role(): void
@@ -110,7 +110,7 @@ class RoleLevelAssignmentTest extends TestCase
             ->assertStatus(200)
             ->json('*.name');
 
-        $this->assertEqualsCanonicalizing(['Admin', 'Employee', 'HR', 'Manager'], $names);
+        $this->assertEqualsCanonicalizing(['Admin', 'Employee', 'HR', 'Intern', 'Manager'], $names);
     }
 
     // Mặc định fail-closed: vai trò mới tạo mà quên đặt cấp bậc thì chỉ Admin

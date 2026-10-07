@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use App\Models\Concerns\BroadcastsChanges;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -11,6 +12,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Holiday extends Model
 {
     use SoftDeletes;
+    use BroadcastsChanges;
+
+    // Tạo/sửa/xóa tự báo realtime -> trang đang mở tự tải lại, không cần F5.
+    protected array $realtimeShared = ['holidays'];
+
 
     public const SOURCE_RULE = 'rule';
 

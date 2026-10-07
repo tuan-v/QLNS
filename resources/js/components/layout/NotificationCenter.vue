@@ -207,6 +207,11 @@ const TYPE_CATEGORY = {
     "resignation.pending": "Nghỉ việc",
     "resignation.notice": "Nghỉ việc",
     "resignation.decided": "Nghỉ việc",
+    "recruitment.cv_pending": "Tuyển dụng",
+    "recruitment.cv_reviewed": "Tuyển dụng",
+    "recruitment.interview_assigned": "Tuyển dụng",
+    "checklist.mine": "Onboarding",
+    "checklist.team": "Onboarding",
 };
 
 // Thông báo hệ thống (không có actor) — icon + màu theo loại.
@@ -221,6 +226,9 @@ function systemIcon(item) {
     }
     if (item.type === "holiday.upcoming") {
         return { icon: "mdi-party-popper", color: "primary" };
+    }
+    if (item.type === "checklist.mine" || item.type === "checklist.team") {
+        return { icon: "mdi-clipboard-check-outline", color: "primary" };
     }
     if (item.type === "attendance.checkout_reminder") {
         return { icon: "mdi-clock-alert-outline", color: "warning" };

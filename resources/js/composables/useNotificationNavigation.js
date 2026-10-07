@@ -23,11 +23,25 @@ const TYPE_ROUTES = {
     "resignation.pending": "resignations",
     "resignation.notice": "resignations",
     "resignation.decided": "my-profile",
+    "recruitment.cv_pending": "recruitment-detail",
+    "recruitment.cv_reviewed": "recruitment-detail",
+    "recruitment.interview_assigned": "recruitment-detail",
+    "checklist.mine": "dashboard",
+    "checklist.team": "onboarding",
+};
+
+// Tham số route (trang có :id).
+const recruitmentParams = (item) => ({ id: item.data?.recruitment_opening_id });
+const TYPE_PARAMS = {
+    "recruitment.cv_pending": recruitmentParams,
+    "recruitment.cv_reviewed": recruitmentParams,
+    "recruitment.interview_assigned": recruitmentParams,
 };
 
 const TYPE_QUERY = {
     "resignation.pending": (item) => ({ id: item.data?.resignation_request_id }),
     "resignation.notice": (item) => ({ id: item.data?.resignation_request_id }),
+    "checklist.team": (item) => ({ id: item.data?.employee_checklist_id, type: item.data?.checklist_type }),
 };
 
 export function notificationTarget(item) {
@@ -35,7 +49,7 @@ export function notificationTarget(item) {
     if (!name) {
         return null;
     }
-    return { name, query: TYPE_QUERY[item.type]?.(item) };
+    return { name, query: TYPE_QUERY[item.type]?.(item), params: TYPE_PARAMS[item.type]?.(item) };
 }
 
 export function useNotificationNavigation() {

@@ -20,9 +20,11 @@ class LeaveTypeSeeder extends Seeder
     public function run(): void
     {
         $leaveTypes = [
-            ['code' => 'annual', 'name' => 'Nghỉ phép năm', 'annual_entitlement_days' => 12, 'is_paid' => true, 'allow_carry_forward' => true, 'max_carry_forward_days' => 5],
-            ['code' => 'other', 'name' => 'Nghỉ khác theo chế độ/luật', 'annual_entitlement_days' => 0, 'is_paid' => true, 'allow_carry_forward' => false, 'max_carry_forward_days' => null],
-            ['code' => 'unpaid', 'name' => 'Nghỉ không lương', 'annual_entitlement_days' => 0, 'is_paid' => false, 'allow_carry_forward' => false, 'max_carry_forward_days' => null],
+            ['code' => 'annual', 'name' => 'Nghỉ phép năm', 'annual_entitlement_days' => 12, 'is_paid' => true, 'allow_intern' => false, 'allow_carry_forward' => true, 'max_carry_forward_days' => 5],
+            ['code' => 'other', 'name' => 'Nghỉ khác theo chế độ/luật', 'annual_entitlement_days' => 0, 'is_paid' => true, 'allow_intern' => false, 'allow_carry_forward' => false, 'max_carry_forward_days' => null],
+            // Nghỉ ốm: công ty không trả lương (BHXH chi trả); thực tập sinh được xin.
+            ['code' => 'sick', 'name' => 'Nghỉ ốm', 'annual_entitlement_days' => 0, 'is_paid' => false, 'allow_intern' => true, 'allow_carry_forward' => false, 'max_carry_forward_days' => null],
+            ['code' => 'unpaid', 'name' => 'Nghỉ không lương', 'annual_entitlement_days' => 0, 'is_paid' => false, 'allow_intern' => true, 'allow_carry_forward' => false, 'max_carry_forward_days' => null],
         ];
 
         foreach ($leaveTypes as $leaveType) {
@@ -32,6 +34,7 @@ class LeaveTypeSeeder extends Seeder
                     'name' => $leaveType['name'],
                     'annual_entitlement_days' => $leaveType['annual_entitlement_days'],
                     'is_paid' => $leaveType['is_paid'],
+                    'allow_intern' => $leaveType['allow_intern'],
                     'allow_carry_forward' => $leaveType['allow_carry_forward'],
                     'max_carry_forward_days' => $leaveType['max_carry_forward_days'],
                     'is_active' => true,

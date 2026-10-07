@@ -39,13 +39,19 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     async function refresh() {
-        const response = await authService.refresh(refreshToken.value);
+        const response = await authService.refresh(localStorage.getItem('refresh_token'));
         setTokens(response.data);
     }
 
     async function logout() {
         try {
-            await authService.logout(accessToken.value, refreshToken.value);
+            // Đọc từ localStorage, không dùng bản sao trong store: interceptor
+            // (bootstrap.js) đã xoay token mới vào localStorage, bản sao có thể là
+            // token cũ đã bị thu hồi -> token thật đang dùng sẽ không được thu hồi.
+            await authService.logout(
+                localStorage.getItem('access_token'),
+                localStorage.getItem('refresh_token'),
+            );
         } finally {
             clearTokens();
         }

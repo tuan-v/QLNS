@@ -5,7 +5,7 @@
                 <v-btn
                     variant="text"
                     prepend-icon="mdi-arrow-left"
-                    to="/payrolls"
+                    to="/bang-luong"
                 >
                     Quay lại
                 </v-btn>
@@ -176,7 +176,9 @@ async function exportExcel() {
     );
 }
 
-useRealtimeRefresh(loadData, { shared: [{ resource: "payrolls", permission: "payroll.view_all" }] });
+useRealtimeRefresh(loadData, {
+    shared: [{ resource: "payrolls", permission: "payroll.view_all" }],
+});
 
 onMounted(loadData);
 </script>

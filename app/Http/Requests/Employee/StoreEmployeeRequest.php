@@ -47,6 +47,9 @@ class StoreEmployeeRequest extends FormRequest
             // (EmployeeContractService::create()).
             'contract_type' => ['required', 'in:thu_viec,chinh_thuc,thuc_tap'],
             'agreed_salary' => ['required', 'numeric', 'min:0'],
+            // Tạo nhân viên từ ứng viên đã đạt phỏng vấn ("Nhận việc" ở trang Tuyển dụng) —
+            // RecruitmentService::markHired() chạy trong CÙNG transaction tạo nhân viên.
+            'candidate_id' => ['nullable', 'integer', 'exists:recruitment_candidates,id'],
         ];
     }
 

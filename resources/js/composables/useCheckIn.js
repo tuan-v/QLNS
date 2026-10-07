@@ -4,7 +4,7 @@
 // (danh sách thẻ, phù hợp màn hình hẹp), CÙNG GỌI 1 hàm này thay vì mỗi bên
 // tự viết lại toàn bộ gọi API/validate — tránh rủi ro lệch logic giữa 2 nơi
 // khi sau này sửa 1 tính năng (đã bàn với người dùng trước khi làm).
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import attendanceService from "../services/attendanceService";
 import employeeService from "../services/employeeService";
 import workShiftService from "../services/workShiftService";
@@ -108,6 +108,57 @@ export function useCheckIn() {
     const todayShifts = ref([]);
     const loadingToday = ref(true);
     const loadError = ref("");
+
+    /* ------------- Chấm công một chạm: việc nên làm NGAY theo giờ hiện tại ------------- */
+    // Cùng ngưỡng với AttendanceService::CHECK_IN_EARLY_MINUTES (mở chấm vào trước giờ ca).
+    const CHECK_IN_EARLY_MINUTES = 30;
+    const now = ref(new Date());
+    let clockTimer = null;
+
+    // "08:00:00" -> Date hôm nay lúc 08:00 (theo giờ máy người dùng).
+    function shiftTimeToday(time) {
+        const [h, m] = String(time ?? "00:00").split(":").map(Number);
+        const d = new Date(now.value);
+        d.setHours(h, m, 0, 0);
+        return d;
+    }
+
+    // Ưu tiên: (1) ca đã vào mà chưa ra -> "out" (quá giờ thì kèm cảnh báo quên chấm ra);
+    // (2) ca đang trong khung chấm vào -> "in"; (3) ca sắp tới -> "upcoming" (chỉ báo giờ mở).
+    const quickAction = computed(() => {
+        const entries = [...todayShifts.value].sort((a, b) =>
+            String(a.work_shift.start_time).localeCompare(String(b.work_shift.start_time)),
+        );
+
+        const open = entries.find((e) => e.attendance?.first_check_in_at && !e.attendance?.last_check_out_at);
+        if (open) {
+            const end = shiftTimeToday(open.work_shift.end_time);
+            return { type: "out", entry: open, overdue: now.value > end };
+        }
+
+        const fresh = entries.filter((e) => !e.attendance?.first_check_in_at);
+        const current = fresh.find((e) => {
+            const opensAt = new Date(shiftTimeToday(e.work_shift.start_time).getTime() - CHECK_IN_EARLY_MINUTES * 60000);
+            return now.value >= opensAt && now.value <= shiftTimeToday(e.work_shift.end_time);
+        });
+        if (current) {
+            const late = now.value > shiftTimeToday(current.work_shift.start_time);
+            return { type: "in", entry: current, late };
+        }
+
+        const upcoming = fresh.find((e) => shiftTimeToday(e.work_shift.start_time) > now.value);
+        if (upcoming) {
+            const opensAt = new Date(shiftTimeToday(upcoming.work_shift.start_time).getTime() - CHECK_IN_EARLY_MINUTES * 60000);
+            return { type: "upcoming", entry: upcoming, opensAt };
+        }
+
+        return null;
+    });
+
+    onMounted(() => {
+        clockTimer = setInterval(() => (now.value = new Date()), 30000);
+    });
+    onBeforeUnmount(() => clearInterval(clockTimer));
 
     async function loadToday(opts) {
         const silent = opts?.silent === true;
@@ -670,6 +721,7 @@ export function useCheckIn() {
     return {
         todayIso,
         todayShifts,
+        quickAction,
         loadingToday,
         loadError,
         history,

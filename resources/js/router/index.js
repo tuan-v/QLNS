@@ -179,6 +179,25 @@ const routes = [
         meta: { title: "Ngày nghỉ lễ" },
         component: () => import("../views/Holiday/Holidays.vue"),
     },
+    {
+        path: "/tuyen-dung",
+        name: "recruitment",
+        meta: { title: "Tuyển dụng", permission: "recruitment.manage" },
+        component: () => import("../views/Recruitment/RecruitmentOpenings.vue"),
+    },
+    {
+        path: "/tuyen-dung/:id",
+        name: "recruitment-detail",
+        meta: { title: "Chi tiết đợt tuyển", permission: "recruitment.manage" },
+        component: () => import("../views/Recruitment/RecruitmentOpeningDetail.vue"),
+    },
+    {
+        path: "/onboarding",
+        name: "onboarding",
+        // HR (toàn công ty) hoặc Quản lý (nhân viên mình quản lý trực tiếp).
+        meta: { title: "Onboarding / Offboarding", permission: ["onboarding.manage", "onboarding.team"] },
+        component: () => import("../views/Onboarding/Onboarding.vue"),
+    },
 ];
 
 const router = createRouter({
@@ -210,8 +229,9 @@ router.beforeEach(async (to) => {
         }
     }
 
+    // meta.permission: 1 mã, hoặc mảng = có BẤT KỲ mã nào trong mảng.
     const requiredPermission = to.meta.permission;
-    if (requiredPermission && !auth.permissions.includes(requiredPermission)) {
+    if (requiredPermission && ![].concat(requiredPermission).some((code) => auth.permissions.includes(code))) {
         return { name: "dashboard" };
     }
 });

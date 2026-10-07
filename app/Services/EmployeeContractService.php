@@ -42,13 +42,22 @@ class EmployeeContractService
             return;
         }
 
-        $employee->forceFill([
+        $attributes = [
             'employment_status' => $status,
             'termination_date' => null,
-        ])->save();
+        ];
+        // Hợp đồng thử việc là căn cứ cho ngày hết thử việc — ghi đè ô nhập tay
+        // trong hồ sơ để 2 nơi không lệch nhau (cảnh báo "quá hạn thử việc" sai).
+        if ($contract->contract_type === 'thu_viec' && $contract->end_date) {
+            $attributes['probation_end_date'] = $contract->end_date;
+        }
+
+        $employee->forceFill($attributes)->save();
 
         // Tuyển lại người từng bị khóa tài khoản khi nghỉ việc -> mở lại.
         $this->employeeAccountService->reactivateAccountOf($employee);
+        // Thực tập <-> thử việc/chính thức: đổi vai trò Intern <-> Employee.
+        $this->employeeAccountService->syncInternRole($employee);
     }
 
     public function listForEmployee(Employee $employee): Collection

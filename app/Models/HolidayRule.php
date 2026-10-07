@@ -3,10 +3,16 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\BroadcastsChanges;
 
 // Quy tắc ngày nghỉ lặp hằng năm (dương lịch hoặc âm lịch) — xem HolidayService::generateForYear().
 class HolidayRule extends Model
 {
+    use BroadcastsChanges;
+
+    // Tạo/sửa/xóa tự báo realtime -> trang đang mở tự tải lại, không cần F5.
+    protected array $realtimeShared = ['holidays'];
+
     public const CALENDAR_SOLAR = 'solar';
 
     public const CALENDAR_LUNAR = 'lunar';
