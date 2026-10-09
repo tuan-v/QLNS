@@ -210,13 +210,18 @@ const TYPE_CATEGORY = {
     "recruitment.cv_pending": "Tuyển dụng",
     "recruitment.cv_reviewed": "Tuyển dụng",
     "recruitment.interview_assigned": "Tuyển dụng",
+    "recruitment.offer_pending": "Tuyển dụng",
+    "recruitment.offer_reviewed": "Tuyển dụng",
+    "recruitment.offer_responded": "Tuyển dụng",
     "checklist.mine": "Onboarding",
     "checklist.team": "Onboarding",
+    "bank_account.pending": "Tài khoản ngân hàng",
+    "bank_account.reviewed": "Tài khoản ngân hàng",
 };
 
 // Thông báo hệ thống (không có actor) — icon + màu theo loại.
 function systemIcon(item) {
-    if (item.type === "leave.decided" || item.type === "resignation.decided") {
+    if (item.type === "leave.decided" || item.type === "resignation.decided" || item.type === "bank_account.reviewed" || item.type === "recruitment.offer_reviewed" || item.type === "recruitment.offer_responded") {
         return item.data?.status === "approved"
             ? { icon: "mdi-check-circle-outline", color: "success" }
             : { icon: "mdi-close-circle-outline", color: "error" };

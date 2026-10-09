@@ -36,6 +36,7 @@ class RecruitmentCandidateResource extends JsonResource
                 'result_note' => $interview->result_note,
             ])->values()),
             'hired_employee' => $this->whenLoaded('hiredEmployee'),
+            'offer' => $this->whenLoaded('latestOffer', fn () => $this->latestOffer ? new RecruitmentOfferResource($this->latestOffer) : null),
             'created_at' => $this->created_at,
         ];
     }

@@ -11,7 +11,7 @@ class ChecklistTemplateItem extends Model
 
     // Việc hệ thống tự đánh dấu xong khi điều kiện đúng (ChecklistService::autoConditionMet()).
     public const AUTO_KEYS = [
-        ChecklistTemplate::TYPE_ONBOARDING => ['account_created', 'contract_signed'],
+        ChecklistTemplate::TYPE_ONBOARDING => ['account_created', 'contract_signed', 'bank_account_verified'],
         ChecklistTemplate::TYPE_OFFBOARDING => ['account_locked', 'contract_ended'],
     ];
 

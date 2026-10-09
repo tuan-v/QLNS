@@ -15,14 +15,21 @@ export const useNotificationStore = defineStore("notification", () => {
     let connected = false;
     let joinedUserId = null;
 
-    async function fetchList() {
-        try {
-            const response = await notificationService.list();
-            notifications.value = response.data.data;
-            unreadCount.value = response.data.unread_count;
-        } catch {
-            // Thông báo là tính năng phụ — lỗi tải không nên chặn cả trang.
-        }
+    // Nhiều nơi cùng gọi lúc mở trang (kết nối realtime, Tổng quan) -> dùng chung 1 request.
+    let fetchPromise = null;
+    function fetchList() {
+        fetchPromise ??= notificationService.list()
+            .then((response) => {
+                notifications.value = response.data.data;
+                unreadCount.value = response.data.unread_count;
+            })
+            .catch(() => {
+                // Thông báo là tính năng phụ — lỗi tải không nên chặn cả trang.
+            })
+            .finally(() => {
+                fetchPromise = null;
+            });
+        return fetchPromise;
     }
 
     async function markRead(id) {

@@ -40,6 +40,8 @@
             <v-window v-model="tab">
                 <v-window-item value="mine">
                     <DataTable
+                        v-model:page="mine.page"
+                        v-model:items-per-page="mine.perPage"
                         flush
                         :headers="mineHeaders"
                         :items="mine.items"
@@ -47,8 +49,6 @@
                         :server-items-length="mine.total"
                         :actions="mineActions"
                         no-data-text="Bạn chưa có thông báo nào."
-                        v-model:page="mine.page"
-                        v-model:items-per-page="mine.perPage"
                     >
                         <template #item.title="{ item }">
                             <div
@@ -108,14 +108,14 @@
                     </div>
 
                     <DataTable
+                        v-model:page="all.page"
+                        v-model:items-per-page="all.perPage"
                         flush
                         :headers="allHeaders"
                         :items="all.items"
                         :loading="all.loading"
                         :server-items-length="all.total"
                         no-data-text="Không có thông báo phù hợp."
-                        v-model:page="all.page"
-                        v-model:items-per-page="all.perPage"
                     >
                         <template #item.recipient="{ item }">
                             <div class="text-body-2 font-weight-medium">
@@ -176,8 +176,13 @@ const TYPE_LABELS = {
     "recruitment.cv_pending": "CV cần duyệt",
     "recruitment.cv_reviewed": "Kết quả duyệt CV",
     "recruitment.interview_assigned": "Phân công phỏng vấn",
+    "recruitment.offer_pending": "Offer cần duyệt",
+    "recruitment.offer_reviewed": "Kết quả duyệt offer",
+    "recruitment.offer_responded": "Ứng viên trả lời offer",
     "checklist.mine": "Việc cần làm khi nhận/nghỉ việc",
     "checklist.team": "Checklist nhân viên cần theo dõi",
+    "bank_account.pending": "Tài khoản ngân hàng cần xác nhận",
+    "bank_account.reviewed": "Kết quả xác nhận tài khoản ngân hàng",
     "attendance.pending_approval": "Chấm công chờ duyệt",
     "attendance_adjustment.pending": "Đơn điều chỉnh công chờ duyệt",
     "resignation.pending": "Đơn nghỉ việc chờ duyệt",

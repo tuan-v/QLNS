@@ -43,13 +43,13 @@
 
         <v-sheet class="border rounded-lg glass-panel" color="transparent">
             <DataTable
+                v-model:page="page"
+                v-model:items-per-page="perPage"
                 :headers="headers"
                 :items="rows"
                 :loading="loading"
                 :server-items-length="total"
                 no-data-text="Không có nhân viên nào khớp bộ lọc."
-                v-model:page="page"
-                v-model:items-per-page="perPage"
             >
                 <template #item.employee="{ item }">
                     <div class="font-weight-medium">{{ item.employee.full_name }}</div>

@@ -6,10 +6,21 @@
         >
             <template #actions>
                 <template v-if="canManage">
-                    <v-btn variant="tonal" size="large" prepend-icon="mdi-clipboard-list-outline" @click="templatesOpen = true">
+                    <v-btn
+                        variant="tonal"
+                        size="large"
+                        prepend-icon="mdi-clipboard-list-outline"
+                        @click="templatesOpen = true"
+                    >
                         Mẫu checklist
                     </v-btn>
-                    <v-btn color="primary" variant="flat" size="large" prepend-icon="mdi-plus" @click="createOpen = true">
+                    <v-btn
+                        color="primary"
+                        variant="flat"
+                        size="large"
+                        prepend-icon="mdi-plus"
+                        @click="createOpen = true"
+                    >
                         Tạo checklist
                     </v-btn>
                 </template>
@@ -41,7 +52,9 @@
             :items="checklists"
             :loading="loading"
             :actions="actions"
-            :no-data-text="type === 'onboarding' ? 'Chưa có checklist nhận việc nào.' : 'Chưa có checklist nghỉ việc nào.'"
+            :no-data-text="
+                type === 'onboarding' ? 'Chưa có checklist nhận việc nào.' : 'Chưa có checklist nghỉ việc nào.'
+            "
         >
             <template #item.employee="{ item }">
                 <div class="d-flex align-center ga-3 py-2" style="cursor: pointer" @click="openChecklist(item)">
@@ -52,7 +65,8 @@
                     <div>
                         <div class="font-weight-medium text-primary">{{ item.employee?.full_name }}</div>
                         <div class="text-caption" style="opacity: 0.7">
-                            {{ item.employee?.code }}<template v-if="item.employee?.department"> · {{ item.employee.department }}</template>
+                            {{ item.employee?.code
+                            }}<template v-if="item.employee?.department"> · {{ item.employee.department }}</template>
                         </div>
                     </div>
                 </div>
@@ -75,7 +89,12 @@
                 {{ formatDate(item.reference_date) }}
             </template>
             <template #item.due="{ item }">
-                <v-chip v-if="item.status === 'in_progress' && item.overdue_count" color="error" size="small" variant="tonal">
+                <v-chip
+                    v-if="item.status === 'in_progress' && item.overdue_count"
+                    color="error"
+                    size="small"
+                    variant="tonal"
+                >
                     {{ item.overdue_count }} việc quá hạn
                 </v-chip>
                 <span v-else-if="item.status === 'in_progress' && item.next_due_date" class="text-body-2">
@@ -88,12 +107,7 @@
             </template>
         </DataTable>
 
-        <ChecklistDrawer
-            ref="drawerRef"
-            v-model="drawerOpen"
-            :checklist-id="selectedId"
-            @changed="loadData"
-        />
+        <ChecklistDrawer ref="drawerRef" v-model="drawerOpen" :checklist-id="selectedId" @changed="loadData" />
         <ChecklistCreateDialog v-model="createOpen" :default-type="type" @created="onCreated" />
         <ChecklistTemplatesDialog v-model="templatesOpen" />
     </div>
@@ -150,9 +164,7 @@ const headers = computed(() => [
     { title: "Trạng thái", key: "status", width: 140 },
 ]);
 
-const actions = [
-    { icon: "mdi-eye-outline", tooltip: "Xem checklist", onClick: (item) => openChecklist(item) },
-];
+const actions = [{ icon: "mdi-eye-outline", tooltip: "Xem checklist", onClick: (item) => openChecklist(item) }];
 
 async function loadData() {
     loading.value = true;

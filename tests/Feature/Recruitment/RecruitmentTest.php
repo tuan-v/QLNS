@@ -11,6 +11,7 @@ use App\Models\Employee;
 use App\Models\Notification;
 use App\Models\Province;
 use App\Models\RecruitmentCandidate;
+use App\Models\RecruitmentOffer;
 use App\Models\RecruitmentOpening;
 use App\Models\User;
 use App\Services\RecruitmentService;
@@ -389,6 +390,22 @@ class RecruitmentTest extends TestCase
         $opening = $this->createOpening();
         $candidate = $this->passedCandidate($opening, 'hire@mail.com');
         $province = Province::query()->firstOrFail();
+        $commune0 = Commune::where('province_code', $province->code)->firstOrFail();
+
+        // Chưa có offer được chấp nhận -> chưa nhận việc được (RecruitmentOfferService).
+        $this->postJson('/api/v1/employees', [
+            'full_name' => 'Nguyen Chua Offer', 'company_email' => 'chuaoffer@qlns.local', 'hire_date' => '2026-10-15',
+            'date_of_birth' => '2003-01-01', 'gender' => 'male', 'phone' => '0909999999', 'personal_email' => 'chuaoffer@mail.com',
+            'cccd' => '001203099999', 'personal_tax_code' => 'MST099999', 'address_detail' => 'Ha Noi',
+            'province_code' => $province->code, 'commune_code' => $commune0->code,
+            'department_id' => $opening->department_id, 'contract_type' => 'thuc_tap', 'agreed_salary' => 3_000_000,
+            'candidate_id' => $candidate->id,
+        ], $this->as('hr'))->assertStatus(422)->assertJsonValidationErrors('candidate_id');
+
+        RecruitmentOffer::create([
+            'recruitment_candidate_id' => $candidate->id, 'contract_type' => 'thuc_tap', 'salary' => 3_000_000,
+            'start_date' => '2026-10-15', 'response_deadline' => '2026-10-12', 'status' => RecruitmentOffer::STATUS_ACCEPTED,
+        ]);
         $commune = Commune::where('province_code', $province->code)->firstOrFail();
 
         $payload = fn (string $email, string $cccd) => [

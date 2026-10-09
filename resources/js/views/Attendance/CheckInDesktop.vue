@@ -363,9 +363,10 @@
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     Xin điều chỉnh công
                 </v-card-title>
-                <v-form ref="adjustFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(adjustFormRef, submitAdjustRequest)"
-                    class="v-card-text px-5"
+                <v-form
+ref="adjustFormRef" validate-on="blur invalid-input lazy" class="v-card-text px-5"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
+                    @submit.prevent="validateThen(adjustFormRef, submitAdjustRequest)"
                 >
                     <div class="text-body-2" style="opacity: 0.75">
                         Ngày công:
@@ -457,9 +458,10 @@
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     Xin bổ sung chấm công
                 </v-card-title>
-                <v-form ref="supplementFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(supplementFormRef, submitSupplementRequest)"
-                    class="v-card-text px-5"
+                <v-form
+ref="supplementFormRef" validate-on="blur invalid-input lazy" class="v-card-text px-5"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
+                    @submit.prevent="validateThen(supplementFormRef, submitSupplementRequest)"
                 >
                     <div class="text-body-2" style="opacity: 0.75">
                         Dùng khi bạn quên chấm công cả ngày (không có bản ghi
@@ -583,13 +585,14 @@
                 <v-divider />
                 <v-window v-model="extraShiftTab" class="dialog-scroll-body">
                     <v-window-item value="extra_shift">
-                        <v-form ref="extraShiftFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(extraShiftFormRef, submitExtraShiftRequest)"
-                            class="v-card-text px-5 pt-4"
+                        <v-form
+ref="extraShiftFormRef" validate-on="blur invalid-input lazy" class="v-card-text px-5 pt-4"
                             style="
                                 display: flex;
                                 flex-direction: column;
                                 gap: 0.75rem;
                             "
+                            @submit.prevent="validateThen(extraShiftFormRef, submitExtraShiftRequest)"
                         >
                             <div class="text-body-2" style="opacity: 0.75">
                                 Đăng ký TRƯỚC để xin phép làm thêm 1 ngày không
@@ -767,13 +770,14 @@
                     </v-window-item>
 
                     <v-window-item value="overtime">
-                        <v-form ref="otRequestFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(otRequestFormRef, submitOtRequestFromToday)"
-                            class="v-card-text px-5 pt-4"
+                        <v-form
+ref="otRequestFormRef" validate-on="blur invalid-input lazy" class="v-card-text px-5 pt-4"
                             style="
                                 display: flex;
                                 flex-direction: column;
                                 gap: 0.75rem;
                             "
+                            @submit.prevent="validateThen(otRequestFormRef, submitOtRequestFromToday)"
                         >
                             <v-btn-toggle
                                 v-model="otRequestForm.mode"
@@ -937,9 +941,10 @@
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     Xin duyệt OT
                 </v-card-title>
-                <v-form ref="otApprovalFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(otApprovalFormRef, submitOtApprovalRequest)"
-                    class="v-card-text px-5"
+                <v-form
+ref="otApprovalFormRef" validate-on="blur invalid-input lazy" class="v-card-text px-5"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
+                    @submit.prevent="validateThen(otApprovalFormRef, submitOtApprovalRequest)"
                 >
                     <div class="text-body-2" style="opacity: 0.75">
                         Ngày công:

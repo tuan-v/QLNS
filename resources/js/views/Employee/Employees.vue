@@ -60,13 +60,13 @@
         </v-sheet>
 
         <DataTable
+            v-model:page="page"
+            v-model:items-per-page="perPage"
             :headers="headers"
             :items="store.employees"
             :loading="store.loading"
             :server-items-length="store.pagination?.total ?? 0"
             :actions="actions"
-            v-model:page="page"
-            v-model:items-per-page="perPage"
         >
             <!-- Gộp Mã/Họ tên/Phòng ban/Chức vụ/Email vào 1 cột "Nhân viên" cho
                  gọn bảng (2026-09-24, theo yêu cầu người dùng), tách "Lương"/
@@ -169,7 +169,6 @@
 
 <script setup>
 import { ref, watch, computed, onMounted, onUnmounted } from "vue";
-import { useRouter } from "vue-router";
 import { useEmployeeStore } from "../../stores/useEmployeeStore";
 import { useDepartmentStore } from "../../stores/useDepartmentStore";
 import { useAuthStore } from "../../stores/authStore";
@@ -195,7 +194,6 @@ const departmentStore = useDepartmentStore();
 const auth = useAuthStore();
 const presence = usePresenceStore();
 const resourceSync = useResourceSyncStore();
-const router = useRouter();
 
 const formDialog = ref(false);
 const editing = ref(null);

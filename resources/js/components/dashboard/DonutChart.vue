@@ -17,7 +17,6 @@ const theme = useTheme();
 const isDark = computed(() => theme.global.current.value.dark);
 
 const palette = computed(() => {
-    const c = theme.global.current.value.colors;
     // Thang brand theo design.md (TailAdmin brand-500 → 200) + 2 màu phụ,
     // khác nhau về ĐỘ SÁNG để phân biệt được cả khi mù màu.
     return isDark.value

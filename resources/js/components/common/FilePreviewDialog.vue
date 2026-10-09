@@ -269,8 +269,8 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 const props = defineProps({
     modelValue: Boolean,
-    fileUrl: String, // download_url có sẵn từ API
-    fileName: String, // để suy ra đuôi file
+    fileUrl: { type: String, default: "" }, // download_url có sẵn từ API
+    fileName: { type: String, default: "" }, // để suy ra đuôi file
 });
 const emit = defineEmits(["update:modelValue"]);
 

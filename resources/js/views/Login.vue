@@ -242,7 +242,6 @@ const auth = useAuthStore();
 
 const email = ref("");
 const password = ref("");
-const remember = ref(false);
 const emailError = ref("");
 const passwordError = ref("");
 const showPassword = ref(false);

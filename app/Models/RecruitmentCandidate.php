@@ -9,7 +9,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 // Ứng viên + CV của 1 đợt tuyển. Luồng trạng thái (RecruitmentService):
 // pending -> approved | rejected (Admin) ; approved -> interview_scheduled (HR hẹn)
-// ; interview_scheduled -> passed | failed (HR ghi kết quả) ; passed -> hired (tạo nhân viên).
+// ; interview_scheduled -> passed | failed (HR ghi kết quả) ; passed -> offer (RecruitmentOffer:
+// HR soạn, Admin duyệt, ứng viên trả lời) -> hired (tạo nhân viên, cần offer đã chấp nhận)
+// | offer_declined (ứng viên từ chối/không trả lời offer — trả lại suất).
 class RecruitmentCandidate extends Model
 {
     use Auditable;
@@ -34,6 +36,8 @@ class RecruitmentCandidate extends Model
 
     public const STATUS_HIRED = 'hired';
 
+    public const STATUS_OFFER_DECLINED = 'offer_declined';
+
     // CV đang "chiếm suất" của đợt tuyển — tính vào giới hạn headcount. Bị từ chối
     // hoặc trượt phỏng vấn thì trả lại suất cho CV khác.
     public const COUNTED_STATUSES = [
@@ -54,6 +58,17 @@ class RecruitmentCandidate extends Model
     public function opening()
     {
         return $this->belongsTo(RecruitmentOpening::class, 'recruitment_opening_id');
+    }
+
+    public function offers()
+    {
+        return $this->hasMany(RecruitmentOffer::class)->latest('id');
+    }
+
+    // Offer gần nhất (hiển thị trên bảng ứng viên + điền sẵn form Nhận việc).
+    public function latestOffer()
+    {
+        return $this->hasOne(RecruitmentOffer::class)->latestOfMany();
     }
 
     public function interviews()

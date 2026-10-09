@@ -26,7 +26,8 @@ use Illuminate\Validation\ValidationException;
 //  - Ai đánh dấu việc nào: onboarding.manage (HR/Admin) mọi việc; quản lý trực tiếp có
 //    onboarding.team -> việc phần "Quản lý"; chính nhân viên -> việc phần "Nhân viên".
 //  - Việc có auto_key do hệ thống tự đánh dấu khi điều kiện đúng (đã có tài khoản, đã
-//    tải hợp đồng ký, tài khoản đã khóa, hợp đồng đã chấm dứt) — kiểm tra mỗi lần đọc.
+//    tải hợp đồng ký, có tài khoản nhận lương đã xác nhận, tài khoản đã khóa, hợp đồng
+//    đã chấm dứt) — kiểm tra mỗi lần đọc.
 //  - Hoàn thành = mọi việc BẮT BUỘC đã xong; bỏ đánh dấu lại thì quay về "đang làm".
 class ChecklistService
 {
@@ -305,6 +306,8 @@ class ChecklistService
         return match ($key) {
             'account_created' => $employee->user_id !== null,
             'contract_signed' => $contracts->contains(fn ($c) => $c->status === 'active' && $c->contract_file_path),
+            // Đã có tài khoản nhận lương được HR xác nhận (EmployeeBankAccountService).
+            'bank_account_verified' => $employee->bankAccounts->contains(fn ($a) => $a->is_primary && $a->status === 'verified'),
             'account_locked' => $employee->user === null || $employee->user->status !== 'active',
             'contract_ended' => ! $contracts->contains(fn ($c) => in_array($c->status, ['active', 'pending'], true)),
             default => false,

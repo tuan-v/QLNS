@@ -17,6 +17,7 @@ class ChecklistRepository
         'employee:id,code,full_name,avatar,department_id,position_id,manager_id,user_id,hire_date,employment_status',
         'employee.department:id,name', 'employee.position:id,name',
         'employee.user:id,status', 'employee.contracts:id,employee_id,status,contract_file_path',
+        'employee.bankAccounts:id,employee_id,status,is_primary',
     ];
 
     // $managerEmployeeId != null: chỉ checklist của nhân viên quản lý trực tiếp bởi người đó.

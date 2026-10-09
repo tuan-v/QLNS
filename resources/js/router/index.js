@@ -192,6 +192,13 @@ const routes = [
         component: () => import("../views/Recruitment/RecruitmentOpeningDetail.vue"),
     },
     {
+        // Trang công khai cho ứng viên trả lời thư mời nhận việc (link trong email).
+        path: "/thu-moi-nhan-viec/:token",
+        name: "offer-response",
+        meta: { layout: "blank", title: "Thư mời nhận việc", public: true },
+        component: () => import("../views/Recruitment/OfferResponse.vue"),
+    },
+    {
         path: "/onboarding",
         name: "onboarding",
         // HR (toàn công ty) hoặc Quản lý (nhân viên mình quản lý trực tiếp).
@@ -219,6 +226,11 @@ router.beforeEach(() => {
 // nhầm người dùng hợp lệ vì permissions đang rỗng lúc mới tải trang.
 router.beforeEach(async (to) => {
     const auth = useAuthStore();
+
+    // Trang công khai: không nạp tài khoản, không kiểm tra quyền.
+    if (to.meta.public) {
+        return;
+    }
 
     if (auth.accessToken && !auth.user) {
         try {

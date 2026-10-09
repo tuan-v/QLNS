@@ -23,7 +23,9 @@
                     <div class="text-h6 font-weight-bold">{{ checklist.employee?.full_name }}</div>
                     <div class="text-caption" style="opacity: 0.7">
                         {{ checklist.employee?.code }}
-                        <template v-if="checklist.employee?.department"> · {{ checklist.employee.department }}</template>
+                        <template v-if="checklist.employee?.department">
+                            · {{ checklist.employee.department }}</template
+                        >
                         <template v-if="checklist.employee?.position"> · {{ checklist.employee.position }}</template>
                     </div>
                 </div>
@@ -34,7 +36,8 @@
                 <div class="d-flex justify-space-between align-center mb-1">
                     <StatusChip :status="checklist.status" :map="CHECKLIST_STATUS_MAP" />
                     <span class="text-body-2 font-weight-bold">
-                        {{ checklist.progress.done }}/{{ checklist.progress.total }} việc · {{ checklist.progress.percent }}%
+                        {{ checklist.progress.done }}/{{ checklist.progress.total }} việc ·
+                        {{ checklist.progress.percent }}%
                     </span>
                 </div>
                 <v-progress-linear
@@ -44,7 +47,8 @@
                     rounded
                 />
                 <div class="text-caption mt-2" style="opacity: 0.7">
-                    {{ REFERENCE_DATE_LABELS[checklist.type] }}: <strong>{{ formatDate(checklist.reference_date) }}</strong>
+                    {{ REFERENCE_DATE_LABELS[checklist.type] }}:
+                    <strong>{{ formatDate(checklist.reference_date) }}</strong>
                     <template v-if="checklist.template_name"> · Mẫu: {{ checklist.template_name }}</template>
                 </div>
             </div>
@@ -95,7 +99,12 @@
                             variant="outlined"
                             hide-details="auto"
                         />
-                        <InputDate v-model="newItem.due_date" label="Hạn" density="compact" :error-messages="itemErrors.due_date" />
+                        <InputDate
+                            v-model="newItem.due_date"
+                            label="Hạn"
+                            density="compact"
+                            :error-messages="itemErrors.due_date"
+                        />
                     </div>
                     <div class="d-flex justify-end ga-2">
                         <v-btn variant="text" size="small" @click="adding = false">Hủy</v-btn>
@@ -110,7 +119,9 @@
                     variant="tonal"
                     size="small"
                     prepend-icon="mdi-account-details-outline"
-                    :to="canViewEmployee ? { name: 'employee-detail', params: { id: checklist.employee.id } } : undefined"
+                    :to="
+                        canViewEmployee ? { name: 'employee-detail', params: { id: checklist.employee.id } } : undefined
+                    "
                     :disabled="!canViewEmployee"
                 >
                     Hồ sơ nhân viên
@@ -132,12 +143,15 @@
             <v-card rounded="xl">
                 <v-card-title class="pt-5 px-5">Hủy checklist?</v-card-title>
                 <v-card-text>
-                    Checklist của {{ checklist?.employee?.full_name }} sẽ dừng theo dõi. Các việc đã đánh dấu vẫn được giữ lại để tra cứu.
+                    Checklist của {{ checklist?.employee?.full_name }} sẽ dừng theo dõi. Các việc đã đánh dấu vẫn được
+                    giữ lại để tra cứu.
                 </v-card-text>
                 <v-card-actions class="px-5 pb-4">
                     <v-spacer />
                     <v-btn variant="text" @click="confirmCancel = false">Không</v-btn>
-                    <v-btn color="error" variant="flat" :loading="cancelling" @click="cancelChecklist">Hủy checklist</v-btn>
+                    <v-btn color="error" variant="flat" :loading="cancelling" @click="cancelChecklist"
+                        >Hủy checklist</v-btn
+                    >
                 </v-card-actions>
             </v-card>
         </v-dialog>
@@ -259,15 +273,19 @@ async function submitItem() {
     savingItem.value = true;
     itemErrors.value = {};
     try {
-        checklist.value = (await onboardingService.addItem(checklist.value.id, {
-            title: newItem.value.title.trim(),
-            responsible: newItem.value.responsible,
-            due_date: newItem.value.due_date || null,
-        })).data.data;
+        checklist.value = (
+            await onboardingService.addItem(checklist.value.id, {
+                title: newItem.value.title.trim(),
+                responsible: newItem.value.responsible,
+                due_date: newItem.value.due_date || null,
+            })
+        ).data.data;
         adding.value = false;
         emit("changed");
     } catch (e) {
-        itemErrors.value = Object.fromEntries(Object.entries(e.response?.data?.errors ?? {}).map(([k, v]) => [k, v[0]]));
+        itemErrors.value = Object.fromEntries(
+            Object.entries(e.response?.data?.errors ?? {}).map(([k, v]) => [k, v[0]]),
+        );
         if (!e.response?.data?.errors) error.value = firstError(e) ?? "Không thêm được việc.";
     } finally {
         savingItem.value = false;

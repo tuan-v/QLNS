@@ -130,7 +130,7 @@
             <v-dialog v-model="resignationDialog" max-width="560">
                 <v-card rounded="xl">
                     <v-card-title class="text-h6 font-weight-bold pt-5 px-6">Nộp đơn xin nghỉ việc</v-card-title>
-                    <v-form ref="resignationFormRef" validate-on="blur invalid-input lazy" @submit.prevent="submitResignation" class="v-card-text px-6">
+                    <v-form ref="resignationFormRef" validate-on="blur invalid-input lazy" class="v-card-text px-6" @submit.prevent="submitResignation">
                         <p class="text-body-2 text-medium-emphasis mb-2">
                             Đơn được gửi tới HR và quản lý trực tiếp của bạn.
                         </p>
@@ -199,6 +199,7 @@
                     <v-tab value="shifts" prepend-icon="mdi-calendar-clock-outline">Ca làm việc</v-tab>
                     <v-tab value="transfers" prepend-icon="mdi-swap-horizontal">Luân chuyển</v-tab>
                     <v-tab value="payslips" prepend-icon="mdi-cash-multiple">Phiếu lương</v-tab>
+                    <v-tab value="bank" prepend-icon="mdi-bank-outline">Tài khoản ngân hàng</v-tab>
                 </v-tabs>
             </v-sheet>
 
@@ -234,6 +235,10 @@
 
                 <v-window-item value="payslips">
                     <MyProfilePayslipsTab v-if="tabsOpened.payslips" />
+                </v-window-item>
+
+                <v-window-item value="bank">
+                    <BankAccountsPanel v-if="tabsOpened.bank" :employee-name="employee.full_name" />
                 </v-window-item>
             </v-window>
         </template>
@@ -277,6 +282,7 @@ import MyProfileDocumentsTab from "./MyProfileDocumentsTab.vue";
 import MyProfileShiftsTab from "./MyProfileShiftsTab.vue";
 import MyProfileTransfersTab from "./MyProfileTransfersTab.vue";
 import MyProfilePayslipsTab from "./MyProfilePayslipsTab.vue";
+import BankAccountsPanel from "../../components/employee/BankAccountsPanel.vue";
 import { EMPLOYMENT_STATUS_MAP } from "../../composables/employmentStatus";
 import resignationService from "../../services/resignationService";
 import InputDate, { todayIso } from "../../components/common/InputDate.vue";
@@ -321,7 +327,7 @@ function formatTenure(hireDate) {
 const route = useRoute();
 const toast = useToastStore();
 const auth = useAuthStore();
-const VALID_TABS = ["info", "contracts", "documents", "shifts", "transfers", "payslips"];
+const VALID_TABS = ["info", "contracts", "documents", "shifts", "transfers", "payslips", "bank"];
 
 const employee = ref(null);
 const loading = ref(true);
@@ -391,6 +397,7 @@ const tabsOpened = reactive({
     shifts: false,
     transfers: false,
     payslips: false,
+    bank: false,
 });
 
 watch(tab, (value) => {

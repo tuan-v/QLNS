@@ -202,6 +202,20 @@
                             {{ item.hired_employee.code }}
                         </router-link>
                     </div>
+                    <!-- Thư mời nhận việc gần nhất (RecruitmentOfferService). -->
+                    <div v-if="item.offer && item.status !== 'hired'" class="mt-1">
+                        <StatusChip :status="item.offer.status" :map="OFFER_STATUS_MAP" size="x-small" />
+                        <div class="text-caption" style="opacity: 0.7">
+                            {{ formatMoney(item.offer.salary) }} · bắt đầu {{ formatDate(item.offer.start_date) }}
+                            <template v-if="item.offer.status === 'sent'"> · hạn trả lời {{ formatDate(item.offer.response_deadline) }}</template>
+                        </div>
+                        <div v-if="item.offer.status === 'rejected' && item.offer.review_note" class="text-caption text-error">
+                            Admin: {{ item.offer.review_note }}
+                        </div>
+                        <div v-if="item.offer.status === 'declined' && item.offer.response_note" class="text-caption" style="opacity: 0.7">
+                            Ứng viên: {{ item.offer.response_note }}
+                        </div>
+                    </div>
                 </template>
                 <template #item.interview="{ item }">
                     <template v-if="item.interviews?.length">
@@ -279,6 +293,12 @@
             :file-url="previewFile.url"
             :file-name="previewFile.name"
         />
+        <OfferDialog
+            v-model="offerDialog"
+            :candidate="selected"
+            :default-contract-type="opening?.contract_type"
+            @saved="onOfferSaved"
+        />
         <EmployeeFormDialog
             v-model="hireDialog"
             :employee="null"
@@ -305,10 +325,12 @@ import CandidateUploadDialog from "./CandidateUploadDialog.vue";
 import InterviewScheduleDialog from "./InterviewScheduleDialog.vue";
 import InterviewResultDialog from "./InterviewResultDialog.vue";
 import BulkCandidateUploadDialog from "./BulkCandidateUploadDialog.vue";
+import OfferDialog from "./OfferDialog.vue";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 import {
     CANDIDATE_STATUS_MAP,
     CONTRACT_TYPE_LABELS,
+    OFFER_STATUS_MAP,
     OPENING_STATUS_MAP,
 } from "../../composables/recruitmentStatus";
 
@@ -336,6 +358,20 @@ const previewDialog = ref(false);
 const previewFile = ref({ url: "", name: "" });
 const hireDialog = ref(false);
 const hirePrefill = ref(null);
+const offerDialog = ref(false);
+
+// Offer "đang mở" — mỗi ứng viên tối đa 1 (khớp RecruitmentOffer::OPEN_STATUSES).
+const OPEN_OFFER_STATUSES = ["pending_approval", "sent", "accepted"];
+const hasOpenOffer = (item) => OPEN_OFFER_STATUSES.includes(item.offer?.status);
+
+function formatMoney(value) {
+    return Number(value ?? 0).toLocaleString("vi-VN") + " ₫";
+}
+
+function onOfferSaved() {
+    toast.success("Đã gửi offer cho Admin duyệt.");
+    loadData();
+}
 
 const headers = [
     { title: "Ứng viên", key: "full_name" },
@@ -657,10 +693,86 @@ const actions = computed(() => [
         },
     },
     {
+        icon: "mdi-email-plus-outline",
+        tooltip: "Soạn thư mời nhận việc (offer)",
+        color: "primary",
+        hidden: (item) => !canManage.value || item.status !== "passed" || hasOpenOffer(item),
+        onClick: (item) => {
+            selected.value = item;
+            offerDialog.value = true;
+        },
+    },
+    {
+        icon: "mdi-email-check-outline",
+        tooltip: "Duyệt offer & gửi ứng viên",
+        color: "success",
+        hidden: (item) => !canApprove.value || item.offer?.status !== "pending_approval",
+        confirm: {
+            title: "Duyệt thư mời nhận việc",
+            message: (item) =>
+                `Gửi offer cho ${item.full_name}: ${CONTRACT_TYPE_LABELS[item.offer.contract_type] ?? item.offer.contract_type}, ${formatMoney(item.offer.salary)}/tháng, bắt đầu ${formatDate(item.offer.start_date)}, hạn trả lời ${formatDate(item.offer.response_deadline)}? Ứng viên sẽ nhận email có link trả lời.`,
+            confirmText: "Duyệt & gửi",
+        },
+        onClick: async (item) => {
+            try {
+                await recruitmentService.reviewOffer(item.offer.id, { status: "approved" });
+                toast.success("Đã duyệt và gửi offer cho ứng viên.");
+            } catch (e) {
+                toast.error(firstError(e) ?? "Không duyệt được offer.");
+            }
+            await loadData();
+        },
+    },
+    {
+        icon: "mdi-email-remove-outline",
+        tooltip: "Không duyệt offer",
+        color: "error",
+        hidden: (item) => !canApprove.value || item.offer?.status !== "pending_approval",
+        confirm: {
+            title: "Không duyệt offer",
+            message: (item) => `Không duyệt offer cho ${item.full_name}? HR sẽ được báo để soạn lại.`,
+            confirmText: "Không duyệt",
+            input: { label: "Lý do (HR sẽ thấy)", required: true },
+        },
+        onClick: async (item, { input }) => {
+            try {
+                await recruitmentService.reviewOffer(item.offer.id, { status: "rejected", review_note: input });
+                toast.success("Đã trả offer về cho HR.");
+            } catch (e) {
+                toast.error(firstError(e) ?? "Không cập nhật được offer.");
+            }
+            await loadData();
+        },
+    },
+    {
+        icon: "mdi-email-off-outline",
+        tooltip: "Rút offer",
+        color: "error",
+        hidden: (item) => !canManage.value || !["pending_approval", "sent"].includes(item.offer?.status),
+        confirm: {
+            title: "Rút thư mời nhận việc",
+            message: (item) =>
+                item.offer.status === "sent"
+                    ? `Rút offer đã gửi cho ${item.full_name}? Link trong email sẽ không dùng được nữa.`
+                    : `Rút offer đang chờ duyệt của ${item.full_name}?`,
+            confirmText: "Rút offer",
+        },
+        onClick: async (item) => {
+            try {
+                await recruitmentService.withdrawOffer(item.offer.id);
+                toast.success("Đã rút offer.");
+            } catch (e) {
+                toast.error(firstError(e) ?? "Không rút được offer.");
+            }
+            await loadData();
+        },
+    },
+    {
         icon: "mdi-account-plus-outline",
         tooltip: "Nhận việc (tạo hồ sơ nhân viên)",
         color: "teal",
-        hidden: (item) => !canManage.value || item.status !== "passed",
+        // Chỉ khi ứng viên đã chấp nhận offer (RecruitmentService::markHired kiểm tra lại).
+        hidden: (item) => !canManage.value || item.status !== "passed" || item.offer?.status !== "accepted",
         onClick: (item) => {
             hirePrefill.value = {
                 candidate_id: item.id,
@@ -669,7 +781,9 @@ const actions = computed(() => [
                 phone: item.phone,
                 department_id: opening.value.department_id,
                 position_id: opening.value.position_id,
-                contract_type: opening.value.contract_type,
+                contract_type: item.offer.contract_type,
+                agreed_salary: item.offer.salary,
+                hire_date: item.offer.start_date,
             };
             hireDialog.value = true;
         },

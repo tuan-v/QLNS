@@ -366,8 +366,9 @@
                         @click="closeAdjustDialog"
                     />
                 </v-toolbar>
-                <v-form class="v-card-text" ref="adjustFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(adjustFormRef, submitAdjustRequest)"
-                    style="display: flex; flex-direction: column; gap: 0.75rem"
+                <v-form
+ref="adjustFormRef" class="v-card-text" validate-on="blur invalid-input lazy" style="display: flex; flex-direction: column; gap: 0.75rem"
+                    @submit.prevent="validateThen(adjustFormRef, submitAdjustRequest)"
                 >
                     <div class="text-body-2" style="opacity: 0.75">
                         Ngày công:
@@ -460,8 +461,9 @@
                         @click="closeSupplementDialog"
                     />
                 </v-toolbar>
-                <v-form class="v-card-text" ref="supplementFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(supplementFormRef, submitSupplementRequest)"
-                    style="display: flex; flex-direction: column; gap: 0.75rem"
+                <v-form
+ref="supplementFormRef" class="v-card-text" validate-on="blur invalid-input lazy" style="display: flex; flex-direction: column; gap: 0.75rem"
+                    @submit.prevent="validateThen(supplementFormRef, submitSupplementRequest)"
                 >
                     <div class="text-body-2" style="opacity: 0.75">
                         Dùng khi bạn quên chấm công cả ngày (không có bản ghi
@@ -585,12 +587,13 @@
                 </v-tabs>
                 <v-window v-model="extraShiftTab" class="dialog-scroll-body">
                     <v-window-item value="extra_shift">
-                        <v-form class="v-card-text" ref="extraShiftFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(extraShiftFormRef, submitExtraShiftRequest)"
-                            style="
+                        <v-form
+ref="extraShiftFormRef" class="v-card-text" validate-on="blur invalid-input lazy" style="
                                 display: flex;
                                 flex-direction: column;
                                 gap: 0.75rem;
                             "
+                            @submit.prevent="validateThen(extraShiftFormRef, submitExtraShiftRequest)"
                         >
                             <div class="text-body-2" style="opacity: 0.75">
                                 Đăng ký TRƯỚC để xin phép làm thêm 1 ngày không
@@ -761,12 +764,13 @@
                     </v-window-item>
 
                     <v-window-item value="overtime">
-                        <v-form class="v-card-text" ref="otRequestFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(otRequestFormRef, submitOtRequestFromToday)"
-                            style="
+                        <v-form
+ref="otRequestFormRef" class="v-card-text" validate-on="blur invalid-input lazy" style="
                                 display: flex;
                                 flex-direction: column;
                                 gap: 0.75rem;
                             "
+                            @submit.prevent="validateThen(otRequestFormRef, submitOtRequestFromToday)"
                         >
                             <v-btn-toggle
                                 v-model="otRequestForm.mode"
@@ -931,8 +935,9 @@
                         @click="closeOtApprovalDialog"
                     />
                 </v-toolbar>
-                <v-form class="v-card-text" ref="otApprovalFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(otApprovalFormRef, submitOtApprovalRequest)"
-                    style="display: flex; flex-direction: column; gap: 0.75rem"
+                <v-form
+ref="otApprovalFormRef" class="v-card-text" validate-on="blur invalid-input lazy" style="display: flex; flex-direction: column; gap: 0.75rem"
+                    @submit.prevent="validateThen(otApprovalFormRef, submitOtApprovalRequest)"
                 >
                     <div class="text-body-2" style="opacity: 0.75">
                         Ngày công:

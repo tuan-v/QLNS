@@ -26,6 +26,8 @@ Schedule::command('shifts:assign-missing-default')->dailyAt('00:07');
 // tắt lúc nửa đêm vẫn được cập nhật bù ngay khi bật lại — job chỉ TĂNG quỹ,
 // chạy lại nhiều lần không sai.
 Schedule::command('leave:sync-accrual')->hourlyAt(20);
+// Thư mời nhận việc quá hạn trả lời -> hết hạn, trả lại suất (RecruitmentOfferService).
+Schedule::command('recruitment:expire-offers')->hourlyAt(25);
 // Nhắc chấm công ra (2026-09-25, theo yêu cầu người dùng) — chạy MỖI PHÚT để
 // bám sát ngưỡng "quá 5 phút" sau giờ tan ca, xem comment đầu
 // RemindMissingCheckout.php. Mỗi bản ghi chỉ được nhắc đúng 1 lần (cột

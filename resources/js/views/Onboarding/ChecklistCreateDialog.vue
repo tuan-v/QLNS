@@ -13,7 +13,14 @@
     >
         <FormSection>
             <FormField label="Loại checklist" required>
-                <v-btn-toggle v-model="form.type" mandatory color="primary" variant="outlined" density="comfortable" divided>
+                <v-btn-toggle
+                    v-model="form.type"
+                    mandatory
+                    color="primary"
+                    variant="outlined"
+                    density="comfortable"
+                    divided
+                >
                     <v-btn value="onboarding" prepend-icon="mdi-account-plus-outline">Nhận việc</v-btn>
                     <v-btn value="offboarding" prepend-icon="mdi-account-arrow-right-outline">Nghỉ việc</v-btn>
                 </v-btn-toggle>
@@ -29,7 +36,11 @@
             </FormField>
             <FormField
                 label="Mẫu checklist"
-                :hint="form.type === 'offboarding' ? 'Hạn từng việc tính theo ngày làm việc cuối trong đơn nghỉ việc (chưa có đơn thì tính từ hôm nay).' : 'Hạn từng việc tính theo ngày vào làm của nhân viên.'"
+                :hint="
+                    form.type === 'offboarding'
+                        ? 'Hạn từng việc tính theo ngày làm việc cuối trong đơn nghỉ việc (chưa có đơn thì tính từ hôm nay).'
+                        : 'Hạn từng việc tính theo ngày vào làm của nhân viên.'
+                "
             >
                 <v-select
                     v-model="form.template_id"
@@ -117,7 +128,10 @@ watch(
 );
 
 watch(() => form.value.type, pickDefaultTemplate);
-watch(() => form.value.employee_id, () => delete errors.value.employee_id);
+watch(
+    () => form.value.employee_id,
+    () => delete errors.value.employee_id,
+);
 
 async function submit() {
     saving.value = true;

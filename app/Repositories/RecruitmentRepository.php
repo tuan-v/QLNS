@@ -32,6 +32,7 @@ class RecruitmentRepository
             'candidates' => fn ($q) => $q->latest(),
             'candidates.submitter:id,user_name', 'candidates.reviewer:id,user_name',
             'candidates.interviews.interviewer:id,full_name', 'candidates.hiredEmployee:id,code,full_name',
+            'candidates.latestOffer.creator:id,user_name', 'candidates.latestOffer.reviewer:id,user_name',
         ])->loadCount([
             'candidates as approved_count' => fn ($q) => $q->whereIn('status', RecruitmentCandidate::COUNTED_STATUSES),
             'candidates as pending_count' => fn ($q) => $q->where('status', RecruitmentCandidate::STATUS_PENDING),

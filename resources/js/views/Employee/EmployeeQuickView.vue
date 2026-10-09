@@ -198,10 +198,10 @@ function formatMoney(value) {
 // 1 dòng "nhãn: giá trị" — giá trị rỗng/bị ẩn (null) hiện "—".
 const InfoRow = defineComponent({
     props: {
-        icon: String,
-        label: String,
-        value: [String, Number],
-        href: String,
+        icon: { type: String, default: "" },
+        label: { type: String, default: "" },
+        value: { type: [String, Number], default: null },
+        href: { type: String, default: null },
     },
     setup(p) {
         return () =>

@@ -32,12 +32,13 @@ export const RESPONSIBLE_ICONS = {
 export const AUTO_KEY_LABELS = {
     account_created: "Khi đã có tài khoản đăng nhập",
     contract_signed: "Khi đã tải hợp đồng đã ký",
+    bank_account_verified: "Khi đã có tài khoản nhận lương được xác nhận",
     account_locked: "Khi tài khoản đã bị khóa",
     contract_ended: "Khi hợp đồng đã chấm dứt",
 };
 
 export const AUTO_KEYS_BY_TYPE = {
-    onboarding: ["account_created", "contract_signed"],
+    onboarding: ["account_created", "contract_signed", "bank_account_verified"],
     offboarding: ["account_locked", "contract_ended"],
 };
 

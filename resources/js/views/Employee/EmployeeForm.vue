@@ -780,6 +780,8 @@ function fillForm() {
         form.phone = p.phone ?? "";
         form.department_id = p.department_id ?? null;
         form.position_id = p.position_id ?? null;
+        // Từ thư mời nhận việc đã chấp nhận (Tuyển dụng).
+        if (p.hire_date) form.hire_date = p.hire_date;
     }
 }
 
@@ -818,7 +820,7 @@ watch(
             loadRoles();
             // Lương & Hợp đồng cũng chỉ áp dụng lúc Thêm mới — cùng lý do reset
             // như createAccount ở trên, không giữ số cũ của lần thêm trước.
-            agreedSalary.value = null;
+            agreedSalary.value = props.employee ? null : (props.prefill?.agreed_salary ?? null);
             contractType.value = props.employee ? null : (props.prefill?.contract_type ?? null);
             // Nạp lại danh sách Xã/Phường đúng theo Tỉnh đã có sẵn (modal Sửa) —
             // KHÔNG gọi qua onProvinceChange() vì hàm đó xóa luôn commune_code,

@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Models\Province;
 use App\Models\RecruitmentCandidate;
 use App\Models\RecruitmentInterview;
+use App\Models\RecruitmentOffer;
 use App\Models\RecruitmentOpening;
 use App\Models\User;
 use App\Repositories\RecruitmentRepository;
@@ -29,6 +30,8 @@ use Illuminate\Validation\ValidationException;
 //    (lockForUpdate) trong transaction -> 2 người thao tác cùng lúc không vượt giới hạn.
 //  - Trạng thái ứng viên chỉ đi đúng chiều (xem RecruitmentCandidate); sai bước -> 422.
 //  - Email cho ứng viên + thông báo nội bộ chỉ gửi SAU khi transaction đã commit.
+//  - Đạt phỏng vấn -> thư mời nhận việc (RecruitmentOfferService) -> Nhận việc chỉ khi
+//    ứng viên đã chấp nhận offer.
 class RecruitmentService
 {
     public const CV_DISK = 'local';
@@ -385,6 +388,13 @@ class RecruitmentService
             ]);
         }
 
+        // Bắt buộc có thư mời nhận việc đã được ứng viên chấp nhận (RecruitmentOfferService).
+        if (! $candidate->offers()->where('status', RecruitmentOffer::STATUS_ACCEPTED)->exists()) {
+            throw ValidationException::withMessages([
+                'candidate_id' => 'Ứng viên chưa chấp nhận thư mời nhận việc (offer).',
+            ]);
+        }
+
         $candidate->forceFill([
             'status' => RecruitmentCandidate::STATUS_HIRED,
             'hired_employee_id' => $employee->id,
@@ -466,8 +476,9 @@ class RecruitmentService
         return "{$employee->code} – {$employee->full_name}".($employee->deleted_at ? ' (đã xóa)' : '');
     }
 
-    // open <-> full theo số CV chiếm suất; đợt đã đóng tay thì giữ nguyên.
-    private function syncOpeningStatus(RecruitmentOpening $opening): void
+    // open <-> full theo số CV chiếm suất; đợt đã đóng tay thì giữ nguyên. Public để
+    // RecruitmentOfferService dùng lại khi ứng viên từ chối offer (trả lại suất).
+    public function syncOpeningStatus(RecruitmentOpening $opening): void
     {
         if ($opening->status === RecruitmentOpening::STATUS_CLOSED) {
             return;

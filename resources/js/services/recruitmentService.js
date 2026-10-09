@@ -50,4 +50,22 @@ export default {
     removeCandidate(id) {
         return axios.delete(`${API_BASE}/candidates/${id}`);
     },
+    // Thư mời nhận việc (RecruitmentOfferService).
+    createOffer(candidateId, payload) {
+        return axios.post(`${API_BASE}/candidates/${candidateId}/offers`, payload);
+    },
+    // { status: "approved" | "rejected", review_note? } — chỉ Admin.
+    reviewOffer(offerId, payload) {
+        return axios.post(`${API_BASE}/offers/${offerId}/review`, payload);
+    },
+    withdrawOffer(offerId) {
+        return axios.post(`${API_BASE}/offers/${offerId}/withdraw`);
+    },
+    // Trang công khai cho ứng viên (không đăng nhập).
+    publicOffer(token) {
+        return axios.get(`/api/v1/public/offers/${token}`);
+    },
+    respondOffer(token, payload) {
+        return axios.post(`/api/v1/public/offers/${token}/respond`, payload);
+    },
 };

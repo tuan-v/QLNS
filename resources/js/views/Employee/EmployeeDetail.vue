@@ -36,6 +36,7 @@
                     <v-tab value="shift_assignments" prepend-icon="mdi-calendar-clock-outline">Ca làm việc</v-tab>
                     <v-tab value="attendance" prepend-icon="mdi-calendar-check-outline">Chấm công</v-tab>
                     <v-tab value="payroll" prepend-icon="mdi-cash-multiple">Lương / Phép</v-tab>
+                    <v-tab v-if="canUpdate" value="bank" prepend-icon="mdi-bank-outline">Tài khoản ngân hàng</v-tab>
                 </v-tabs>
             </v-sheet>
 
@@ -98,6 +99,14 @@
                         :employee-id="props.id"
                     />
                 </v-window-item>
+
+                <v-window-item v-if="canUpdate" value="bank">
+                    <BankAccountsPanel
+                        v-if="tabsOpened.bank"
+                        :employee-id="Number(props.id)"
+                        :employee-name="employee.full_name"
+                    />
+                </v-window-item>
             </v-window>
         </template>
 
@@ -117,7 +126,7 @@
 // EmployeeTransfersTab.vue, EmployeeShiftAssignmentsTab.vue) — file này
 // trước đây gộp cả 7 tab, dài 1865 dòng, khó đọc/khó bảo trì.
 import { onMounted, reactive, ref, watch, computed } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import employeeService from "../../services/employeeService";
 import { useAuthStore } from "../../stores/authStore";
 import PageHeader from "../../components/common/PageHeader.vue";
@@ -128,6 +137,7 @@ import EmployeeContractsTab from "./EmployeeContractsTab.vue";
 import EmployeeDocumentsTab from "./EmployeeDocumentsTab.vue";
 import EmployeeTransfersTab from "./EmployeeTransfersTab.vue";
 import EmployeeShiftAssignmentsTab from "./EmployeeShiftAssignmentsTab.vue";
+import BankAccountsPanel from "../../components/employee/BankAccountsPanel.vue";
 import EmployeeSalaryLeaveTab from "./EmployeeSalaryLeaveTab.vue";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
@@ -139,13 +149,16 @@ const props = defineProps({
 });
 
 const router = useRouter();
+const route = useRoute();
 const auth = useAuthStore();
 
 const canUpdate = computed(() => auth.permissions.includes("employee.update"));
 
 const employee = ref(null);
 const loadError = ref("");
-const tab = ref("profile");
+// ?tab=... (vd thông báo "Tài khoản ngân hàng cần xác nhận") mở thẳng đúng tab.
+const VALID_TABS = ["profile", "contracts", "documents", "transfers", "shift_assignments", "attendance", "payroll", "bank"];
+const tab = ref(VALID_TABS.includes(route.query.tab) ? route.query.tab : "profile");
 
 async function loadEmployee() {
     loadError.value = "";
@@ -172,12 +185,25 @@ const tabsOpened = reactive({
     shift_assignments: false,
     attendance: false,
     payroll: false,
+    bank: false,
 });
 watch(tab, (value) => {
     if (value in tabsOpened) {
         tabsOpened[value] = true;
     }
 });
+// Vào thẳng bằng ?tab= thì watch(tab) không chạy lần đầu — tự đánh dấu đã mở.
+if (tab.value in tabsOpened) {
+    tabsOpened[tab.value] = true;
+}
+watch(
+    () => route.query.tab,
+    (value) => {
+        if (VALID_TABS.includes(value)) {
+            tab.value = value;
+        }
+    },
+);
 
 // FilePreviewDialog dùng chung cho tab Hợp đồng/Tài liệu/Luân chuyển — mỗi
 // tab con chỉ emit sự kiện `preview`, không tự dựng dialog riêng.
@@ -195,4 +221,17 @@ useRealtimeRefresh(loadEmployee, {
 onMounted(() => {
     loadEmployee();
 });
+
+// Đang xem nhân viên A mà bấm link sang nhân viên B (vd thông báo) thì Vue Router dùng
+// lại CHÍNH component này, onMounted không chạy lại -> phải tự tải lại. Xóa dữ liệu cũ
+// trước để các tab (nằm trong v-if="employee") dựng lại theo nhân viên mới.
+watch(
+    () => props.id,
+    (id, oldId) => {
+        if (id !== oldId) {
+            employee.value = null;
+            loadEmployee();
+        }
+    },
+);
 </script>

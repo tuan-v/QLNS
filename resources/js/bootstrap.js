@@ -1,5 +1,6 @@
 import axios from "axios";
 import { useLoadingStore } from "./stores/useLoadingStore";
+import { isPublicPath } from "./publicPaths";
 window.axios = axios;
 
 window.axios.defaults.headers.common["X-Requested-With"] = "XMLHttpRequest";
@@ -70,6 +71,10 @@ async function refreshAccessToken(failedToken) {
 function redirectToLogin() {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
+    // Trang công khai (ứng viên mở link thư mời) không bao giờ bị đẩy về đăng nhập.
+    if (isPublicPath()) {
+        return;
+    }
     if (window.location.pathname !== "/dang-nhap") {
         window.location.href = "/dang-nhap";
     }

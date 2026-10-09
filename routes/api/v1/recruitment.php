@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\RecruitmentController;
+use App\Http\Controllers\Api\V1\RecruitmentOfferController;
 use Illuminate\Support\Facades\Route;
 
 // Tuyển dụng. Xem: recruitment.manage hoặc recruitment.approve. Quản lý đợt tuyển,
@@ -26,11 +27,26 @@ Route::middleware('auth:api')->prefix('recruitment')->group(function (): void {
         Route::post('/candidates/{candidate}/interview', [RecruitmentController::class, 'scheduleInterview'])->whereNumber('candidate');
         Route::post('/candidates/{candidate}/result', [RecruitmentController::class, 'recordResult'])->whereNumber('candidate');
         Route::delete('/candidates/{candidate}', [RecruitmentController::class, 'destroyCandidate'])->whereNumber('candidate');
+        // Thư mời nhận việc: HR soạn / rút.
+        Route::post('/candidates/{candidate}/offers', [RecruitmentOfferController::class, 'store'])->whereNumber('candidate');
+        Route::post('/offers/{offer}/withdraw', [RecruitmentOfferController::class, 'withdraw'])->whereNumber('offer');
     });
+
+    // Admin duyệt thư mời trước khi gửi ứng viên.
+    Route::post('/offers/{offer}/review', [RecruitmentOfferController::class, 'review'])
+        ->whereNumber('offer')
+        ->middleware('permission:recruitment.approve');
 
     Route::post('/candidates/bulk-review', [RecruitmentController::class, 'bulkReview'])
         ->middleware('permission:recruitment.approve');
     Route::post('/candidates/{candidate}/review', [RecruitmentController::class, 'review'])
         ->whereNumber('candidate')
         ->middleware('permission:recruitment.approve');
+});
+
+// Trang công khai cho ứng viên (KHÔNG đăng nhập) — mã link trong email thư mời nhận việc.
+// Giới hạn 20 lần/phút/IP để chống dò mã.
+Route::prefix('public/offers')->middleware('throttle:20,1')->group(function (): void {
+    Route::get('/{token}', [RecruitmentOfferController::class, 'showPublic'])->where('token', '[A-Za-z0-9]{48}');
+    Route::post('/{token}/respond', [RecruitmentOfferController::class, 'respondPublic'])->where('token', '[A-Za-z0-9]{48}');
 });

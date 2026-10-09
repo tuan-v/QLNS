@@ -26,7 +26,13 @@
                                     {{ CHECKLIST_TYPE_LABELS[type] }}
                                 </span>
                                 <v-spacer />
-                                <v-btn size="x-small" variant="text" color="primary" prepend-icon="mdi-plus" @click="startNew(type)">
+                                <v-btn
+                                    size="x-small"
+                                    variant="text"
+                                    color="primary"
+                                    prepend-icon="mdi-plus"
+                                    @click="startNew(type)"
+                                >
                                     Mẫu mới
                                 </v-btn>
                             </div>
@@ -55,7 +61,9 @@
                             Chọn 1 mẫu bên trái để sửa, hoặc bấm "Mẫu mới".
                         </div>
                         <v-form v-else ref="formRef" @submit.prevent="save">
-                            <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-3">{{ error }}</v-alert>
+                            <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-3">{{
+                                error
+                            }}</v-alert>
 
                             <div class="d-flex flex-wrap align-center ga-3 mb-3">
                                 <v-chip color="primary" variant="tonal">
@@ -70,19 +78,45 @@
                                     :rules="[(v) => !!v?.trim() || 'Vui lòng nhập tên mẫu']"
                                     :error-messages="errors.name"
                                 />
-                                <v-switch v-model="editing.is_default" label="Mặc định" color="primary" density="compact" hide-details inset />
-                                <v-switch v-model="editing.is_active" label="Đang dùng" color="primary" density="compact" hide-details inset />
+                                <v-switch
+                                    v-model="editing.is_default"
+                                    label="Mặc định"
+                                    color="primary"
+                                    density="compact"
+                                    hide-details
+                                    inset
+                                />
+                                <v-switch
+                                    v-model="editing.is_active"
+                                    label="Đang dùng"
+                                    color="primary"
+                                    density="compact"
+                                    hide-details
+                                    inset
+                                />
                             </div>
                             <div class="text-caption mb-2" style="opacity: 0.7">
-                                Hạn = {{ REFERENCE_DATE_LABELS[editing.type].toLowerCase() }} + số ngày (số âm = trước ngày đó).
-                                Mẫu mặc định được dùng khi hệ thống tự tạo checklist.
+                                Hạn = {{ REFERENCE_DATE_LABELS[editing.type].toLowerCase() }} + số ngày (số âm = trước
+                                ngày đó). Mẫu mặc định được dùng khi hệ thống tự tạo checklist.
                             </div>
 
                             <div v-for="(item, index) in editing.items" :key="item.key" class="template-item py-3">
                                 <div class="d-flex flex-wrap align-start ga-2">
                                     <div class="d-flex flex-column">
-                                        <v-btn icon="mdi-chevron-up" variant="text" size="x-small" :disabled="index === 0" @click="move(index, -1)" />
-                                        <v-btn icon="mdi-chevron-down" variant="text" size="x-small" :disabled="index === editing.items.length - 1" @click="move(index, 1)" />
+                                        <v-btn
+                                            icon="mdi-chevron-up"
+                                            variant="text"
+                                            size="x-small"
+                                            :disabled="index === 0"
+                                            @click="move(index, -1)"
+                                        />
+                                        <v-btn
+                                            icon="mdi-chevron-down"
+                                            variant="text"
+                                            size="x-small"
+                                            :disabled="index === editing.items.length - 1"
+                                            @click="move(index, 1)"
+                                        />
                                     </div>
                                     <div class="flex-grow-1 d-flex flex-column ga-2" style="min-width: 260px">
                                         <v-text-field
@@ -131,7 +165,12 @@
                                             hide-details="auto"
                                             :error-messages="errors[`items.${index}.auto_key`]"
                                         />
-                                        <v-checkbox v-model="item.is_required" label="Bắt buộc" density="compact" hide-details />
+                                        <v-checkbox
+                                            v-model="item.is_required"
+                                            label="Bắt buộc"
+                                            density="compact"
+                                            hide-details
+                                        />
                                     </div>
                                     <v-btn
                                         icon="mdi-delete-outline"
@@ -144,7 +183,9 @@
                                 </div>
                             </div>
 
-                            <v-btn variant="tonal" prepend-icon="mdi-plus" size="small" class="mt-2" @click="addItem">Thêm việc</v-btn>
+                            <v-btn variant="tonal" prepend-icon="mdi-plus" size="small" class="mt-2" @click="addItem"
+                                >Thêm việc</v-btn
+                            >
                             <div v-if="errors.items" class="text-error text-caption mt-1">{{ errors.items }}</div>
 
                             <div class="d-flex ga-2 mt-5">
@@ -224,7 +265,15 @@ watch(
 );
 
 function blankItem() {
-    return { key: ++keySeq, title: "", description: "", responsible: "hr", due_offset_days: 0, is_required: true, auto_key: null };
+    return {
+        key: ++keySeq,
+        title: "",
+        description: "",
+        responsible: "hr",
+        due_offset_days: 0,
+        is_required: true,
+        auto_key: null,
+    };
 }
 
 function edit(template) {
@@ -264,14 +313,16 @@ async function save() {
         name: editing.value.name.trim(),
         is_default: editing.value.is_default,
         is_active: editing.value.is_active,
-        items: editing.value.items.map(({ title, description, responsible, due_offset_days, is_required, auto_key }) => ({
-            title: title.trim(),
-            description: description?.trim() || null,
-            responsible,
-            due_offset_days: Number(due_offset_days) || 0,
-            is_required,
-            auto_key,
-        })),
+        items: editing.value.items.map(
+            ({ title, description, responsible, due_offset_days, is_required, auto_key }) => ({
+                title: title.trim(),
+                description: description?.trim() || null,
+                responsible,
+                due_offset_days: Number(due_offset_days) || 0,
+                is_required,
+                auto_key,
+            }),
+        ),
     };
     try {
         const response = editing.value.id

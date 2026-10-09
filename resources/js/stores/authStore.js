@@ -32,10 +32,18 @@ export const useAuthStore = defineStore('auth', () => {
         await fetchMe();
     }
 
-    async function fetchMe() {
-        const response = await authService.me(accessToken.value);
-        user.value = response.data;
-        permissions.value = response.data.permissions;
+    // Router guard và App.vue cùng gọi lúc mở trang -> dùng chung 1 request đang chạy.
+    let fetchMePromise = null;
+    function fetchMe() {
+        fetchMePromise ??= authService.me(accessToken.value)
+            .then((response) => {
+                user.value = response.data;
+                permissions.value = response.data.permissions;
+            })
+            .finally(() => {
+                fetchMePromise = null;
+            });
+        return fetchMePromise;
     }
 
     async function refresh() {

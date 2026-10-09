@@ -113,9 +113,10 @@
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     Tạo đơn xin nghỉ phép
                 </v-card-title>
-                <v-form ref="leaveFormRef" validate-on="blur invalid-input lazy" @submit.prevent="submit"
-                    class="v-card-text px-5"
+                <v-form
+ref="leaveFormRef" validate-on="blur invalid-input lazy" class="v-card-text px-5"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
+                    @submit.prevent="submit"
                 >
                     <div>
                         <div class="text-body-2 font-weight-medium mb-1">

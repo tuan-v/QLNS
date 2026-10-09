@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\EmployeeAccountController;
+use App\Http\Controllers\Api\V1\EmployeeBankAccountController;
 use App\Http\Controllers\Api\V1\EmployeeController;
 use App\Http\Controllers\Api\V1\EmployeeContractController;
 use App\Http\Controllers\Api\V1\EmployeeDocumentController;
@@ -34,6 +35,13 @@ Route::middleware('auth:api')->prefix('employees')->group(function (): void {
     Route::post('/me/documents', [EmployeeDocumentController::class, 'storeMine']);
     Route::get('/me/shift-assignments', [EmployeeShiftAssignmentController::class, 'mine']);
     Route::get('/me/transfers', [EmployeeTransferController::class, 'mine']);
+    // Tài khoản ngân hàng nhận lương — nhân viên tự nhập, HR xác nhận (EmployeeBankAccountService).
+    Route::get('/bank-list', [EmployeeBankAccountController::class, 'banks']);
+    Route::get('/me/bank-accounts', [EmployeeBankAccountController::class, 'mine']);
+    Route::post('/me/bank-accounts', [EmployeeBankAccountController::class, 'storeMine']);
+    Route::put('/me/bank-accounts/{bankAccount}', [EmployeeBankAccountController::class, 'updateMine'])->whereNumber('bankAccount');
+    Route::post('/me/bank-accounts/{bankAccount}/primary', [EmployeeBankAccountController::class, 'setPrimaryMine'])->whereNumber('bankAccount');
+    Route::delete('/me/bank-accounts/{bankAccount}', [EmployeeBankAccountController::class, 'destroyMine'])->whereNumber('bankAccount');
     Route::get('/{employee}', [EmployeeController::class, 'show'])->middleware('permission:employee.view');
     Route::put('/{employee}', [EmployeeController::class, 'update'])->middleware('permission:employee.update');
     Route::delete('/{employee}', [EmployeeController::class, 'destroy'])->middleware('permission:employee.delete');
@@ -64,6 +72,15 @@ Route::middleware('auth:api')->prefix('employees')->group(function (): void {
     // Lịch sử phiếu lương của nhân viên này — dùng cho tab "Lương / Phép" ở
     // Chi tiết nhân viên phía HR (mục 8), payroll.view_all giống show()/index()
     // của PayrollController.
+    // Tài khoản ngân hàng của nhân viên — thông tin nhận lương, chỉ người sửa được hồ sơ.
+    Route::middleware('permission:employee.update')->group(function (): void {
+        Route::get('/{employee}/bank-accounts', [EmployeeBankAccountController::class, 'index']);
+        Route::post('/{employee}/bank-accounts', [EmployeeBankAccountController::class, 'store']);
+        Route::put('/{employee}/bank-accounts/{bankAccount}', [EmployeeBankAccountController::class, 'update']);
+        Route::post('/{employee}/bank-accounts/{bankAccount}/review', [EmployeeBankAccountController::class, 'review']);
+        Route::post('/{employee}/bank-accounts/{bankAccount}/primary', [EmployeeBankAccountController::class, 'setPrimary']);
+        Route::delete('/{employee}/bank-accounts/{bankAccount}', [EmployeeBankAccountController::class, 'destroy']);
+    });
     Route::get('/{employee}/payslips', [PayrollController::class, 'forEmployee'])->middleware('permission:payroll.view_all');
     Route::get('/{employee}/shift-assignments', [EmployeeShiftAssignmentController::class, 'index'])->middleware('permission:shift.view');
     Route::post('/{employee}/shift-assignments', [EmployeeShiftAssignmentController::class, 'store'])->middleware('permission:shift.manage');
