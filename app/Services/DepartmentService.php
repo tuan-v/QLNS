@@ -17,6 +17,7 @@ class DepartmentService
         private readonly DepartmentRepository $departmentRepository,
         private readonly PositionService $positionService,
         private readonly ReportingLineService $reportingLineService,
+        private readonly EmployeeTransferService $employeeTransferService,
     ) {
     }
 
@@ -105,16 +106,30 @@ class DepartmentService
             return;
         }
 
-        if ($oldManagerId) {
+        if ($oldManagerId && $oldManager = Employee::find($oldManagerId)) {
+            $oldPositionId = $oldManager->position_id;
             Employee::whereKey($oldManagerId)->update([
                 'position_id' => $this->positionService->ensureDefaultPosition($department)->id,
             ]);
+            $this->employeeTransferService->recordAdjustment(
+                $oldManager,
+                $oldManager->department_id,
+                $oldPositionId,
+                "Thôi giữ chức Trưởng phòng {$department->name}",
+            );
         }
 
-        if ($newManagerId) {
+        if ($newManagerId && $newManager = Employee::find($newManagerId)) {
+            $oldPositionId = $newManager->position_id;
             Employee::whereKey($newManagerId)->update([
                 'position_id' => $this->positionService->ensureHeadPosition($department)->id,
             ]);
+            $this->employeeTransferService->recordAdjustment(
+                $newManager,
+                $newManager->department_id,
+                $oldPositionId,
+                "Bổ nhiệm Trưởng phòng {$department->name}",
+            );
         }
 
         // ->update() hàng loạt không phát event Eloquent — báo realtime tay.

@@ -59,6 +59,7 @@ import { roleLevelLabel } from "../../composables/roleLevels";
 import DataTable from "../../components/common/DataTable.vue";
 import PageHeader from "../../components/common/PageHeader.vue";
 import RoleForm from "./RoleForm.vue";
+import { SYSTEM_ADMIN_ROLE } from "../../composables/roleLevels";
 import RolePermissionsDialog from "./RolePermissionsDialog.vue";
 
 const store = useRoleStore();
@@ -96,6 +97,8 @@ const actions = [
         icon: "mdi-delete-outline",
         tooltip: "Xóa",
         color: "error",
+        // Vai trò Admin của hệ thống không xóa được (backend cũng chặn).
+        hidden: (item) => item.name === SYSTEM_ADMIN_ROLE,
         confirm: {
             title: "Xóa vai trò",
             message: (item) => `Bạn có chắc muốn xóa vai trò "${item.name}" không?`,

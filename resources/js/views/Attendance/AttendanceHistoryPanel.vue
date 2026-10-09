@@ -136,6 +136,13 @@
                             >
                                 {{ row.attendance.approval_note }}
                             </div>
+                            <div
+                                v-if="row.status === 'holiday' && row.holiday_name"
+                                class="text-caption mt-1"
+                                style="opacity: 0.7"
+                            >
+                                {{ row.holiday_name }}
+                            </div>
                         </td>
                         <td v-if="!readOnly" class="text-center">
                             <v-btn
@@ -316,6 +323,7 @@ const summary = ref({
     late_count: 0,
     early_leave_count: 0,
     on_leave_count: 0,
+    holiday_count: 0,
     unapproved_count: 0,
 });
 const rows = ref([]);
@@ -352,6 +360,12 @@ const summaryStats = computed(() => [
         value: `${summary.value.on_leave_count} ngày`,
         color: "info",
         icon: "mdi-calendar-remove-outline",
+    },
+    {
+        label: "Nghỉ lễ",
+        value: `${summary.value.holiday_count ?? 0} ngày`,
+        color: "teal",
+        icon: "mdi-party-popper",
     },
     // Chỉ bản ghi HR đã duyệt mới cộng vào "Tổng ngày công"/"Giờ làm" ở trên
     // — thẻ này cho thấy vì sao công chưa lên.

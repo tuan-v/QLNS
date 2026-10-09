@@ -259,6 +259,69 @@ class EmployeeTest extends TestCase
         $this->assertDatabaseHas('employees', ['company_email' => 'nva@qlns.local']);
     }
 
+    // Lịch sử luân chuyển: nhân viên mới có ngay dòng "Tiếp nhận" (phòng ban + chức vụ
+    // đầu tiên, ngày vào làm); đổi phòng ban/chức vụ ở form Sửa ghi dòng "Cập nhật".
+    public function test_create_and_profile_edit_are_recorded_in_transfer_history(): void
+    {
+        $headers = ['Authorization' => 'Bearer '.$this->loginAs('admin@qlns.local', 'Admin@123')];
+        [$departmentId, $positionId] = $this->organisationIds();
+
+        $id = $this->postJson('/api/v1/employees', $this->validPayload(['hire_date' => '2024-03-01']), $headers)
+            ->assertStatus(201)->json('data.id');
+
+        $history = $this->getJson("/api/v1/employees/{$id}/transfers", $headers)->assertOk()->json('data');
+        $this->assertCount(1, $history);
+        $this->assertSame('onboard', $history[0]['type']);
+        $this->assertNull($history[0]['from_department']);
+        $this->assertSame($departmentId, $history[0]['to_department']['id']);
+        $this->assertSame($positionId, $history[0]['new_position']['id']);
+        $this->assertSame('2024-03-01', $history[0]['effective_date']);
+
+        $newDepartment = Department::create(['name' => 'Phong Moi', 'code' => 'PB-MOI']);
+        $newPosition = Position::create(['department_id' => $newDepartment->id, 'code' => 'CV-MOI', 'name' => 'Ke toan']);
+        $employee = Employee::find($id);
+        $this->putJson("/api/v1/employees/{$id}", $this->validPayload([
+            'full_name' => $employee->full_name,
+            'company_email' => $employee->company_email,
+            'hire_date' => '2024-03-01',
+            'department_id' => $newDepartment->id,
+            'position_id' => $newPosition->id,
+        ]), $headers)->assertOk();
+
+        $latest = $this->getJson("/api/v1/employees/{$id}/transfers", $headers)->json('data.0');
+        $this->assertSame('adjustment', $latest['type']);
+        $this->assertSame($departmentId, $latest['from_department']['id']);
+        $this->assertSame($positionId, $latest['old_position']['id']);
+        $this->assertSame($newDepartment->id, $latest['to_department']['id']);
+        $this->assertSame($newPosition->id, $latest['new_position']['id']);
+
+        // Sửa thông tin khác (không đổi phòng ban/chức vụ) thì không ghi thêm.
+        $this->putJson("/api/v1/employees/{$id}", $this->validPayload([
+            'full_name' => 'Ten khac',
+            'company_email' => $employee->company_email,
+            'hire_date' => '2024-03-01',
+            'department_id' => $newDepartment->id,
+            'position_id' => $newPosition->id,
+        ]), $headers)->assertOk();
+        $this->assertCount(2, $this->getJson("/api/v1/employees/{$id}/transfers", $headers)->json('data'));
+    }
+
+    // API trả ngày hết thử việc + loại/ngày hết hạn hợp đồng dạng "Y-m-d" — dùng cho cảnh
+    // báo nhanh ở danh sách và để form Sửa điền lại đúng (trước đây thiếu, Lưu sẽ xóa mất).
+    public function test_resource_exposes_probation_and_contract_end_dates(): void
+    {
+        $headers = ['Authorization' => 'Bearer '.$this->loginAs('admin@qlns.local', 'Admin@123')];
+        $id = $this->postJson('/api/v1/employees', $this->validPayload([
+            'hire_date' => '2026-01-01', 'probation_end_date' => '2026-03-01',
+        ]), $headers)->assertCreated()->json('data.id');
+        Employee::find($id)->activeContract->update(['end_date' => '2026-12-31']);
+
+        $this->getJson("/api/v1/employees/{$id}", $headers)->assertOk()
+            ->assertJsonPath('data.probation_end_date', '2026-03-01')
+            ->assertJsonPath('data.contract_type', 'thu_viec')
+            ->assertJsonPath('data.contract_end_date', '2026-12-31');
+    }
+
     public function test_client_supplied_code_is_ignored_on_create(): void
     {
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
@@ -772,11 +835,11 @@ class EmployeeTest extends TestCase
         ]);
 
         $response->assertStatus(200);
-        $this->assertNull($response->json('data.leave_allocated_days'));
-        $this->assertNull($response->json('data.leave_remaining_days'));
+        $this->assertEquals(0, $response->json('data.leave_allocated_days'));
+        $this->assertEquals(0, $response->json('data.leave_remaining_days'));
     }
 
-    public function test_employee_without_leave_balance_shows_null_leave_days(): void
+    public function test_employee_without_leave_balance_shows_zero_leave_days(): void
     {
         $employee = $this->makeEmployee();
         $token = $this->loginAs('admin@qlns.local', 'Admin@123');
@@ -786,8 +849,8 @@ class EmployeeTest extends TestCase
         ]);
 
         $response->assertStatus(200);
-        $this->assertNull($response->json('data.leave_allocated_days'));
-        $this->assertNull($response->json('data.leave_remaining_days'));
+        $this->assertEquals(0, $response->json('data.leave_allocated_days'));
+        $this->assertEquals(0, $response->json('data.leave_remaining_days'));
     }
 
     // Coi số ngày nghỉ phép nhạy cảm y hệt lương — cùng cơ chế ẩn theo quan hệ

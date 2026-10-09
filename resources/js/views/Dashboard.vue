@@ -185,6 +185,9 @@
                     Xin chào {{ dashboard.employee_name }}
                 </div>
 
+                <!-- Checklist nhận việc/nghỉ việc đang làm (Onboarding/Offboarding). -->
+                <MyChecklistCard />
+
                 <v-row align="stretch">
                     <v-col cols="12" md="5">
                         <PersonalCheckInCard />
@@ -345,7 +348,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import dashboardService from "../services/dashboardService";
 import { useAuthStore } from "../stores/authStore";
@@ -358,10 +361,13 @@ import { useRealtimeRefresh } from "../composables/useRealtimeRefresh";
 import { useNotificationNavigation } from "../composables/useNotificationNavigation";
 import PageHeader from "../components/common/PageHeader.vue";
 import StatCards from "../components/dashboard/StatCards.vue";
-import GaugeChart from "../components/dashboard/GaugeChart.vue";
-import DonutChart from "../components/dashboard/DonutChart.vue";
-import AreaTrendChart from "../components/dashboard/AreaTrendChart.vue";
+// Biểu đồ dùng ApexCharts (~900 KB) — tải riêng, không chặn phần còn lại của Tổng quan
+// (số liệu, thẻ chấm công, thông báo hiện ngay; biểu đồ hiện ngay sau khi tải xong).
+const GaugeChart = defineAsyncComponent(() => import("../components/dashboard/GaugeChart.vue"));
+const DonutChart = defineAsyncComponent(() => import("../components/dashboard/DonutChart.vue"));
+const AreaTrendChart = defineAsyncComponent(() => import("../components/dashboard/AreaTrendChart.vue"));
 import PersonalCheckInCard from "../components/dashboard/PersonalCheckInCard.vue";
+import MyChecklistCard from "../components/onboarding/MyChecklistCard.vue";
 import StatusChip from "../components/common/StatusChip.vue";
 import InputDate, { todayIso } from "../components/common/InputDate.vue";
 import { ATTENDANCE_STATUS_MAP } from "../composables/attendanceStatus";
@@ -482,8 +488,10 @@ const personalStats = computed(() => {
 // connect()/disconnect() ở đây — chỉ connect nếu user thật sự có quyền
 // attendance.adjust (khớp điều kiện DashboardService::actionItems()), tránh
 // join kênh vô ích cho người không có mục này.
+// So sánh theo giá trị (xem useRealtimeRefresh): kết nối kênh đặt signals từ undefined -> 0,
+// không phải dữ liệu đổi.
 watch(
-    () => [attendanceFeed.approvalSignal, leaveFeed.signal, resourceSync.signals.attendance_adjustments],
+    () => [attendanceFeed.approvalSignal, leaveFeed.signal, resourceSync.signals.attendance_adjustments ?? 0].join("|"),
     () => loadDashboard(),
 );
 

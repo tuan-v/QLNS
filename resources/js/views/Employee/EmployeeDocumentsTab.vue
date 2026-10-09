@@ -125,9 +125,10 @@
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     Tải lên tài liệu
                 </v-card-title>
-                <v-form ref="uploadFormRef" validate-on="blur invalid-input lazy" @submit.prevent="submitUpload"
-                    class="v-card-text px-5"
+                <v-form
+ref="uploadFormRef" validate-on="blur invalid-input lazy" class="v-card-text px-5"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
+                    @submit.prevent="submitUpload"
                 >
                     <div>
                         <div class="text-body-2 font-weight-medium mb-1">

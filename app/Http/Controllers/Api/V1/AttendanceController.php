@@ -2,16 +2,21 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exports\AttendanceSheetExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Attendance\BulkDecideAttendanceApprovalRequest;
 use App\Http\Requests\Attendance\CheckInRequest;
 use App\Http\Requests\Attendance\CheckOutRequest;
 use App\Http\Requests\Attendance\DecideAttendanceApprovalRequest;
+use App\Http\Requests\Attendance\ExportAttendanceSheetRequest;
 use App\Models\Attendance;
 use App\Models\Employee;
 use App\Services\AttendanceService;
+use App\Services\AttendanceSheetService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AttendanceController extends Controller
 {
@@ -84,6 +89,7 @@ class AttendanceController extends Controller
             $request->validated('status'),
             $request->validated('decision_note'),
             $request->user()->id,
+            $request->validated('part') ?? 'both',
         );
         $attendance->load(['employee', 'workShift', 'logs', 'approvedBy']);
 
@@ -97,6 +103,7 @@ class AttendanceController extends Controller
             $request->validated('status'),
             $request->validated('decision_note'),
             $request->user()->id,
+            $request->validated('part') ?? 'both',
         );
 
         return response()->json($result);
@@ -108,6 +115,28 @@ class AttendanceController extends Controller
     // chặt định dạng ngày — cùng mức tin dữ liệu client như buildHistory() ở
     // dưới (input luôn do InputDate.vue trên FE gửi lên, không phải form tự
     // do cho người dùng gõ tay).
+    // Xuất "Bảng chấm công tháng" ra Excel (toàn công ty hoặc 1 phòng ban) —
+    // số liệu theo đúng luật tính lương, xem AttendanceSheetService.
+    public function exportSheet(
+        ExportAttendanceSheetRequest $request,
+        AttendanceSheetService $sheetService,
+        AttendanceSheetExport $export,
+    ): StreamedResponse {
+        $month = (int) $request->validated('month');
+        $year = (int) $request->validated('year');
+        $departmentId = $request->validated('department_id');
+
+        $spreadsheet = $export->toSpreadsheet(
+            $sheetService->build($year, $month, $departmentId !== null ? (int) $departmentId : null),
+        );
+
+        return response()->streamDownload(
+            fn () => (new Xlsx($spreadsheet))->save('php://output'),
+            sprintf('bang-cham-cong-%02d-%d.xlsx', $month, $year),
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        );
+    }
+
     public function overview(Request $request): JsonResponse
     {
         $date = $request->input('date') ?: now()->toDateString();

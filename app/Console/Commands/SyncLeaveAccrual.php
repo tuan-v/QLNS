@@ -21,6 +21,7 @@ class SyncLeaveAccrual extends Command
 
     public function handle(LeaveAccrualService $leaveAccrualService): int
     {
+        // Thực tập sinh không có phép năm (chỉ xin nghỉ ốm/không lương) nên không tích lũy.
         $employees = Employee::whereIn('employment_status', ['active', 'probation'])->get();
         // Loại phép annual_entitlement_days = 0 ("Nghỉ khác theo chế độ/luật",
         // "Nghỉ không lương") không có quỹ theo năm — không cần đồng bộ (xem

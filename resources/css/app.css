@@ -687,3 +687,22 @@ body {
     overflow-y: auto;
     flex: 1 1 auto;
 }
+
+/* Dialog có tab (v-tabs + v-window): thân không phải v-card-text trực tiếp nên dùng
+   cặp lớp riêng — card thành cột flex cao tối đa bằng màn hình, phần .dialog-scroll-body
+   (v-window) tự cuộn, tiêu đề + thanh tab đứng yên. Bản fullscreen (mobile) cao đúng 100%. */
+.v-card.dialog-scroll-card {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 48px);
+    overflow: hidden;
+}
+.v-dialog--fullscreen .v-card.dialog-scroll-card {
+    max-height: 100dvh;
+    height: 100dvh;
+}
+.v-card.dialog-scroll-card > .dialog-scroll-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}

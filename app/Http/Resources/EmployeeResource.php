@@ -30,10 +30,10 @@ class EmployeeResource extends JsonResource
     // Cùng công thức LeaveRequestService::remainingDays() (private ở đó, tách
     // riêng ra đây thay vì gọi chéo Service từ Resource — 2 lớp khác trách
     // nhiệm, không nên phụ thuộc nhau chỉ vì 1 phép cộng trừ đơn giản).
-    private static function leaveRemainingDays(?\App\Models\LeaveBalance $balance): ?float
+    private static function leaveRemainingDays(?\App\Models\LeaveBalance $balance): float
     {
         if (! $balance) {
-            return null;
+            return 0.0;
         }
 
         return round(
@@ -63,6 +63,11 @@ class EmployeeResource extends JsonResource
             'company_email' => $this->company_email,
             'employment_status' => $this->employment_status,
             'hire_date' => $this->hire_date,
+            // Cho cảnh báo nhanh ở danh sách ("HĐ hết hạn sau N ngày", "Hết thử việc sau N
+            // ngày") — trả "Y-m-d" thuần, tránh lệch ngày do UTC.
+            'probation_end_date' => $this->probation_end_date?->toDateString(),
+            'contract_type' => $this->activeContract?->contract_type,
+            'contract_end_date' => $this->activeContract?->end_date?->toDateString(),
             'department' => $this->whenLoaded('department'),
             'position' => $this->whenLoaded('position'),
             'manager' => $this->whenLoaded('manager', fn () => new EmployeeResource($this->manager)),
@@ -72,6 +77,7 @@ class EmployeeResource extends JsonResource
                 'id' => $this->user->id,
                 'email' => $this->user->email,
                 'roles' => $this->user->roles->pluck('name'),
+                'status' => $this->user->status,
             ] : null),
 
             // Field nhạy cảm — ẩn nếu người xem là cấp dưới của nhân viên này
@@ -85,10 +91,9 @@ class EmployeeResource extends JsonResource
             // HỆT công thức LeaveRequestService::remainingDays() (KHÔNG trừ
             // thêm các đơn đang chờ duyệt — đó là "available_days", riêng cho
             // màn tự nộp đơn tránh đăng ký chồng quỹ, không hợp cho 1 cột tổng
-            // quan). Chưa có dòng LeaveBalance nào thì hiện null (Frontend ra
-            // "—"), KHÔNG tự tính chiếu như targetAllocatedDays() — xem
-            // comment ở Employee::currentYearLeaveBalance().
-            'leave_allocated_days' => $hideSensitive ? null : $this->currentYearLeaveBalance?->allocated_days,
+            // quan). Chưa có dòng LeaveBalance nào thì trả 0 (Frontend ra
+            // "0/0 ngày"); chỉ null (ra "—") khi bị ẩn với cấp dưới.
+            'leave_allocated_days' => $hideSensitive ? null : ($this->currentYearLeaveBalance?->allocated_days ?? 0),
             'leave_remaining_days' => $hideSensitive ? null : self::leaveRemainingDays($this->currentYearLeaveBalance),
             'date_of_birth' => $hideSensitive ? null : $this->date_of_birth,
             'gender' => $hideSensitive ? null : $this->gender,

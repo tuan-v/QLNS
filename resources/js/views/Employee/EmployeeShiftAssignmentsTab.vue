@@ -106,9 +106,10 @@
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     {{ editingAssignment ? "Sửa ca làm việc" : "Gán ca làm việc" }}
                 </v-card-title>
-                <v-form ref="assignShiftFormRef" validate-on="blur invalid-input lazy" @submit.prevent="submitAssignShift"
-                    class="v-card-text px-5"
+                <v-form
+ref="assignShiftFormRef" validate-on="blur invalid-input lazy" class="v-card-text px-5"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
+                    @submit.prevent="submitAssignShift"
                 >
                     <div>
                         <div class="text-body-2 font-weight-medium mb-1">

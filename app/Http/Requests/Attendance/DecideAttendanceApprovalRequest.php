@@ -15,6 +15,8 @@ class DecideAttendanceApprovalRequest extends FormRequest
     {
         return [
             'status' => ['required', 'in:approved,rejected'],
+            // Duyệt giờ vào / giờ ra riêng, hoặc cả hai (mặc định, mọi phần đang chờ).
+            'part' => ['nullable', 'in:check_in,check_out,both'],
             // Từ chối bắt buộc có lý do (nhân viên cần biết vì sao bị từ chối để
             // còn "Xin điều chỉnh công"); duyệt thì ghi chú là tùy chọn.
             'decision_note' => ['required_if:status,rejected', 'nullable', 'string', 'max:1000'],

@@ -32,12 +32,19 @@ class Attendance extends Model
         'late_minutes',
         'early_leave_minutes',
         'late_excused',
-        'early_leave_excused',
         'status',
         'approval_status',
         'approved_by',
         'approved_at',
         'approval_note',
+        'check_in_approval_status',
+        'check_in_approved_by',
+        'check_in_approved_at',
+        'check_in_approval_note',
+        'check_out_approval_status',
+        'check_out_approved_by',
+        'check_out_approved_at',
+        'check_out_approval_note',
         'note',
     ];
 
@@ -56,12 +63,13 @@ class Attendance extends Model
         'last_check_out_at' => 'datetime',
         'checkout_reminder_sent_at' => 'datetime',
         'approved_at' => 'datetime',
+        'check_in_approved_at' => 'datetime',
+        'check_out_approved_at' => 'datetime',
         // An toàn ép boolean ở đây — khác bẫy đã vấp ở WorkShift/Position
         // (mục 19 CODE_MAP): late_excused/overtime_approved KHÔNG có
         // Frontend nào tra theo khóa số nguyên 1/0, chỉ dùng như cờ
         // true/false thuần túy.
         'late_excused' => 'boolean',
-        'early_leave_excused' => 'boolean',
         'overtime_approved' => 'boolean',
     ];
 
@@ -92,5 +100,29 @@ class Attendance extends Model
     public function approvedBy()
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    // Trạng thái duyệt TỔNG HỢP (cột approval_status) suy ra từ 2 trạng thái duyệt
+    // riêng của giờ vào và giờ ra: chưa chấm ra thì chỉ xét giờ vào; đã chấm ra thì
+    // chỉ "approved" khi CẢ HAI cùng được duyệt, một bên bị từ chối là "rejected",
+    // còn lại "pending". Mọi nơi đọc approval_status (lương, lịch sử, tổng hợp) vì
+    // vậy không cần biết tới 2 trạng thái con.
+    public function computeOverallApproval(): string
+    {
+        $in = $this->check_in_approval_status ?: self::APPROVAL_PENDING;
+
+        if (! $this->last_check_out_at) {
+            return $in;
+        }
+
+        $out = $this->check_out_approval_status ?: self::APPROVAL_PENDING;
+
+        if ($in === self::APPROVAL_REJECTED || $out === self::APPROVAL_REJECTED) {
+            return self::APPROVAL_REJECTED;
+        }
+
+        return $in === self::APPROVAL_APPROVED && $out === self::APPROVAL_APPROVED
+            ? self::APPROVAL_APPROVED
+            : self::APPROVAL_PENDING;
     }
 }

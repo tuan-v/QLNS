@@ -63,6 +63,17 @@
             </v-alert>
         </v-sheet>
 
+        <!-- Chấm công một chạm: chỉ khi hôm nay có từ 2 ca — chỉ ra đúng ca cần bấm.
+        1 ca thì thẻ ca bên dưới đã có sẵn nút, hiện thêm sẽ bị trùng. -->
+        <QuickCheckInCard
+            v-if="!loadingToday && todayShifts.length > 1"
+            :action="quickAction"
+            :submitting="submitting"
+            :submitting-shift-id="submittingShiftId"
+            :block="true"
+            @submit="submit"
+        />
+
         <!-- Trạng thái từng ca hôm nay — luôn 1 cột trên mobile (khác desktop
         chia 2 cột md="6"), mỗi ca 1 thẻ riêng để dễ bấm bằng ngón tay. -->
         <div v-if="loadingToday" class="d-flex justify-center py-6">
@@ -159,29 +170,6 @@
                 >
                     Chấm công ra
                 </v-btn>
-                <!-- Xin về sớm: gửi TRƯỚC khi chấm ra (hoặc sau, ở lịch sử
-                bên dưới). Về sớm ≤ 30 phút không cần xin. -->
-                <v-btn
-                    v-if="
-                        entry.attendance?.first_check_in_at &&
-                        !entry.attendance?.last_check_out_at &&
-                        !entry.attendance?.early_leave_excused
-                    "
-                    class="mt-2"
-                    variant="tonal"
-                    color="primary"
-                    block
-                    prepend-icon="mdi-exit-run"
-                    @click="openEarlyLeaveDialog(entry.attendance)"
-                >
-                    Xin về sớm
-                </v-btn>
-                <div
-                    v-if="entry.attendance?.early_leave_excused"
-                    class="text-body-2 text-success mt-2"
-                >
-                    Đã được duyệt xin về sớm — không bị trừ công.
-                </div>
             </v-sheet>
         </div>
 
@@ -206,18 +194,12 @@
                             <v-chip
                                 size="x-small"
                                 variant="tonal"
-                                :color="
-                                    item.type === 'overtime' ? 'teal' : 'indigo'
-                                "
+                                :color="REQUEST_TYPE_CHIPS[item.type]?.color ?? 'indigo'"
                                 class="mr-1"
                             >
-                                {{
-                                    item.type === "overtime"
-                                        ? "OT"
-                                        : "Ngoài lịch"
-                                }}
+                                {{ REQUEST_TYPE_CHIPS[item.type]?.label ?? "Ngoài lịch" }}
                             </v-chip>
-                            {{ item.work_shift?.name ?? "—" }} ·
+                            {{ requestShiftLabel(item) }} ·
                             {{ formatDateRange(item.attendance_date, item.attendance_date_to) }}
                         </div>
                         <div class="text-caption" style="opacity: 0.7">
@@ -320,20 +302,18 @@
                     <v-chip
                         v-if="a.late_minutes"
                         size="small"
-                        :color="a.late_excused ? 'success' : 'warning'"
+                        color="warning"
                         variant="tonal"
                     >
-                        Trễ {{ formatMinutesAsHours(a.late_minutes)
-                        }}{{ a.late_excused ? " (đã miễn trừ)" : "" }}
+                        Trễ {{ formatMinutesAsHours(a.late_minutes) }}
                     </v-chip>
                     <v-chip
                         v-if="a.early_leave_minutes"
                         size="small"
-                        :color="a.early_leave_excused ? 'success' : 'warning'"
+                        color="warning"
                         variant="tonal"
                     >
-                        Về sớm {{ formatMinutesAsHours(a.early_leave_minutes)
-                        }}{{ a.early_leave_excused ? " (đã duyệt)" : "" }}
+                        Về sớm {{ formatMinutesAsHours(a.early_leave_minutes) }}
                     </v-chip>
                     <!-- Chỉ hiện OT khi đã được duyệt (không xin OT thì để
                     trống, tránh hiểu nhầm là được tính làm thêm giờ). -->
@@ -357,28 +337,6 @@
                         @click="openAdjustDialog(a)"
                     >
                         Xin điều chỉnh
-                    </v-btn>
-                    <v-btn
-                        v-if="a.late_minutes > 0 && !a.late_excused"
-                        size="small"
-                        variant="tonal"
-                        color="primary"
-                        rounded="lg"
-                        prepend-icon="mdi-shield-check-outline"
-                        @click="openExcuseDialog(a)"
-                    >
-                        Miễn trừ đi muộn
-                    </v-btn>
-                    <v-btn
-                        v-if="a.early_leave_minutes > 0 && !a.early_leave_excused"
-                        size="small"
-                        variant="tonal"
-                        color="primary"
-                        rounded="lg"
-                        prepend-icon="mdi-exit-run"
-                        @click="openEarlyLeaveDialog(a)"
-                    >
-                        Xin về sớm
                     </v-btn>
                     <v-btn
                         v-if="a.overtime_minutes > 0 && !a.overtime_approved"
@@ -408,8 +366,9 @@
                         @click="closeAdjustDialog"
                     />
                 </v-toolbar>
-                <v-form class="v-card-text" ref="adjustFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(adjustFormRef, submitAdjustRequest)"
-                    style="display: flex; flex-direction: column; gap: 0.75rem"
+                <v-form
+ref="adjustFormRef" class="v-card-text" validate-on="blur invalid-input lazy" style="display: flex; flex-direction: column; gap: 0.75rem"
+                    @submit.prevent="validateThen(adjustFormRef, submitAdjustRequest)"
                 >
                     <div class="text-body-2" style="opacity: 0.75">
                         Ngày công:
@@ -502,8 +461,9 @@
                         @click="closeSupplementDialog"
                     />
                 </v-toolbar>
-                <v-form class="v-card-text" ref="supplementFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(supplementFormRef, submitSupplementRequest)"
-                    style="display: flex; flex-direction: column; gap: 0.75rem"
+                <v-form
+ref="supplementFormRef" class="v-card-text" validate-on="blur invalid-input lazy" style="display: flex; flex-direction: column; gap: 0.75rem"
+                    @submit.prevent="validateThen(supplementFormRef, submitSupplementRequest)"
                 >
                     <div class="text-body-2" style="opacity: 0.75">
                         Dùng khi bạn quên chấm công cả ngày (không có bản ghi
@@ -610,7 +570,7 @@
         OT" đăng ký TRƯỚC cho OT của 1 ca ĐANG làm hôm nay (tính từ giờ kết
         thúc ca tới lúc chấm công ra). Xem useCheckIn.js. -->
         <v-dialog v-model="extraShiftDialog" fullscreen persistent>
-            <v-card>
+            <v-card class="dialog-scroll-card">
                 <v-toolbar>
                     <v-toolbar-title class="font-weight-bold"
                         >Xin làm ngoài lịch / OT</v-toolbar-title
@@ -625,21 +585,23 @@
                     <v-tab value="extra_shift">Làm ngoài lịch</v-tab>
                     <v-tab value="overtime">Xin OT</v-tab>
                 </v-tabs>
-                <v-window v-model="extraShiftTab">
+                <v-window v-model="extraShiftTab" class="dialog-scroll-body">
                     <v-window-item value="extra_shift">
-                        <v-form class="v-card-text" ref="extraShiftFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(extraShiftFormRef, submitExtraShiftRequest)"
-                            style="
+                        <v-form
+ref="extraShiftFormRef" class="v-card-text" validate-on="blur invalid-input lazy" style="
                                 display: flex;
                                 flex-direction: column;
                                 gap: 0.75rem;
                             "
+                            @submit.prevent="validateThen(extraShiftFormRef, submitExtraShiftRequest)"
                         >
                             <div class="text-body-2" style="opacity: 0.75">
                                 Đăng ký TRƯỚC để xin phép làm thêm 1 ngày không
-                                có trong lịch của bạn (làm OT cả ngày, làm bù
-                                Thứ 7/Chủ nhật…). Sau khi được duyệt, bạn tự bấm
-                                Chấm công vào/ra bình thường vào đúng ngày đã
-                                đăng ký.
+                                có trong lịch của bạn (làm bù Thứ 7/Chủ nhật…) —
+                                tính công như ngày thường. Muốn tính OT thì dùng
+                                tab "Xin OT" → "OT ngày khác". Sau khi được duyệt,
+                                bạn tự bấm Chấm công vào/ra bình thường vào đúng
+                                ngày đã đăng ký.
                             </div>
 
                             <div>
@@ -802,14 +764,86 @@
                     </v-window-item>
 
                     <v-window-item value="overtime">
-                        <v-form class="v-card-text" ref="otRequestFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(otRequestFormRef, submitOtRequestFromToday)"
-                            style="
+                        <v-form
+ref="otRequestFormRef" class="v-card-text" validate-on="blur invalid-input lazy" style="
                                 display: flex;
                                 flex-direction: column;
                                 gap: 0.75rem;
                             "
+                            @submit.prevent="validateThen(otRequestFormRef, submitOtRequestFromToday)"
                         >
-                            <div class="text-body-2" style="opacity: 0.75">
+                            <v-btn-toggle
+                                v-model="otRequestForm.mode"
+                                mandatory
+                                density="comfortable"
+                                color="primary"
+                                variant="outlined"
+                                divided
+                                class="align-self-start"
+                            >
+                                <v-btn value="today" size="small">OT sau ca hôm nay</v-btn>
+                                <v-btn value="other_day" size="small">OT ngày khác</v-btn>
+                            </v-btn-toggle>
+
+                            <template v-if="otRequestForm.mode === 'other_day'">
+                                <div class="text-body-2" style="opacity: 0.75">
+                                    Đăng ký TRƯỚC làm OT vào ngày bạn không có ca
+                                    (Thứ 7, Chủ nhật, ngày lễ…). Sau khi được duyệt,
+                                    bạn chấm công vào/ra bình thường — toàn bộ giờ làm
+                                    trong khung đã đăng ký tính là OT (ngày thường
+                                    150%, Thứ 7/Chủ nhật 200%, ngày lễ 300%).
+                                </div>
+                                <div>
+                                    <div class="text-body-2 font-weight-medium mb-1">
+                                        Ngày làm OT <span class="text-error">*</span>
+                                    </div>
+                                    <InputDate
+                                        v-model="otRequestForm.attendanceDate"
+                                        :rules="[notEmpty('Ngày làm OT')]"
+                                        :min="todayIso()"
+                                        :error-messages="otRequestErrors.attendance_date"
+                                    />
+                                </div>
+                                <v-row dense>
+                                    <v-col cols="6">
+                                        <div class="text-body-2 font-weight-medium mb-1">
+                                            Giờ bắt đầu <span class="text-error">*</span>
+                                        </div>
+                                        <v-text-field
+                                            v-model="otRequestForm.startTime"
+                                            :rules="[notEmpty('Giờ bắt đầu')]"
+                                            type="time"
+                                            variant="outlined"
+                                            density="comfortable"
+                                            rounded="lg"
+                                            :error-messages="otRequestErrors.custom_start_time"
+                                        />
+                                    </v-col>
+                                    <v-col cols="6">
+                                        <div class="text-body-2 font-weight-medium mb-1">
+                                            Giờ kết thúc <span class="text-error">*</span>
+                                        </div>
+                                        <v-text-field
+                                            v-model="otRequestForm.endTime"
+                                            :rules="[
+                                                notEmpty('Giờ kết thúc'),
+                                                (v) => !otRequestForm.startTime || !v || v > otRequestForm.startTime || 'Giờ kết thúc phải sau giờ bắt đầu',
+                                            ]"
+                                            type="time"
+                                            variant="outlined"
+                                            density="comfortable"
+                                            rounded="lg"
+                                            :error-messages="otRequestErrors.custom_end_time"
+                                        />
+                                    </v-col>
+                                </v-row>
+                            </template>
+
+                            <div
+                                v-if="otRequestForm.mode === 'today'"
+                                class="text-body-2"
+                                style="opacity: 0.75"
+                            >
                                 Đăng ký TRƯỚC cho ca bạn ĐANG làm hôm nay — OT
                                 tính từ giờ kết thúc ca tới lúc bạn thực sự chấm
                                 công ra, không cần biết trước sẽ làm tới mấy
@@ -817,7 +851,7 @@
                             </div>
 
                             <div
-                                v-if="!otTodayOptions.length"
+                                v-if="otRequestForm.mode === 'today' && !otTodayOptions.length"
                                 class="text-body-2"
                                 style="opacity: 0.6"
                             >
@@ -825,7 +859,7 @@
                                 xin OT hết cho các ca đang có), không có gì để
                                 chọn.
                             </div>
-                            <div v-else>
+                            <div v-else-if="otRequestForm.mode === 'today'">
                                 <div
                                     class="text-body-2 font-weight-medium mb-1"
                                 >
@@ -875,7 +909,7 @@
                                 variant="flat"
                                 block
                                 size="large"
-                                :disabled="!otTodayOptions.length"
+                                :disabled="otRequestForm.mode === 'today' && !otTodayOptions.length"
                                 :loading="otRequestSubmitting"
                                 @click="validateThen(otRequestFormRef, submitOtRequestFromToday)"
                             >
@@ -884,147 +918,6 @@
                         </v-card-actions>
                     </v-window-item>
                 </v-window>
-            </v-card>
-        </v-dialog>
-
-        <!-- Xin về sớm (early_leave — KHÔNG sửa giờ, bắt buộc lý do; duyệt thì
-        không bị trừ công, từ chối thì vẫn bị trừ) -->
-        <v-dialog v-model="earlyLeaveDialog" fullscreen persistent>
-            <v-card>
-                <v-toolbar>
-                    <v-toolbar-title class="font-weight-bold"
-                        >Xin về sớm</v-toolbar-title
-                    >
-                    <v-btn
-                        icon="mdi-close"
-                        :disabled="earlyLeaveSubmitting"
-                        @click="closeEarlyLeaveDialog"
-                    />
-                </v-toolbar>
-                <v-form
-                    class="v-card-text"
-                    ref="earlyLeaveFormRef"
-                    validate-on="blur invalid-input lazy"
-                    @submit.prevent="validateThen(earlyLeaveFormRef, submitEarlyLeaveRequest)"
-                    style="display: flex; flex-direction: column; gap: 0.75rem"
-                >
-                    <div class="text-body-2" style="opacity: 0.75">
-                        Ngày công:
-                        <strong>{{
-                            formatDate(earlyLeaveTarget?.attendance_date)
-                        }}</strong
-                        >. Về sớm quá 30 phút so với giờ kết thúc ca sẽ bị trừ
-                        công theo số giờ thiếu. Nếu yêu cầu được duyệt thì
-                        không bị trừ; bị từ chối thì vẫn bị trừ như thường.
-                        Về sớm trong 30 phút không cần xin.
-                    </div>
-
-                    <div>
-                        <div class="text-body-2 font-weight-medium mb-1">
-                            Lý do <span class="text-error">*</span>
-                        </div>
-                        <v-textarea
-                            v-model="earlyLeaveForm.reason"
-                            :rules="[notEmpty('Lý do'), maxLength(1000, 'Lý do')]"
-                            rows="3"
-                            variant="outlined"
-                            density="comfortable"
-                            rounded="lg"
-                            :error-messages="earlyLeaveErrors.reason"
-                        />
-                    </div>
-
-                    <v-alert
-                        v-if="earlyLeaveGeneralError"
-                        type="error"
-                        variant="tonal"
-                        density="compact"
-                    >
-                        {{ earlyLeaveGeneralError }}
-                    </v-alert>
-                </v-form>
-                <v-card-actions class="px-4 pb-4">
-                    <v-btn
-                        color="primary"
-                        variant="flat"
-                        block
-                        size="large"
-                        :loading="earlyLeaveSubmitting"
-                        @click="validateThen(earlyLeaveFormRef, submitEarlyLeaveRequest)"
-                    >
-                        Gửi yêu cầu
-                    </v-btn>
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
-
-        <!-- Xin miễn trừ đi muộn (excuse — Ngày 42, KHÔNG sửa giờ, chỉ xin
-        không tính vào thống kê đi muộn) -->
-        <v-dialog v-model="excuseDialog" fullscreen persistent>
-            <v-card>
-                <v-toolbar>
-                    <v-toolbar-title class="font-weight-bold"
-                        >Xin miễn trừ đi muộn</v-toolbar-title
-                    >
-                    <v-btn
-                        icon="mdi-close"
-                        :disabled="excuseSubmitting"
-                        @click="closeExcuseDialog"
-                    />
-                </v-toolbar>
-                <v-form class="v-card-text" ref="excuseFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(excuseFormRef, submitExcuseRequest)"
-                    style="display: flex; flex-direction: column; gap: 0.75rem"
-                >
-                    <div class="text-body-2" style="opacity: 0.75">
-                        Ngày công:
-                        <strong>{{
-                            formatDate(excuseTarget?.attendance_date)
-                        }}</strong
-                        >, trễ
-                        <strong>{{
-                            formatMinutesAsHours(excuseTarget?.late_minutes)
-                        }}</strong
-                        >. Dùng khi đi muộn có lý do chính đáng (kẹt xe, tai
-                        nạn,...) — giờ vào vẫn giữ nguyên, chỉ không tính vào
-                        thống kê đi muộn nếu được duyệt.
-                    </div>
-
-                    <div>
-                        <div class="text-body-2 font-weight-medium mb-1">
-                            Lý do <span class="text-error">*</span>
-                        </div>
-                        <v-textarea
-                            v-model="excuseForm.reason"
- :rules="[notEmpty('Lý do'), maxLength(1000, 'Lý do')]"
-                            rows="3"
-                            variant="outlined"
-                            density="comfortable"
-                            rounded="lg"
-                            :error-messages="excuseErrors.reason"
-                        />
-                    </div>
-
-                    <v-alert
-                        v-if="excuseGeneralError"
-                        type="error"
-                        variant="tonal"
-                        density="compact"
-                    >
-                        {{ excuseGeneralError }}
-                    </v-alert>
-                </v-form>
-                <v-card-actions class="px-4 pb-4">
-                    <v-btn
-                        color="primary"
-                        variant="flat"
-                        block
-                        size="large"
-                        :loading="excuseSubmitting"
-                        @click="validateThen(excuseFormRef, submitExcuseRequest)"
-                    >
-                        Gửi yêu cầu
-                    </v-btn>
-                </v-card-actions>
             </v-card>
         </v-dialog>
 
@@ -1042,8 +935,9 @@
                         @click="closeOtApprovalDialog"
                     />
                 </v-toolbar>
-                <v-form class="v-card-text" ref="otApprovalFormRef" validate-on="blur invalid-input lazy" @submit.prevent="validateThen(otApprovalFormRef, submitOtApprovalRequest)"
-                    style="display: flex; flex-direction: column; gap: 0.75rem"
+                <v-form
+ref="otApprovalFormRef" class="v-card-text" validate-on="blur invalid-input lazy" style="display: flex; flex-direction: column; gap: 0.75rem"
+                    @submit.prevent="validateThen(otApprovalFormRef, submitOtApprovalRequest)"
                 >
                     <div class="text-body-2" style="opacity: 0.75">
                         Ngày công:
@@ -1116,25 +1010,28 @@ import {
     formatMinutesAsHours,
     formatTime,
     mergedAttendanceStatus,
+    REQUEST_TYPE_CHIPS,
+    requestShiftLabel,
     useCheckIn,
 } from "../../composables/useCheckIn";
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
+import QuickCheckInCard from "../../components/attendance/QuickCheckInCard.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate from "../../components/common/InputDate.vue";
 import { maxLength, notEmpty, validateThen } from "../../composables/validationRules";
+import { useRouteAction } from "../../composables/useRouteAction";
 
 const adjustFormRef = ref(null);
 const supplementFormRef = ref(null);
 const extraShiftFormRef = ref(null);
 const otRequestFormRef = ref(null);
-const excuseFormRef = ref(null);
-const earlyLeaveFormRef = ref(null);
 const otApprovalFormRef = ref(null);
 
 const {
     todayIso,
     todayShifts,
+    quickAction,
     loadingToday,
     loadError,
     history,
@@ -1161,24 +1058,6 @@ const {
     openSupplementDialog,
     closeSupplementDialog,
     submitSupplementRequest,
-    excuseDialog,
-    excuseTarget,
-    excuseForm,
-    excuseErrors,
-    excuseGeneralError,
-    excuseSubmitting,
-    openExcuseDialog,
-    closeExcuseDialog,
-    submitExcuseRequest,
-    earlyLeaveDialog,
-    earlyLeaveTarget,
-    earlyLeaveForm,
-    earlyLeaveErrors,
-    earlyLeaveGeneralError,
-    earlyLeaveSubmitting,
-    openEarlyLeaveDialog,
-    closeEarlyLeaveDialog,
-    submitEarlyLeaveRequest,
     otApprovalDialog,
     otApprovalTarget,
     otApprovalForm,
@@ -1206,4 +1085,12 @@ const {
     otRequestSubmitting,
     submitOtRequestFromToday,
 } = useCheckIn();
+
+// Mở thẳng thao tác khi vào trang bằng ?action=... (lệnh Ctrl+K).
+useRouteAction({
+    supplement: openSupplementDialog,
+    "extra-shift": () => openExtraShiftDialog("extra_shift"),
+    ot: () => openExtraShiftDialog("overtime"),
+});
+
 </script>

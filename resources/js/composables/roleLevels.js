@@ -9,15 +9,22 @@
 export const ROLE_LEVEL_OPTIONS = [
     { value: 100, title: "100 — Quản trị hệ thống (ngang Admin)" },
     { value: 80, title: "80 — Trên Nhân sự" },
-    { value: 60, title: "60 — Ngang quản lý nhân sự (HR)" },
-    { value: 40, title: "40 — Ngang Trưởng phòng" },
-    { value: 20, title: "20 — Ngang Nhân viên" },
+    { value: 60, title: "60 — Quản lý nhân sự (HR)" },
+    { value: 40, title: "40 — Trưởng phòng" },
+    { value: 20, title: "20 — Nhân viên" },
     { value: 0, title: "0 — Thấp nhất" },
 ];
 
 export const DEFAULT_ROLE_LEVEL = 100;
 
+// Vai trò hệ thống (mirror `Role::SYSTEM_ADMIN`): luôn có toàn bộ quyền, không
+// đổi tên/cấp bậc, không bỏ quyền, không xóa được — backend chặn ở RoleService.
+export const SYSTEM_ADMIN_ROLE = "Admin";
+
 /** Nhãn ngắn để hiện trong bảng, vd 60 -> "60 — Ngang Nhân sự (HR)". */
 export function roleLevelLabel(level) {
-    return ROLE_LEVEL_OPTIONS.find((option) => option.value === level)?.title ?? String(level ?? "—");
+    return (
+        ROLE_LEVEL_OPTIONS.find((option) => option.value === level)?.title ??
+        String(level ?? "—")
+    );
 }

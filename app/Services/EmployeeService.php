@@ -17,6 +17,9 @@ class EmployeeService
         private readonly EmployeeContractService $employeeContractService,
         private readonly ReportingLineService $reportingLineService,
         private readonly EmployeeAccountService $employeeAccountService,
+        private readonly EmployeeTransferService $employeeTransferService,
+        private readonly RecruitmentService $recruitmentService,
+        private readonly ChecklistService $checklistService,
     ) {
     }
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -35,6 +38,7 @@ class EmployeeService
             'total' => (int) $counts->sum(),
             'active' => (int) $counts->get('active', 0),
             'probation' => (int) $counts->get('probation', 0),
+            'intern' => (int) $counts->get('intern', 0),
             'resigned' => (int) $counts->get('resigned', 0),
         ];
     }
@@ -62,9 +66,14 @@ class EmployeeService
         // không nhận từ client.
         unset($data['manager_id']);
 
-        $employee = DB::transaction(function () use ($data, $agreedSalary, $contractType, $contractEndDate) {
+        $employee = DB::transaction(function () use ($data, $agreedSalary, $contractType) {
             $employee = $this->employeeRepository->create($data);
+            if ($candidateId !== null) {
+                $this->recruitmentService->markHired((int) $candidateId, $employee);
+            }
             $this->reportingLineService->syncEmployee($employee);
+            // Dòng đầu của lịch sử luân chuyển: vào phòng ban nào, chức vụ gì, từ ngày nào.
+            $this->employeeTransferService->recordOnboarding($employee);
             // Ca mặc định (2026-09-23, theo yêu cầu người dùng) — nhân viên
             // mới tạo tự động được gán ca đang đánh dấu is_default=true, HR
             // vẫn đổi/gán thêm ca khác cho họ sau đó ở tab "Ca làm việc" nếu
@@ -86,6 +95,9 @@ class EmployeeService
                 'end_date' => $contractEndDate,
                 'agreed_salary' => $agreedSalary,
             ]);
+
+            // Checklist nhận việc theo mẫu mặc định (không có mẫu nào đang dùng thì bỏ qua).
+            $this->checklistService->startOnboarding($employee);
 
             return $employee;
         });
@@ -111,8 +123,22 @@ class EmployeeService
         // phòng ban ở form Sửa cũng tự đổi luôn quản lý).
         unset($data['manager_id']);
 
-        $employee = $this->employeeRepository->update($employee, $data);
-        $this->reportingLineService->syncEmployee($employee);
+        $oldDepartmentId = $employee->department_id;
+        $oldPositionId = $employee->position_id;
+
+        $employee = DB::transaction(function () use ($employee, $data, $oldDepartmentId, $oldPositionId) {
+            $employee = $this->employeeRepository->update($employee, $data);
+            $this->reportingLineService->syncEmployee($employee);
+            // Đổi phòng ban/chức vụ ngay trong form Sửa vẫn phải có trong lịch sử luân chuyển.
+            $this->employeeTransferService->recordAdjustment(
+                $employee,
+                $oldDepartmentId,
+                $oldPositionId,
+                'Cập nhật phòng ban/chức vụ trong hồ sơ nhân viên',
+            );
+
+            return $employee;
+        });
 
 
         return $employee;

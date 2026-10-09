@@ -154,6 +154,45 @@ class LeaveRequestTest extends TestCase
         $response->assertStatus(422)->assertJsonValidationErrors('end_session');
     }
 
+    public function test_multi_day_request_rejects_gap_sessions(): void
+    {
+        [, $user] = $this->makeEmployeeWithLogin();
+        $leaveType = $this->makeLeaveType();
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $monday = Carbon::parse('next monday');
+
+        $response = $this->postJson('/api/v1/leave-requests', [
+            'leave_type_id' => $leaveType->id,
+            'from_date' => $monday->toDateString(),
+            'to_date' => $monday->copy()->addDay()->toDateString(),
+            'start_session' => 'am',
+            'end_session' => 'pm',
+            'reason' => 'Nghi phep',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['start_session', 'end_session']);
+    }
+
+    // Chieu T2 -> het sang T3 = 0.5 + 0.5 = 1 ngay.
+    public function test_multi_day_request_from_afternoon_until_morning_counts_halves(): void
+    {
+        [, $user] = $this->makeEmployeeWithLogin();
+        $leaveType = $this->makeLeaveType();
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $monday = Carbon::parse('next monday');
+
+        $response = $this->postJson('/api/v1/leave-requests', [
+            'leave_type_id' => $leaveType->id,
+            'from_date' => $monday->toDateString(),
+            'to_date' => $monday->copy()->addDay()->toDateString(),
+            'start_session' => 'pm',
+            'end_session' => 'am',
+            'reason' => 'Nghi phep',
+        ], ['Authorization' => 'Bearer '.$token]);
+
+        $response->assertStatus(201)->assertJsonPath('total_days', 1);
+    }
+
     // Thu 6 -> Thu 2 tuan sau (4 ngay lich: Sau, T7, CN, Hai) chi tinh 2 ngay
     // lam viec (Sau + Hai) — T7/CN khong tinh vao phep (xac nhan nghiep vu
     // Ngay 36).

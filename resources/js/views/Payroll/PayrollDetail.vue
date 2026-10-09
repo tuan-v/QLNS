@@ -5,7 +5,7 @@
                 <v-btn
                     variant="text"
                     prepend-icon="mdi-arrow-left"
-                    to="/payrolls"
+                    to="/bang-luong"
                 >
                     Quay lại
                 </v-btn>
@@ -69,7 +69,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import payrollService from "../../services/payrollService";
 import DataTable from "../../components/common/DataTable.vue";
@@ -176,7 +176,12 @@ async function exportExcel() {
     );
 }
 
-useRealtimeRefresh(loadData, { shared: [{ resource: "payrolls", permission: "payroll.view_all" }] });
+useRealtimeRefresh(loadData, {
+    shared: [{ resource: "payrolls", permission: "payroll.view_all" }],
+});
 
 onMounted(loadData);
+
+// Chuyển thẳng sang bảng lương khác (cùng route) thì component được dùng lại -> tự tải lại.
+watch(() => route.params.id, (id, oldId) => id && id !== oldId && loadData());
 </script>

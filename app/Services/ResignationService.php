@@ -33,6 +33,7 @@ class ResignationService
     public function __construct(
         private readonly NotificationService $notificationService,
         private readonly EmployeeAccountService $employeeAccountService,
+        private readonly ChecklistService $checklistService,
     ) {
     }
 
@@ -77,6 +78,8 @@ class ResignationService
 
         if ($contract?->contract_type === 'thu_viec') {
             [$days, $basis] = [0, 'Hợp đồng thử việc — không cần báo trước (BLLĐ 2019 Điều 27).'];
+        } elseif ($contract?->contract_type === 'thuc_tap') {
+            [$days, $basis] = [0, 'Hợp đồng thực tập — không áp dụng thời hạn báo trước của hợp đồng lao động.'];
         } elseif ($contract === null || $contract->end_date === null) {
             [$days, $basis] = [45, 'Hợp đồng không xác định thời hạn — báo trước ít nhất 45 ngày (BLLĐ 2019 Điều 35).'];
         } else {
@@ -97,7 +100,7 @@ class ResignationService
 
     public function create(Employee $employee, array $data): ResignationRequest
     {
-        if (! in_array($employee->employment_status, ['probation', 'active'], true)) {
+        if (! in_array($employee->employment_status, Employee::WORKING_STATUSES, true)) {
             throw ValidationException::withMessages([
                 'last_working_date' => 'Hồ sơ của bạn không còn ở trạng thái đang làm việc, không thể nộp đơn nghỉ việc.',
             ]);
@@ -130,6 +133,10 @@ class ResignationService
         ]);
 
         $this->notifyApprovers($employee, $request);
+        // Báo trước đủ ngày = chắc chắn nghỉ -> mở checklist offboarding ngay.
+        if ($request->status === ResignationRequest::STATUS_NOTIFIED) {
+            $this->checklistService->startOffboarding($request);
+        }
         ResourceChanged::dispatch('resignations');
 
         return $request;
@@ -149,6 +156,7 @@ class ResignationService
         }
 
         $request->update(['status' => ResignationRequest::STATUS_CANCELLED]);
+        $this->checklistService->cancelForResignation($request);
         ResourceChanged::dispatch('resignations');
 
         return $request;
@@ -181,6 +189,7 @@ class ResignationService
             ]);
 
             if ($status === ResignationRequest::STATUS_APPROVED) {
+                $this->checklistService->startOffboarding($request);
                 $this->applyIfDue($request);
             }
 

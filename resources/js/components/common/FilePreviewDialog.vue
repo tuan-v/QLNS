@@ -271,13 +271,6 @@ const props = defineProps({
     modelValue: Boolean,
     fileUrl: String, // download_url có sẵn từ API
     fileName: String, // để suy ra đuôi file
-    // Tệp NGƯỜI DÙNG VỪA CHỌN, chưa tải lên (InputFile truyền vào để xem trước
-    // trước khi bấm Lưu). Có `file` thì đọc bytes ngay tại máy, không gọi API —
-    // tệp chưa tồn tại trên server nên `fileUrl` lúc này vô nghĩa.
-    file: {
-        type: [File, Blob],
-        default: null,
-    },
 });
 const emit = defineEmits(["update:modelValue"]);
 

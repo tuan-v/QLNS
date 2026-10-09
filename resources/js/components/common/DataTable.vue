@@ -349,7 +349,9 @@ function resolveItemValue(item) {
 // trả thẳng item — tự tra ngược lại item đầy đủ để bulkActions.onClick nhận
 // được dữ liệu thật (employee, attendance...), không phải chỉ 1 con số/chuỗi.
 const selectedItems = computed(() =>
-    props.items.filter((item) => selected.value.includes(resolveItemValue(item))),
+    props.items.filter((item) =>
+        selected.value.includes(resolveItemValue(item)),
+    ),
 );
 
 function isBulkActionDisabled(action) {
@@ -397,22 +399,31 @@ function buildBulkConfirm(action) {
 
     const config = typeof action.confirm === "object" ? action.confirm : {};
     const label = action.tooltip || action.label || "thực hiện";
+    // Đúng như mô tả prop bulkActions: title/message/warning là hàm thì nhận (selectedItems).
+    const items = selectedItems.value;
+    const resolveBulk = (value) =>
+        typeof value === "function" ? value(items) : value;
 
     return {
-        title: config.title ?? `Xác nhận ${label.toLowerCase()}`,
-        message: config.message ?? `Áp dụng "${label}" cho ${selectedCount.value} mục đã chọn?`,
+        title: resolveBulk(config.title) ?? `Xác nhận ${label.toLowerCase()}`,
+        message:
+            resolveBulk(config.message) ??
+            `Áp dụng "${label}" cho ${selectedCount.value} mục đã chọn?`,
         confirmText: config.confirmText ?? label,
         color: config.color ?? action.color ?? "primary",
-        warning: config.warning ?? null,
+        warning: resolveBulk(config.warning) ?? null,
         input: config.input ?? null,
     };
 }
 
-async function executeBulk(action, extra = {}) {
+// `items`: danh sách đã chọn được CHỤP LẠI lúc bấm nút — dữ liệu bảng có thể tải lại
+// (realtime) trong lúc hộp xác nhận đang mở, làm xóa lựa chọn; không chụp thì sẽ
+// gửi đi danh sách rỗng.
+async function executeBulk(action, extra = {}, items = selectedItems.value) {
     bulkRunning.value = action;
 
     try {
-        await action.onClick?.(selectedItems.value, extra);
+        await action.onClick?.(items, extra);
         clearSelection();
         return true;
     } catch (error) {
@@ -441,7 +452,7 @@ function onBulkActionClick(action) {
 
     bulkInputValue.value = "";
     bulkActionError.value = "";
-    bulkPending.value = { action, config };
+    bulkPending.value = { action, config, items: [...selectedItems.value] };
 }
 
 async function submitBulkConfirm() {
@@ -451,9 +462,11 @@ async function submitBulkConfirm() {
 
     bulkActionError.value = "";
     bulkSubmitting.value = true;
-    const succeeded = await executeBulk(bulkPending.value.action, {
-        input: bulkInputValue.value.trim(),
-    });
+    const succeeded = await executeBulk(
+        bulkPending.value.action,
+        { input: bulkInputValue.value.trim() },
+        bulkPending.value.items,
+    );
     bulkSubmitting.value = false;
 
     if (succeeded) {
@@ -520,7 +533,11 @@ async function submitBulkConfirm() {
                     <template v-for="(action, index) in actions" :key="index">
                         <v-btn
                             v-if="!isHidden(action, item)"
-                            :color="action.color && action.color !== 'primary' ? action.color : undefined"
+                            :color="
+                                action.color && action.color !== 'primary'
+                                    ? action.color
+                                    : undefined
+                            "
                             :disabled="isDisabled(action, item)"
                             :loading="isRunning(action, item)"
                             :variant="action.label ? 'outlined' : 'text'"

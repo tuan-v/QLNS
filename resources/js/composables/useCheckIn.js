@@ -4,7 +4,7 @@
 // (danh sách thẻ, phù hợp màn hình hẹp), CÙNG GỌI 1 hàm này thay vì mỗi bên
 // tự viết lại toàn bộ gọi API/validate — tránh rủi ro lệch logic giữa 2 nơi
 // khi sau này sửa 1 tính năng (đã bàn với người dùng trước khi làm).
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import attendanceService from "../services/attendanceService";
 import employeeService from "../services/employeeService";
 import workShiftService from "../services/workShiftService";
@@ -87,12 +87,78 @@ export function formatMinutesAsHours(minutes) {
     return `${hours}h (${minutes} phút)`;
 }
 
+// Nhãn/màu chip loại đơn trong "Đơn xin làm ngoài lịch / OT của tôi".
+export const REQUEST_TYPE_CHIPS = {
+    extra_shift: { label: "Ngoài lịch", color: "indigo" },
+    overtime: { label: "OT", color: "teal" },
+    overtime_shift: { label: "OT ngày khác", color: "deep-orange" },
+};
+
+// Ca của đơn: đơn OT ngày khác chưa có ca tới lúc duyệt nên hiện khung giờ đăng ký.
+export function requestShiftLabel(item) {
+    if (item.type === "overtime_shift") {
+        return `OT ${formatTime(item.proposed_check_in_at)}–${formatTime(item.proposed_check_out_at)}`;
+    }
+    return item.work_shift?.name ?? "—";
+}
+
 export function useCheckIn() {
     const toast = useToastStore();
 
     const todayShifts = ref([]);
     const loadingToday = ref(true);
     const loadError = ref("");
+
+    /* ------------- Chấm công một chạm: việc nên làm NGAY theo giờ hiện tại ------------- */
+    // Cùng ngưỡng với AttendanceService::CHECK_IN_EARLY_MINUTES (mở chấm vào trước giờ ca).
+    const CHECK_IN_EARLY_MINUTES = 30;
+    const now = ref(new Date());
+    let clockTimer = null;
+
+    // "08:00:00" -> Date hôm nay lúc 08:00 (theo giờ máy người dùng).
+    function shiftTimeToday(time) {
+        const [h, m] = String(time ?? "00:00").split(":").map(Number);
+        const d = new Date(now.value);
+        d.setHours(h, m, 0, 0);
+        return d;
+    }
+
+    // Ưu tiên: (1) ca đã vào mà chưa ra -> "out" (quá giờ thì kèm cảnh báo quên chấm ra);
+    // (2) ca đang trong khung chấm vào -> "in"; (3) ca sắp tới -> "upcoming" (chỉ báo giờ mở).
+    const quickAction = computed(() => {
+        const entries = [...todayShifts.value].sort((a, b) =>
+            String(a.work_shift.start_time).localeCompare(String(b.work_shift.start_time)),
+        );
+
+        const open = entries.find((e) => e.attendance?.first_check_in_at && !e.attendance?.last_check_out_at);
+        if (open) {
+            const end = shiftTimeToday(open.work_shift.end_time);
+            return { type: "out", entry: open, overdue: now.value > end };
+        }
+
+        const fresh = entries.filter((e) => !e.attendance?.first_check_in_at);
+        const current = fresh.find((e) => {
+            const opensAt = new Date(shiftTimeToday(e.work_shift.start_time).getTime() - CHECK_IN_EARLY_MINUTES * 60000);
+            return now.value >= opensAt && now.value <= shiftTimeToday(e.work_shift.end_time);
+        });
+        if (current) {
+            const late = now.value > shiftTimeToday(current.work_shift.start_time);
+            return { type: "in", entry: current, late };
+        }
+
+        const upcoming = fresh.find((e) => shiftTimeToday(e.work_shift.start_time) > now.value);
+        if (upcoming) {
+            const opensAt = new Date(shiftTimeToday(upcoming.work_shift.start_time).getTime() - CHECK_IN_EARLY_MINUTES * 60000);
+            return { type: "upcoming", entry: upcoming, opensAt };
+        }
+
+        return null;
+    });
+
+    onMounted(() => {
+        clockTimer = setInterval(() => (now.value = new Date()), 30000);
+    });
+    onBeforeUnmount(() => clearInterval(clockTimer));
 
     async function loadToday(opts) {
         const silent = opts?.silent === true;
@@ -349,105 +415,6 @@ export function useCheckIn() {
         }
     }
 
-    /* --------------------- Xin miễn trừ đi muộn (excuse) --------------------- */
-
-    const excuseDialog = ref(false);
-    const excuseTarget = ref(null);
-    const excuseForm = ref({ reason: "" });
-    const excuseErrors = ref({});
-    const excuseGeneralError = ref("");
-    const excuseSubmitting = ref(false);
-
-    function openExcuseDialog(attendance) {
-        excuseTarget.value = attendance;
-        excuseForm.value = { reason: "" };
-        excuseErrors.value = {};
-        excuseGeneralError.value = "";
-        excuseDialog.value = true;
-    }
-
-    function closeExcuseDialog() {
-        excuseDialog.value = false;
-    }
-
-    async function submitExcuseRequest() {
-        excuseErrors.value = {};
-        excuseGeneralError.value = "";
-
-        excuseSubmitting.value = true;
-        try {
-            await attendanceService.requestAdjustment({
-                type: "excuse",
-                attendance_id: excuseTarget.value.id,
-                reason: excuseForm.value.reason,
-            });
-            toast.success("Đã gửi yêu cầu miễn trừ đi muộn, chờ duyệt.");
-            closeExcuseDialog();
-        } catch (e) {
-            const status = e.response?.status;
-            const data = e.response?.data;
-            if (status === 422 && data?.errors) {
-                excuseErrors.value = { reason: data.errors.reason?.[0] };
-                excuseGeneralError.value = data.errors.attendance_id?.[0] ?? "";
-            } else {
-                excuseGeneralError.value = data?.message ?? "Không thể gửi yêu cầu, vui lòng thử lại.";
-            }
-        } finally {
-            excuseSubmitting.value = false;
-        }
-    }
-
-    /* --------------------------- Xin về sớm (early_leave) --------------------------- */
-    // Cùng khuôn "Xin miễn trừ đi muộn": không sửa giờ, bắt buộc lý do. Gửi được
-    // TRƯỚC khi chấm công ra (đang trong ca) hoặc sau khi đã ra mà bị tính về sớm.
-    // Duyệt → không bị trừ công; từ chối/không xin → vẫn bị trừ như thường.
-
-    const earlyLeaveDialog = ref(false);
-    const earlyLeaveTarget = ref(null);
-    const earlyLeaveForm = ref({ reason: "" });
-    const earlyLeaveErrors = ref({});
-    const earlyLeaveGeneralError = ref("");
-    const earlyLeaveSubmitting = ref(false);
-
-    function openEarlyLeaveDialog(attendance) {
-        earlyLeaveTarget.value = attendance;
-        earlyLeaveForm.value = { reason: "" };
-        earlyLeaveErrors.value = {};
-        earlyLeaveGeneralError.value = "";
-        earlyLeaveDialog.value = true;
-    }
-
-    function closeEarlyLeaveDialog() {
-        earlyLeaveDialog.value = false;
-    }
-
-    async function submitEarlyLeaveRequest() {
-        earlyLeaveErrors.value = {};
-        earlyLeaveGeneralError.value = "";
-
-        earlyLeaveSubmitting.value = true;
-        try {
-            await attendanceService.requestAdjustment({
-                type: "early_leave",
-                attendance_id: earlyLeaveTarget.value.id,
-                reason: earlyLeaveForm.value.reason,
-            });
-            toast.success("Đã gửi yêu cầu xin về sớm, chờ duyệt.");
-            closeEarlyLeaveDialog();
-        } catch (e) {
-            const status = e.response?.status;
-            const data = e.response?.data;
-            if (status === 422 && data?.errors) {
-                earlyLeaveErrors.value = { reason: data.errors.reason?.[0] };
-                earlyLeaveGeneralError.value = data.errors.attendance_id?.[0] ?? "";
-            } else {
-                earlyLeaveGeneralError.value = data?.message ?? "Không thể gửi yêu cầu, vui lòng thử lại.";
-            }
-        } finally {
-            earlyLeaveSubmitting.value = false;
-        }
-    }
-
     /* ------------------------ Xin duyệt OT (2026-09-21) ----------------------- */
 
     const otApprovalDialog = ref(false);
@@ -556,7 +523,7 @@ export function useCheckIn() {
             // ra) ở chỗ target là ca ĐANG làm hôm nay, nhưng cùng type nên
             // không cần lọc phân biệt, HR/nhân viên đều xem chung 1 nơi.
             myExtraShiftRequests.value = response.data.filter(
-                (item) => item.type === "extra_shift" || item.type === "overtime",
+                (item) => ["extra_shift", "overtime", "overtime_shift"].includes(item.type),
             );
         } catch {
             myExtraShiftRequests.value = [];
@@ -583,7 +550,18 @@ export function useCheckIn() {
                 value: entry.attendance.id,
             })),
     );
-    const otRequestForm = ref({ attendanceId: null, reason: "" });
+    // mode "today" = OT sau ca đang làm hôm nay (type overtime) | "other_day" = OT
+    // ngày khác, đăng ký trước ngày + khung giờ (type overtime_shift — toàn bộ giờ
+    // trong khung là OT, hệ số theo ngày: thường 150%, T7/CN 200%, lễ 300%).
+    const emptyOtRequestForm = () => ({
+        mode: "today",
+        attendanceId: null,
+        attendanceDate: "",
+        startTime: "",
+        endTime: "",
+        reason: "",
+    });
+    const otRequestForm = ref(emptyOtRequestForm());
     const otRequestErrors = ref({});
     const otRequestGeneralError = ref("");
     const otRequestSubmitting = ref(false);
@@ -601,7 +579,7 @@ export function useCheckIn() {
         };
         extraShiftErrors.value = {};
         extraShiftGeneralError.value = "";
-        otRequestForm.value = { attendanceId: null, reason: "" };
+        otRequestForm.value = emptyOtRequestForm();
         otRequestErrors.value = {};
         otRequestGeneralError.value = "";
         extraShiftDialog.value = true;
@@ -676,18 +654,32 @@ export function useCheckIn() {
         otRequestErrors.value = {};
         otRequestGeneralError.value = "";
 
-        if (!otRequestForm.value.attendanceId || !otRequestForm.value.reason) {
-            otRequestGeneralError.value = "Vui lòng chọn ca đang làm và nhập lý do.";
+        const form = otRequestForm.value;
+        const otherDay = form.mode === "other_day";
+
+        if (
+            !form.reason ||
+            (otherDay ? !form.attendanceDate || !form.startTime || !form.endTime : !form.attendanceId)
+        ) {
+            otRequestGeneralError.value = otherDay
+                ? "Vui lòng chọn ngày, giờ bắt đầu, giờ kết thúc và nhập lý do."
+                : "Vui lòng chọn ca đang làm và nhập lý do.";
             return;
         }
 
         otRequestSubmitting.value = true;
         try {
-            await attendanceService.requestAdjustment({
-                type: "overtime",
-                attendance_id: otRequestForm.value.attendanceId,
-                reason: otRequestForm.value.reason,
-            });
+            await attendanceService.requestAdjustment(
+                otherDay
+                    ? {
+                          type: "overtime_shift",
+                          attendance_date: form.attendanceDate,
+                          custom_start_time: form.startTime,
+                          custom_end_time: form.endTime,
+                          reason: form.reason,
+                      }
+                    : { type: "overtime", attendance_id: form.attendanceId, reason: form.reason },
+            );
             toast.success("Đã gửi yêu cầu xin OT, chờ duyệt.");
             closeExtraShiftDialog();
             await loadMyExtraShiftRequests();
@@ -695,7 +687,12 @@ export function useCheckIn() {
             const status = e.response?.status;
             const data = e.response?.data;
             if (status === 422 && data?.errors) {
-                otRequestErrors.value = { reason: data.errors.reason?.[0] };
+                otRequestErrors.value = {
+                    reason: data.errors.reason?.[0],
+                    attendance_date: data.errors.attendance_date?.[0],
+                    custom_start_time: data.errors.custom_start_time?.[0],
+                    custom_end_time: data.errors.custom_end_time?.[0],
+                };
                 otRequestGeneralError.value = data.errors.attendance_id?.[0] ?? "";
             } else {
                 otRequestGeneralError.value = data?.message ?? "Không thể gửi yêu cầu, vui lòng thử lại.";
@@ -724,6 +721,7 @@ export function useCheckIn() {
     return {
         todayIso,
         todayShifts,
+        quickAction,
         loadingToday,
         loadError,
         history,
@@ -750,24 +748,6 @@ export function useCheckIn() {
         openSupplementDialog,
         closeSupplementDialog,
         submitSupplementRequest,
-        excuseDialog,
-        excuseTarget,
-        excuseForm,
-        excuseErrors,
-        excuseGeneralError,
-        excuseSubmitting,
-        openExcuseDialog,
-        closeExcuseDialog,
-        submitExcuseRequest,
-        earlyLeaveDialog,
-        earlyLeaveTarget,
-        earlyLeaveForm,
-        earlyLeaveErrors,
-        earlyLeaveGeneralError,
-        earlyLeaveSubmitting,
-        openEarlyLeaveDialog,
-        closeEarlyLeaveDialog,
-        submitEarlyLeaveRequest,
         otApprovalDialog,
         otApprovalTarget,
         otApprovalForm,

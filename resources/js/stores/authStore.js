@@ -32,20 +32,34 @@ export const useAuthStore = defineStore('auth', () => {
         await fetchMe();
     }
 
-    async function fetchMe() {
-        const response = await authService.me(accessToken.value);
-        user.value = response.data;
-        permissions.value = response.data.permissions;
+    // Router guard và App.vue cùng gọi lúc mở trang -> dùng chung 1 request đang chạy.
+    let fetchMePromise = null;
+    function fetchMe() {
+        fetchMePromise ??= authService.me(accessToken.value)
+            .then((response) => {
+                user.value = response.data;
+                permissions.value = response.data.permissions;
+            })
+            .finally(() => {
+                fetchMePromise = null;
+            });
+        return fetchMePromise;
     }
 
     async function refresh() {
-        const response = await authService.refresh(refreshToken.value);
+        const response = await authService.refresh(localStorage.getItem('refresh_token'));
         setTokens(response.data);
     }
 
     async function logout() {
         try {
-            await authService.logout(accessToken.value, refreshToken.value);
+            // Đọc từ localStorage, không dùng bản sao trong store: interceptor
+            // (bootstrap.js) đã xoay token mới vào localStorage, bản sao có thể là
+            // token cũ đã bị thu hồi -> token thật đang dùng sẽ không được thu hồi.
+            await authService.logout(
+                localStorage.getItem('access_token'),
+                localStorage.getItem('refresh_token'),
+            );
         } finally {
             clearTokens();
         }

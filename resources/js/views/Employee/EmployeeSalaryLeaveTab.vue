@@ -77,7 +77,10 @@
             </v-sheet>
         </div>
 
-        <div>
+        <!-- Chỉ người có quyền xem lương toàn công ty (payroll.view_all — cùng quyền
+        của API GET /employees/{id}/payslips) mới thấy mục này; người khác (vd
+        Manager) không gọi API để khỏi bị 403. -->
+        <div v-if="canViewPayslips">
             <div class="text-subtitle-1 font-weight-bold mb-2">
                 Lịch sử phiếu lương
             </div>
@@ -163,8 +166,9 @@
 // GET /leave-requests/balances/{employee} và GET /employees/{employee}/payslips.
 // Dialog "Xem phiếu lương" tái dùng PayrollPayslipDialog.vue — cùng component
 // MyProfilePayslipsTab.vue đang dùng cho nhân viên tự xem.
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import employeeService from "../../services/employeeService";
+import { useAuthStore } from "../../stores/authStore";
 import leaveRequestService from "../../services/leaveRequestService";
 import StatusChip from "../../components/common/StatusChip.vue";
 import PayrollPayslipDialog from "../Payroll/PayrollPayslipDialog.vue";
@@ -219,10 +223,16 @@ async function loadBalances(opts) {
     }
 }
 
+const auth = useAuthStore();
+const canViewPayslips = computed(() => auth.permissions.includes("payroll.view_all"));
+
 const payslips = ref([]);
 const payslipsLoading = ref(false);
 
 async function loadPayslips(opts) {
+    if (!canViewPayslips.value) {
+        return;
+    }
     const silent = opts?.silent === true;
     if (!silent) {
         payslipsLoading.value = true;

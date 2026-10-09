@@ -22,7 +22,21 @@ class Role extends Model
     // cũng default 100 làm lưới dự phòng cho đường ghi không qua Service.
     public const DEFAULT_LEVEL = 100;
 
+    // Vai trò hệ thống: luôn giữ TOÀN BỘ quyền (kể cả quyền tạo sau này), không
+    // ai bỏ quyền, đổi tên, hạ cấp hay xóa được — tránh tự khóa hệ thống.
+    public const SYSTEM_ADMIN = 'Admin';
+
     protected $fillable = ['name', 'guard_name', 'description', 'level'];
+
+    public function isSystemAdmin(): bool
+    {
+        return $this->name === self::SYSTEM_ADMIN;
+    }
+
+    public static function systemAdmin(): ?self
+    {
+        return static::where('name', self::SYSTEM_ADMIN)->first();
+    }
 
     protected $casts = ['level' => 'integer'];
 

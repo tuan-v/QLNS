@@ -30,6 +30,8 @@
         </v-sheet>
 
         <DataTable
+            v-model:page="page"
+            v-model:items-per-page="perPage"
             :headers="headers"
             :items="items"
             :loading="loading"
@@ -37,8 +39,6 @@
             :actions="actions"
             :actions-width="150"
             no-data-text="Không có đơn nghỉ việc nào."
-            v-model:page="page"
-            v-model:items-per-page="perPage"
         >
             <template #item.employee="{ item }">
                 <div class="d-flex align-center ga-3 py-1">
@@ -48,7 +48,9 @@
                         size="36"
                     >
                         <v-img v-if="item.employee.avatar_url" :src="item.employee.avatar_url" cover />
-                        <span v-else class="text-caption font-weight-bold">{{ initials(item.employee.full_name) }}</span>
+                        <span v-else class="text-caption font-weight-bold">{{
+                            initials(item.employee.full_name)
+                        }}</span>
                     </v-avatar>
                     <div>
                         <div class="font-weight-medium">{{ item.employee.full_name }}</div>
@@ -96,15 +98,21 @@
                                 variant="tonal"
                             >
                                 <v-img v-if="detail.employee.avatar_url" :src="detail.employee.avatar_url" cover />
-                                <span v-else class="text-h6 font-weight-bold">{{ initials(detail.employee.full_name) }}</span>
+                                <span v-else class="text-h6 font-weight-bold">{{
+                                    initials(detail.employee.full_name)
+                                }}</span>
                             </v-avatar>
                             <div class="flex-grow-1">
                                 <div class="text-h6 font-weight-bold">{{ detail.employee.full_name }}</div>
                                 <div class="text-body-2 text-medium-emphasis">
-                                    {{ detail.employee.position ?? "Chưa xếp chức vụ" }} — {{ detail.employee.department ?? "—" }}
+                                    {{ detail.employee.position ?? "Chưa xếp chức vụ" }} —
+                                    {{ detail.employee.department ?? "—" }}
                                 </div>
                                 <div class="d-flex flex-wrap ga-2 mt-2">
-                                    <StatusChip :status="detail.employee.employment_status" :map="EMPLOYMENT_STATUS_MAP" />
+                                    <StatusChip
+                                        :status="detail.employee.employment_status"
+                                        :map="EMPLOYMENT_STATUS_MAP"
+                                    />
                                     <v-chip size="small" variant="tonal">{{ detail.employee.code }}</v-chip>
                                 </div>
                             </div>
@@ -124,24 +132,33 @@
                         <v-row dense>
                             <v-col cols="12" sm="6">
                                 <div class="text-caption text-medium-emphasis">Ngày nộp đơn</div>
-                                <div class="text-body-2 font-weight-medium">{{ formatDateTime(detail.created_at) }}</div>
+                                <div class="text-body-2 font-weight-medium">
+                                    {{ formatDateTime(detail.created_at) }}
+                                </div>
                             </v-col>
                             <v-col cols="12" sm="6">
                                 <div class="text-caption text-medium-emphasis">Ngày làm việc cuối cùng</div>
                                 <div class="text-body-2 font-weight-medium">
                                     {{ formatDate(detail.last_working_date) }}
-                                    <span class="text-medium-emphasis">({{ daysUntilText(detail.last_working_date) }})</span>
+                                    <span class="text-medium-emphasis"
+                                        >({{ daysUntilText(detail.last_working_date) }})</span
+                                    >
                                 </div>
                             </v-col>
                             <v-col cols="12">
                                 <div class="text-caption text-medium-emphasis">Lý do nghỉ việc</div>
-                                <v-sheet class="border rounded-lg pa-3 mt-1 text-body-2 reason-box">{{ detail.reason }}</v-sheet>
+                                <v-sheet class="border rounded-lg pa-3 mt-1 text-body-2 reason-box">{{
+                                    detail.reason
+                                }}</v-sheet>
                             </v-col>
                         </v-row>
 
                         <!-- Báo trước đủ ngày theo luật -> chỉ thông báo, không cần duyệt -->
                         <v-alert
-                            v-if="detail.status === 'notified' || (detail.status === 'cancelled' && !detail.requires_approval)"
+                            v-if="
+                                detail.status === 'notified' ||
+                                (detail.status === 'cancelled' && !detail.requires_approval)
+                            "
                             type="info"
                             variant="tonal"
                             density="compact"
@@ -151,7 +168,11 @@
                             {{ detail.notice_days_given }} ngày (tối thiểu {{ detail.notice_days_required }} ngày theo
                             quy định) nên không cần duyệt.
                             <template v-if="detail.status === 'notified'">
-                                {{ detail.applied_at ? "Nhân viên đã được chuyển sang “Đã nghỉ việc”." : "Nhân viên sẽ tự chuyển sang “Đã nghỉ việc” sau ngày làm việc cuối." }}
+                                {{
+                                    detail.applied_at
+                                        ? "Nhân viên đã được chuyển sang “Đã nghỉ việc”."
+                                        : "Nhân viên sẽ tự chuyển sang “Đã nghỉ việc” sau ngày làm việc cuối."
+                                }}
                             </template>
                             <template v-else>Nhân viên đã rút thông báo.</template>
                         </v-alert>
@@ -175,12 +196,17 @@
                             class="mt-4"
                         >
                             {{ detail.status === "approved" ? "Đã duyệt" : "Đã từ chối" }} bởi
-                            <strong>{{ detail.decider?.user_name ?? "—" }}</strong> lúc {{ formatDateTime(detail.decided_at) }}.
+                            <strong>{{ detail.decider?.user_name ?? "—" }}</strong> lúc
+                            {{ formatDateTime(detail.decided_at) }}.
                             <div v-if="detail.decision_note" class="mt-1">
                                 {{ detail.status === "approved" ? "Ghi chú" : "Lý do" }}: {{ detail.decision_note }}
                             </div>
                             <div v-if="detail.status === 'approved'" class="mt-1">
-                                {{ detail.applied_at ? "Nhân viên đã được chuyển sang “Đã nghỉ việc”." : "Nhân viên sẽ tự chuyển sang “Đã nghỉ việc” sau ngày làm việc cuối." }}
+                                {{
+                                    detail.applied_at
+                                        ? "Nhân viên đã được chuyển sang “Đã nghỉ việc”."
+                                        : "Nhân viên sẽ tự chuyển sang “Đã nghỉ việc” sau ngày làm việc cuối."
+                                }}
                             </div>
                         </v-alert>
 
@@ -250,7 +276,7 @@ const route = useRoute();
 const toast = useToastStore();
 const resourceSync = useResourceSyncStore();
 
-const CONTRACT_TYPE_LABELS = { thu_viec: "Thử việc", chinh_thuc: "Chính thức" };
+const CONTRACT_TYPE_LABELS = { thu_viec: "Thử việc", chinh_thuc: "Chính thức", thuc_tap: "Thực tập" };
 
 const headers = [
     { title: "Nhân viên", key: "employee", sortable: false },
@@ -389,7 +415,13 @@ function formatDate(value) {
 
 function formatDateTime(value) {
     return value
-        ? new Date(value).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+        ? new Date(value).toLocaleString("vi-VN", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+          })
         : "—";
 }
 

@@ -64,12 +64,15 @@ export function useRealtimeRefresh(reload, { mine = [], shared = [], debounceMs 
         timer = setTimeout(run, debounceMs);
     }
 
+    // So sánh theo GIÁ TRỊ (chuỗi), không theo mảng: kênh vừa kết nối thêm khóa mới
+    // vào signals (giá trị vẫn 0) làm getter chạy lại -> mảng mới luôn "khác" mảng cũ
+    // -> mọi trang tự tải lại thừa 1 lần ngay khi mở.
     const stopWatch = watch(
         () => [
             reconnectSignal.value,
             ...resolve(mine).map((resource) => mySync.signals[resource] ?? 0),
             ...sharedResources().map((resource) => resourceSync.signals[resource] ?? 0),
-        ],
+        ].join("|"),
         schedule,
     );
 

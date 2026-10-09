@@ -14,6 +14,8 @@ import { useNotificationStore } from "../stores/useNotificationStore";
 // điều hướng, chỉ đánh dấu đã đọc).
 const TYPE_ROUTES = {
     "leave.decided": "leave-requests",
+    "holiday.upcoming": "holidays",
+    "holiday.confirm_needed": "holidays",
     "leave.pending_manager": "leave-management",
     "leave.pending_hr": "leave-management",
     "attendance.pending_approval": "attendance-overview",
@@ -21,11 +23,36 @@ const TYPE_ROUTES = {
     "resignation.pending": "resignations",
     "resignation.notice": "resignations",
     "resignation.decided": "my-profile",
+    "recruitment.cv_pending": "recruitment-detail",
+    "recruitment.cv_reviewed": "recruitment-detail",
+    "recruitment.interview_assigned": "recruitment-detail",
+    "recruitment.offer_pending": "recruitment-detail",
+    "recruitment.offer_reviewed": "recruitment-detail",
+    "recruitment.offer_responded": "recruitment-detail",
+    "checklist.mine": "dashboard",
+    "checklist.team": "onboarding",
+    "bank_account.pending": "employee-detail",
+    "bank_account.reviewed": "my-profile",
+};
+
+// Tham số route (trang có :id).
+const recruitmentParams = (item) => ({ id: item.data?.recruitment_opening_id });
+const TYPE_PARAMS = {
+    "recruitment.cv_pending": recruitmentParams,
+    "recruitment.cv_reviewed": recruitmentParams,
+    "recruitment.interview_assigned": recruitmentParams,
+    "recruitment.offer_pending": recruitmentParams,
+    "recruitment.offer_reviewed": recruitmentParams,
+    "recruitment.offer_responded": recruitmentParams,
+    "bank_account.pending": (item) => ({ id: item.data?.employee_id }),
 };
 
 const TYPE_QUERY = {
     "resignation.pending": (item) => ({ id: item.data?.resignation_request_id }),
     "resignation.notice": (item) => ({ id: item.data?.resignation_request_id }),
+    "checklist.team": (item) => ({ id: item.data?.employee_checklist_id, type: item.data?.checklist_type }),
+    "bank_account.pending": () => ({ tab: "bank" }),
+    "bank_account.reviewed": () => ({ tab: "bank" }),
 };
 
 export function notificationTarget(item) {
@@ -33,7 +60,7 @@ export function notificationTarget(item) {
     if (!name) {
         return null;
     }
-    return { name, query: TYPE_QUERY[item.type]?.(item) };
+    return { name, query: TYPE_QUERY[item.type]?.(item), params: TYPE_PARAMS[item.type]?.(item) };
 }
 
 export function useNotificationNavigation() {

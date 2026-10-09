@@ -22,10 +22,19 @@ Schedule::command('resignations:apply')->dailyAt('00:08');
 Schedule::command('shifts:assign-missing-default')->dailyAt('00:07');
 // "Tích lũy phép năm" (2026-09-24, theo yêu cầu người dùng) — chạy HẰNG
 // NGÀY (không phải hằng tháng) vì mốc thưởng thâm niên cần đúng ngày, xem
-// comment đầu LeaveAccrualService.php.
-Schedule::command('leave:sync-accrual')->dailyAt('00:20');
+// comment đầu LeaveAccrualService.php. Chạy MỖI GIỜ (không chỉ 00:20) để máy
+// tắt lúc nửa đêm vẫn được cập nhật bù ngay khi bật lại — job chỉ TĂNG quỹ,
+// chạy lại nhiều lần không sai.
+Schedule::command('leave:sync-accrual')->hourlyAt(20);
+// Thư mời nhận việc quá hạn trả lời -> hết hạn, trả lại suất (RecruitmentOfferService).
+Schedule::command('recruitment:expire-offers')->hourlyAt(25);
 // Nhắc chấm công ra (2026-09-25, theo yêu cầu người dùng) — chạy MỖI PHÚT để
 // bám sát ngưỡng "quá 5 phút" sau giờ tan ca, xem comment đầu
 // RemindMissingCheckout.php. Mỗi bản ghi chỉ được nhắc đúng 1 lần (cột
 // checkout_reminder_sent_at) nên chạy dày không tạo trùng lặp thông báo.
 Schedule::command('attendance:remind-checkout')->everyMinute();
+
+// Ngày nghỉ lễ: tự sinh theo quy tắc (dương + âm lịch) cho năm nay và năm sau mỗi
+// đầu tháng (sang năm mới luôn có sẵn lịch), và gửi thông báo trước mỗi dịp nghỉ.
+Schedule::command('holidays:generate')->monthlyOn(1, '00:30');
+Schedule::command('holidays:notify')->dailyAt('08:00');

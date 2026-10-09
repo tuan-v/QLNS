@@ -14,6 +14,7 @@ class EmployeeTransferResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'type' => $this->type,
             'from_department' => $this->whenLoaded('fromDepartment'),
             'to_department' => $this->whenLoaded('toDepartment'),
             'old_position' => $this->whenLoaded('oldPosition'),
@@ -25,7 +26,8 @@ class EmployeeTransferResource extends JsonResource
                     'full_name' => $this->newManager->full_name,
                 ] : null,
             ),
-            'effective_date' => $this->effective_date,
+            // Ngày lịch thuần — trả "Y-m-d", không để Carbon đổi sang UTC (lệch về hôm trước).
+            'effective_date' => $this->effective_date?->toDateString(),
             'reason' => $this->reason,
             'approved_at' => $this->approved_at,
             'approver' => $this->whenLoaded('approver', fn () => $this->approver?->user_name),

@@ -199,20 +199,41 @@ const TYPE_CATEGORY = {
     "leave.pending_manager": "Nghỉ phép",
     "leave.pending_hr": "Nghỉ phép",
     "leave.decided": "Nghỉ phép",
+    "holiday.upcoming": "Ngày nghỉ lễ",
+    "holiday.confirm_needed": "Ngày nghỉ lễ",
     "attendance.pending_approval": "Chấm công",
     "attendance.checkout_reminder": "Nhắc nhở",
     "attendance_adjustment.pending": "Điều chỉnh công",
     "resignation.pending": "Nghỉ việc",
     "resignation.notice": "Nghỉ việc",
     "resignation.decided": "Nghỉ việc",
+    "recruitment.cv_pending": "Tuyển dụng",
+    "recruitment.cv_reviewed": "Tuyển dụng",
+    "recruitment.interview_assigned": "Tuyển dụng",
+    "recruitment.offer_pending": "Tuyển dụng",
+    "recruitment.offer_reviewed": "Tuyển dụng",
+    "recruitment.offer_responded": "Tuyển dụng",
+    "checklist.mine": "Onboarding",
+    "checklist.team": "Onboarding",
+    "bank_account.pending": "Tài khoản ngân hàng",
+    "bank_account.reviewed": "Tài khoản ngân hàng",
 };
 
 // Thông báo hệ thống (không có actor) — icon + màu theo loại.
 function systemIcon(item) {
-    if (item.type === "leave.decided" || item.type === "resignation.decided") {
+    if (item.type === "leave.decided" || item.type === "resignation.decided" || item.type === "bank_account.reviewed" || item.type === "recruitment.offer_reviewed" || item.type === "recruitment.offer_responded") {
         return item.data?.status === "approved"
             ? { icon: "mdi-check-circle-outline", color: "success" }
             : { icon: "mdi-close-circle-outline", color: "error" };
+    }
+    if (item.type === "holiday.confirm_needed") {
+        return { icon: "mdi-calendar-alert", color: "warning" };
+    }
+    if (item.type === "holiday.upcoming") {
+        return { icon: "mdi-party-popper", color: "primary" };
+    }
+    if (item.type === "checklist.mine" || item.type === "checklist.team") {
+        return { icon: "mdi-clipboard-check-outline", color: "primary" };
     }
     if (item.type === "attendance.checkout_reminder") {
         return { icon: "mdi-clock-alert-outline", color: "warning" };

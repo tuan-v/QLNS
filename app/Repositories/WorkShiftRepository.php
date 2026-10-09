@@ -9,7 +9,8 @@ class WorkShiftRepository
 {
     public function paginate(int $perPage = 15): LengthAwarePaginator
     {
-        return WorkShift::query()->latest()->paginate($perPage);
+        // Ca OT 1 ngày (đơn "OT ngày khác") không phải ca để quản lý/chọn — ẩn khỏi danh sách.
+        return WorkShift::query()->where('is_overtime', false)->latest()->paginate($perPage);
     }
 
     public function find(int $id): ?WorkShift

@@ -67,6 +67,7 @@ import StatusChip from "../../components/common/StatusChip.vue";
 import PayrollGenerateDialog from "./PayrollGenerateDialog.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useRouter } from "vue-router";
+import { useRouteAction } from "../../composables/useRouteAction";
 const router = useRouter();
 
 const PAYROLL_STATUS_MAP = {
@@ -118,7 +119,7 @@ const actions = computed(() => [
         icon: "mdi-eye-outline",
         tooltip: "Xem chi tiết",
         color: "primary",
-        onClick: (item) => router.push(`/payrolls/${item.id}`),
+        onClick: (item) => router.push(`/bang-luong/${item.id}`),
     },
 
     {
@@ -161,6 +162,9 @@ const actions = computed(() => [
 // Phiên KHÁC vừa Tạo/Chốt/Đánh dấu đã trả bảng lương — xem ResourceChanged
 // (mục 34 CODE_MAP).
 watch(() => resourceSync.signals.payrolls, fetchData);
+
+// Mở thẳng thao tác khi vào trang bằng ?action=... (lệnh Ctrl+K).
+useRouteAction({ generate: () => (generateDialog.value = true) });
 
 onMounted(() => {
     fetchData();

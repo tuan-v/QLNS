@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeShiftAssignment;
+use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Role;
@@ -314,6 +315,36 @@ class AttendanceHistoryTest extends TestCase
         $this->assertEquals(1.0, $data['summary']['total_work_days']);
         $this->assertSame(540, $data['summary']['total_work_minutes']);
         $this->assertSame(1, $data['summary']['on_leave_count']);
+    }
+
+    // Ngày nghỉ lễ (bảng holidays) không chấm công -> "holiday", không phải
+    // "absent"; thắng cả đơn nghỉ phép trùng ngày. Đã chấm vào thì vẫn tính
+    // như ngày thường (người đó thật sự đi làm).
+    public function test_history_marks_holiday_as_holiday_not_absent(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA-HL', ['work_coefficient' => 1]);
+        $this->assignShift($employee, $workShift);
+        Holiday::create(['holiday_date' => '2026-04-30', 'name' => 'Ngày Giải phóng miền Nam', 'group_code' => 'manual-test', 'source' => 'manual']);
+        Holiday::create(['holiday_date' => '2026-05-01', 'name' => 'Quốc tế Lao động', 'group_code' => 'manual-test2', 'source' => 'manual']);
+        $this->makeLeaveRequest($employee, '2026-04-30', '2026-04-30');
+        $this->makeAttendance($employee, $workShift, '2026-05-01', [
+            'first_check_in_at' => '2026-05-01 08:00:00', 'last_check_out_at' => '2026-05-01 17:00:00',
+            'actual_work_minutes' => 540,
+        ]);
+
+        $token = $this->loginAs($user->email, 'Secret@123');
+        $data = $this->getJson('/api/v1/attendances/history/me?date_from=2026-04-29&date_to=2026-05-01', [
+            'Authorization' => 'Bearer '.$token,
+        ])->assertStatus(200)->json('data');
+        $byDate = collect($data['rows'])->keyBy('date');
+
+        $this->assertSame('absent', $byDate['2026-04-29']['status']);
+        $this->assertSame('holiday', $byDate['2026-04-30']['status']);
+        $this->assertSame('Ngày Giải phóng miền Nam', $byDate['2026-04-30']['holiday_name']);
+        $this->assertNotSame('holiday', $byDate['2026-05-01']['status']);
+        $this->assertSame(1, $data['summary']['holiday_count']);
+        $this->assertSame(0, $data['summary']['on_leave_count']);
     }
 
     // Đơn còn pending (chưa duyệt) hoặc đã bị từ chối thì KHÔNG được che

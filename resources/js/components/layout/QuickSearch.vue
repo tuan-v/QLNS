@@ -70,6 +70,26 @@ const ALL_ITEMS = [
         keywords: ["resignation", "nghi viec", "don nghi viec", "thoi viec"],
     },
     {
+        name: "recruitment",
+        title: "Tuyển dụng",
+        icon: "mdi-briefcase-search-outline",
+        permission: "recruitment.manage",
+        keywords: ["recruitment", "tuyen dung", "ung vien", "cv", "phong van"],
+    },
+    {
+        name: "onboarding",
+        title: "Onboarding / Offboarding",
+        icon: "mdi-clipboard-check-multiple-outline",
+        permission: ["onboarding.manage", "onboarding.team"],
+        keywords: ["onboarding", "offboarding", "nhan viec", "ban giao", "checklist", "hoi nhap"],
+    },
+    {
+        name: "holidays",
+        title: "Ngày nghỉ lễ",
+        icon: "mdi-calendar-star",
+        keywords: ["holiday", "ngay le", "nghi le", "tet", "am lich", "lich nghi"],
+    },
+    {
         name: "work-shifts",
         title: "Ca làm việc",
         icon: "mdi-timetable",
@@ -148,6 +168,22 @@ const ALL_ITEMS = [
     },
 ];
 
+// Lệnh (thao tác nhanh): mở đúng trang VÀ tự mở luôn dialog/bộ lọc cần dùng qua
+// `?action=` — trang đích xử lý bằng useRouteAction(). Quyền = đúng quyền của thao tác.
+const COMMANDS = [
+    { name: "leave-requests", action: "create", title: "Tạo đơn xin nghỉ phép", icon: "mdi-calendar-plus", permission: "leave.request", keywords: ["xin nghi", "don nghi", "nghi phep", "leave"] },
+    { name: "check-in", action: "supplement", title: "Xin bổ sung chấm công", icon: "mdi-clock-plus-outline", permission: "attendance.check", keywords: ["bo sung", "quen cham cong", "supplement"] },
+    { name: "check-in", action: "ot", title: "Xin OT", icon: "mdi-clock-fast", permission: "attendance.check", keywords: ["ot", "tang ca", "lam them"] },
+    { name: "check-in", action: "extra-shift", title: "Xin làm ngoài lịch", icon: "mdi-calendar-clock", permission: "attendance.check", keywords: ["ngoai lich", "lam bu", "extra"] },
+    { name: "attendance-overview", action: "pending", title: "Duyệt chấm công hôm nay", icon: "mdi-clipboard-check-outline", permission: "attendance.approve", keywords: ["duyet cham cong", "cho duyet", "approve"] },
+    { name: "attendance-overview", action: "export", title: "Xuất bảng chấm công (Excel)", icon: "mdi-microsoft-excel", permission: "attendance.view_all", keywords: ["xuat", "excel", "bang cong", "export"] },
+    { name: "employees", action: "create", title: "Thêm nhân viên", icon: "mdi-account-plus-outline", permission: "employee.create", keywords: ["them nhan vien", "tao ho so", "new employee"] },
+    { name: "payrolls", action: "generate", title: "Tạo bảng lương", icon: "mdi-cash-plus", permission: "payroll.manage", keywords: ["tinh luong", "bang luong", "payroll"] },
+    { name: "recruitment", action: "create", title: "Mở đợt tuyển dụng", icon: "mdi-briefcase-plus-outline", permission: "recruitment.manage", keywords: ["tuyen dung", "dot tuyen", "recruit"] },
+    { name: "onboarding", action: "create", title: "Tạo checklist nhận việc / nghỉ việc", icon: "mdi-clipboard-plus-outline", permission: "onboarding.manage", keywords: ["onboarding", "offboarding", "checklist", "nhan viec", "ban giao"] },
+    { name: "holidays", action: "create", title: "Thêm ngày nghỉ của công ty", icon: "mdi-calendar-star", permission: "holiday.manage", keywords: ["ngay nghi", "nghi le", "holiday"] },
+];
+
 const RECENT_KEY = "qlns_quick_search_recent";
 const RECENT_LIMIT = 6;
 const MIN_QUERY_LENGTH = 2;
@@ -215,7 +251,7 @@ const canSearchEmployees = computed(() =>
 const availablePages = computed(() =>
     ALL_ITEMS.filter(
         (item) =>
-            !item.permission || auth.permissions.includes(item.permission),
+            !item.permission || [].concat(item.permission).some((code) => auth.permissions.includes(code)),
     ).map((item) => ({
         kind: "page",
         key: `page:${item.name}`,
@@ -228,16 +264,41 @@ const availablePages = computed(() =>
     })),
 );
 
+const availableCommands = computed(() =>
+    COMMANDS.filter((c) => !c.permission || auth.permissions.includes(c.permission)).map((c) => ({
+        kind: "command",
+        key: `cmd:${c.name}:${c.action}`,
+        title: c.title,
+        description: "",
+        icon: c.icon,
+        keywords: c.keywords,
+        routeName: c.name,
+        routeParams: {},
+        routeQuery: { action: c.action },
+    })),
+);
+
+// Khớp theo từng từ: "xuat excel" khớp khi MỌI từ đều có trong tiêu đề hoặc từ khóa
+// (không bắt buộc cả cụm phải đứng liền nhau).
+function matchesQuery(item, q) {
+    const haystack = [item.title, ...item.keywords].map(normalize).join(" ");
+    return q.split(/\s+/).every((word) => haystack.includes(word));
+}
+
+const commandMatches = computed(() => {
+    const q = normalize(query.value.trim());
+    if (!q) {
+        return [];
+    }
+    return availableCommands.value.filter((item) => matchesQuery(item, q));
+});
+
 const pageMatches = computed(() => {
     const q = normalize(query.value.trim());
     if (!q) {
         return [];
     }
-    return availablePages.value.filter(
-        (item) =>
-            normalize(item.title).includes(q) ||
-            item.keywords.some((k) => normalize(k).includes(q)),
-    );
+    return availablePages.value.filter((item) => matchesQuery(item, q));
 });
 
 // --- Phase 2 (2026-09-29, theo yêu cầu người dùng): tìm NHÂN VIÊN theo dữ
@@ -327,6 +388,10 @@ const flatItems = computed(() => {
                 ...item,
                 sectionLabel: "Gần đây",
             })),
+            ...availableCommands.value.map((item) => ({
+                ...item,
+                sectionLabel: "Thao tác nhanh",
+            })),
             ...availablePages.value.map((item) => ({
                 ...item,
                 sectionLabel: "Truy cập nhanh",
@@ -334,10 +399,10 @@ const flatItems = computed(() => {
         ];
     }
 
-    const items = pageMatches.value.map((item) => ({
-        ...item,
-        sectionLabel: "Chức năng",
-    }));
+    const items = [
+        ...commandMatches.value.map((item) => ({ ...item, sectionLabel: "Thao tác" })),
+        ...pageMatches.value.map((item) => ({ ...item, sectionLabel: "Chức năng" })),
+    ];
 
     if (
         canSearchEmployees.value &&
@@ -382,7 +447,7 @@ function pushRecent(item) {
 function select(item) {
     pushRecent(item);
     dialogOpen.value = false;
-    router.push({ name: item.routeName, params: item.routeParams ?? {} });
+    router.push({ name: item.routeName, params: item.routeParams ?? {}, query: item.routeQuery ?? {} });
 }
 
 function selectActive() {
@@ -424,7 +489,7 @@ defineExpose({
                 hide-details
                 variant="plain"
                 density="comfortable"
-                placeholder="Tìm kiếm nhân viên, chức năng..."
+                placeholder="Tìm nhân viên, chức năng hoặc thao tác (vd: xin nghỉ, xuất excel)..."
                 prepend-inner-icon="mdi-magnify"
                 class="px-4 pt-3"
                 @keydown.down.prevent="moveActive(1)"

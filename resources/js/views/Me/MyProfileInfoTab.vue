@@ -33,9 +33,10 @@
                 <v-card-title class="text-h6 font-weight-bold pt-5 px-5">
                     Sửa thông tin liên hệ
                 </v-card-title>
-                <v-form ref="contactFormRef" validate-on="blur invalid-input lazy" @submit.prevent="submitContact"
-                    class="v-card-text px-5"
+                <v-form
+ref="contactFormRef" validate-on="blur invalid-input lazy" class="v-card-text px-5"
                     style="display: flex; flex-direction: column; gap: 0.75rem"
+                    @submit.prevent="submitContact"
                 >
                     <div>
                         <div class="text-body-2 font-weight-medium mb-1">

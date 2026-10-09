@@ -14,7 +14,7 @@ class StoreEmployeeContractRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'contract_type' => ['required', 'in:thu_viec,chinh_thuc'],
+            'contract_type' => ['required', 'in:thu_viec,chinh_thuc,thuc_tap'],
             'start_date' => ['required', 'date'],
             'end_date' => ['nullable', 'date', 'after:start_date'],
             'signed_at' => ['nullable', 'date'],

@@ -43,6 +43,11 @@ class WorkTimeCalculationService
             return 0.0; // Ca đã bị xóa hoặc thiếu số phút chuẩn — bỏ qua an toàn.
         }
 
+        // Ca OT ngày khác: cả ca được trả theo giờ OT (PayrollService), không có công ngày.
+        if ($workShift->is_overtime) {
+            return 0.0;
+        }
+
         $actualWorkMinutes = (float) ($attendance->actual_work_minutes ?? 0);
         $dayWeight = (float) ($workShift->work_coefficient ?? 1.0);
 
@@ -57,21 +62,14 @@ class WorkTimeCalculationService
             return $dayWeight;
         }
 
-        // Về sớm đã được duyệt "Xin về sớm" (early_leave_excused) thì không bị
-        // tính vào ngưỡng phạt và phần giờ thiếu được cộng bù vào giờ làm —
-        // giống cách late_excused không trừ công; bị từ chối/không xin thì
-        // vẫn bị trừ như thường.
-        $earlyLeaveMinutes = $attendance->early_leave_excused ? 0 : ($attendance->early_leave_minutes ?? 0);
-        $latenessMinutes = max($attendance->late_minutes ?? 0, $earlyLeaveMinutes);
+        $latenessMinutes = max($attendance->late_minutes ?? 0, $attendance->early_leave_minutes ?? 0);
 
         if ($latenessMinutes <= self::PENALTY_THRESHOLD_MINUTES) {
             return $dayWeight;
         }
 
-        if ($attendance->early_leave_excused) {
-            $actualWorkMinutes += (float) ($attendance->early_leave_minutes ?? 0);
-        }
-
+        // Đi muộn/về sớm quá ngưỡng: công chỉ tính tới đúng giờ làm thực tế
+        // (tới lúc chấm ra), không có "miễn trừ".
         $ratio = max(0.0, min($actualWorkMinutes / $standardMinutes, 1.0));
 
         return $ratio * $dayWeight;

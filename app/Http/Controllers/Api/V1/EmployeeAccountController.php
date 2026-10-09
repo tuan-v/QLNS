@@ -32,4 +32,16 @@ class EmployeeAccountController extends Controller
             'roles' => $user->roles->pluck('name'),
         ], 201);
     }
+    public function deactivate(Employee $employee): JsonResponse
+    {
+        $this->employeeAccountService->deactivateAccountOf($employee);
+
+        return response()->json(['message' => 'Tài khoản nhân viên đã bị vô hiệu hóa.']);
+    }
+    public function activate(Employee $employee): JsonResponse
+    {
+        $this->employeeAccountService->reactivateAccountOf($employee);
+
+        return response()->json(['message' => 'Tài khoản nhân viên đã được kích hoạt.']);
+    }
 }

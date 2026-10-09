@@ -1,4 +1,5 @@
 <script setup>
+import { isPublicPath } from "./publicPaths";
 import { onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AppLayout from './components/layout/AppLayout.vue';
@@ -23,8 +24,10 @@ const resourceSync = useResourceSyncStore();
 const mySync = useMySyncStore();
 
 onMounted(() => {
-    if (auth.accessToken && !auth.user) {
-        auth.fetchMe();
+    // Trang công khai (thư mời nhận việc) không cần tài khoản. Lỗi 401 do interceptor
+    // (bootstrap.js) xử lý — bắt ở đây để không thành lỗi console chưa xử lý.
+    if (auth.accessToken && !auth.user && !isPublicPath()) {
+        auth.fetchMe().catch(() => {});
     }
 });
 
@@ -41,7 +44,7 @@ onMounted(() => {
 watch(
     () => auth.isAuthenticated,
     (loggedIn) => {
-        if (loggedIn) {
+        if (loggedIn && !isPublicPath()) {
             // Không cần thông tin gì thêm ngoài đã đăng nhập — kết nối ngay,
             // không đợi fetchMe() (khác notifications/attendanceFeed bên dưới).
             presence.connect();
@@ -83,7 +86,7 @@ watch(
 // quyền ngay, không cần F5 (mục 50 CODE_MAP).
 watch(
     () => mySync.signals.account,
-    () => auth.fetchMe(),
+    () => auth.fetchMe().catch(() => {}),
 );
 </script>
 

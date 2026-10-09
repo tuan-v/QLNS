@@ -283,6 +283,7 @@ const CONTRACT_STATUS_MAP = {
 const CONTRACT_TYPE_MAP = {
     thu_viec: "Thử việc",
     chinh_thuc: "Chính thức",
+    thuc_tap: "Thực tập",
 };
 
 function formatDate(value) {

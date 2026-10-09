@@ -18,6 +18,8 @@ Route::middleware('auth:api')->prefix('attendances')->group(function (): void {
     // Tổng hợp chấm công trong ngày (mục 16, thay màn "Duyệt chấm công" cũ) —
     // toàn công ty theo 1 ngày, cùng quyền xem như /history/{employee}.
     Route::get('/overview', [AttendanceController::class, 'overview'])->middleware('permission:attendance.view_all');
+    // Xuất Bảng chấm công tháng (Excel) — cùng quyền xem toàn công ty.
+    Route::get('/sheet/export', [AttendanceController::class, 'exportSheet'])->middleware('permission:attendance.view_all');
     Route::get('/', [AttendanceController::class, 'index'])->middleware('permission:attendance.view_all');
 
     // Điều chỉnh công — "/adjustments/me" phải khai TRƯỚC "/adjustments/{adjustment}",
