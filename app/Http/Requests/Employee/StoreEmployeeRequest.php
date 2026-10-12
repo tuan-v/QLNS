@@ -47,9 +47,6 @@ class StoreEmployeeRequest extends FormRequest
             // (EmployeeContractService::create()).
             'contract_type' => ['required', 'in:thu_viec,chinh_thuc,thuc_tap'],
             'agreed_salary' => ['required', 'numeric', 'min:0'],
-            // Tạo nhân viên từ ứng viên đã đạt phỏng vấn ("Nhận việc" ở trang Tuyển dụng) —
-            // RecruitmentService::markHired() chạy trong CÙNG transaction tạo nhân viên.
-            'candidate_id' => ['nullable', 'integer', 'exists:recruitment_candidates,id'],
         ];
     }
 
@@ -64,6 +61,8 @@ class StoreEmployeeRequest extends FormRequest
             'company_email.unique' => 'Email công ty đã tồn tại',
             'hire_date.required' => 'Ngày vào làm không được để trống',
             'hire_date.date' => 'Ngày vào làm không đúng định dạng',
+            'contract_end_date.date' => 'Ngày kết thúc hợp đồng không đúng định dạng',
+            'contract_end_date.after' => 'Ngày kết thúc hợp đồng phải sau ngày vào làm',
             'personal_email.required' => 'Email cá nhân không được để trống',
             'personal_email.email' => 'Email cá nhân không đúng định dạng',
             'personal_email.unique' => 'Email cá nhân đã tồn tại',

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\EmployeeContract\StoreEmployeeContractRequest;
+use App\Http\Requests\EmployeeContract\UpdateEmployeeContractRequest;
 use App\Http\Resources\EmployeeContractResource;
 use App\Models\Employee;
 use App\Models\EmployeeContract;
@@ -41,6 +42,23 @@ class EmployeeContractController extends Controller
     {
         $contract = $this->employeeContractService->create($employee, $request->validated(), $request->file('contract_file'));
         return (new EmployeeContractResource($contract))->response()->setStatusCode(201);
+    }
+
+    // Bổ sung tệp PDF / ngày kết thúc / ngày ký còn thiếu — xem
+    // EmployeeContractService::fillMissing(). Không nhận điều khoản đã ký.
+    public function update(UpdateEmployeeContractRequest $request, Employee $employee, EmployeeContract $contract): JsonResponse
+    {
+        if ($contract->employee_id !== $employee->id) {
+            abort(404);
+        }
+
+        $contract = $this->employeeContractService->fillMissing(
+            $contract,
+            $request->validated(),
+            $request->file('contract_file'),
+        );
+
+        return (new EmployeeContractResource($contract))->response();
     }
 
     public function terminate(Request $request, Employee $employee, EmployeeContract $contract): JsonResponse

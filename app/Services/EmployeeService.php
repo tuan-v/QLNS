@@ -51,7 +51,10 @@ class EmployeeService
         // nhầm sau này khi đọc lại.
         $agreedSalary = $data['agreed_salary'];
         $contractType = $data['contract_type'];
-        unset($data['agreed_salary'], $data['contract_type']);
+        // Tùy chọn (null = hợp đồng không xác định thời hạn, hoặc HR chưa biết
+        // — bổ sung sau ở tab "Hợp đồng", xem fillMissing()).
+        $contractEndDate = $data['contract_end_date'] ?? null;
+        unset($data['agreed_salary'], $data['contract_type'], $data['contract_end_date']);
         // Trạng thái nhân viên theo ĐÚNG loại hợp đồng đầu tiên (2026-09-29,
         // theo yêu cầu người dùng — trước đó HR chọn tay trạng thái rồi hợp
         // đồng suy ngược từ trạng thái). Từ đây trở đi trạng thái chỉ đổi qua
@@ -62,12 +65,7 @@ class EmployeeService
         // không nhận từ client.
         unset($data['manager_id']);
 
-        // Tạo từ ứng viên tuyển dụng ("Nhận việc"): đánh dấu ứng viên đã nhận việc trong
-        // CÙNG transaction — lỗi ở bước nào thì cả nhân viên lẫn ứng viên đều không đổi.
-        $candidateId = $data['candidate_id'] ?? null;
-        unset($data['candidate_id']);
-
-        $employee = DB::transaction(function () use ($data, $agreedSalary, $contractType, $candidateId) {
+        $employee = DB::transaction(function () use ($data, $agreedSalary, $contractType) {
             $employee = $this->employeeRepository->create($data);
             if ($candidateId !== null) {
                 $this->recruitmentService->markHired((int) $candidateId, $employee);
@@ -93,6 +91,7 @@ class EmployeeService
             $this->employeeContractService->create($employee, [
                 'contract_type' => $contractType,
                 'start_date' => $employee->hire_date->toDateString(),
+                'end_date' => $contractEndDate,
                 'agreed_salary' => $agreedSalary,
             ]);
 

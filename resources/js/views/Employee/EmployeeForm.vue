@@ -388,16 +388,39 @@
                         <div class="text-body-2 font-weight-medium mb-1">
                             Lương cơ bản <span class="text-error">*</span>
                         </div>
-                        <v-text-field
-                            v-model.number="agreedSalary"
+                        <!-- Dùng InputMoney (mục 10 CODE_MAP) để gõ 10000000 hiện
+                             thành "10.000.000" — giống ô lương ở tab Hợp đồng và
+                             Chức vụ; giá trị đẩy ra vẫn là số thuần. -->
+                        <InputMoney
+                            v-model="agreedSalary"
                             :rules="rules.agreedSalary"
-                            type="number"
-                            min="0"
-                            suffix="đ"
-                            variant="outlined"
-                            density="comfortable"
-                            rounded="lg"
                             :error-messages="store.errors.agreed_salary"
+                        />
+                    </v-col>
+                    <!-- Hai ô dưới TÙY CHỌN: hợp đồng không xác định thời hạn
+                         thì không có ngày kết thúc, và HR thường chưa có bản
+                         scan lúc mới tạo hồ sơ. Bỏ trống vẫn bổ sung được sau
+                         ở tab "Hợp đồng" (EmployeeContractService::fillMissing()). -->
+                    <v-col cols="12" sm="6">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Ngày kết thúc hợp đồng
+                        </div>
+                        <InputDate
+                            v-model="contractEndDate"
+                            :error-messages="store.errors.contract_end_date"
+                            hint="Bỏ trống nếu hợp đồng không xác định thời hạn"
+                            persistent-hint
+                        />
+                    </v-col>
+                    <v-col cols="12" sm="6">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Tệp hợp đồng (PDF)
+                        </div>
+                        <InputFile
+                            v-model="contractFile"
+                            :limit="UPLOAD_LIMITS.contract"
+                            hint="Chưa có bản scan thì bỏ trống, tải lên sau ở tab Hợp đồng"
+                            persistent-hint
                         />
                     </v-col>
                 </v-row>
@@ -474,18 +497,13 @@ import roleService from "../../services/roleService";
 import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
+import InputMoney from "../../components/common/InputMoney.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useChangeGuard } from "../../composables/useChangeGuard";
-import {
-    isEmail,
-    maxLength,
-    minValue,
-    notEmpty,
-} from "../../composables/validationRules";
+import { isEmail, maxLength, minValue, notEmpty } from "../../composables/validationRules";
 import { useAuthStore } from "../../stores/authStore";
 import DepartmentFormDialog from "../Department/DepartmentForm.vue";
 import PositionFormDialog from "../Position/PositionForm.vue";
-import { normalizeVietnamese } from "../../composables/normalizeVietnamese";
 import InputDate, {
     shiftIsoDate,
     todayIso,
@@ -560,6 +578,11 @@ const formRef = ref(null);
 const agreedSalary = ref(null);
 // Loại hợp đồng đầu tiên — quyết định luôn trạng thái nhân viên (2026-09-29).
 const contractType = ref(null);
+// Tùy chọn — null = hợp đồng không xác định thời hạn / HR bổ sung sau.
+const contractEndDate = ref(null);
+// Tệp PDF gửi SAU khi tạo nhân viên (form này gửi JSON, không phải multipart)
+// qua route bổ sung hợp đồng — xem uploadContractFileForNewEmployee().
+const contractFile = ref(null);
 
 /* --------------------- Tạo tài khoản đăng nhập ngay --------------------- */
 
@@ -634,7 +657,11 @@ const rules = {
     provinceCode: [notEmpty("Tỉnh/Thành phố")],
     communeCode: [notEmpty("Xã/Phường")],
     departmentId: [notEmpty("Phòng ban")],
-    agreedSalary: [notEmpty("Lương cơ bản"), minValue(0, "Lương cơ bản")],
+    // KHÔNG dùng minValue ở đây: InputMoney đẩy vào rule chuỗi ĐÃ định dạng
+    // ("10.000.000") nên Number() ra NaN và luật sẽ báo sai. Không cần chặn số
+    // âm vì InputMoney lọc bỏ mọi ký tự không phải chữ số; backend vẫn giữ
+    // 'min:0' (StoreEmployeeRequest) làm chốt chặn cuối.
+    agreedSalary: [notEmpty("Lương cơ bản")],
     contractType: [notEmpty("Loại hợp đồng")],
 };
 
@@ -820,8 +847,8 @@ watch(
             loadRoles();
             // Lương & Hợp đồng cũng chỉ áp dụng lúc Thêm mới — cùng lý do reset
             // như createAccount ở trên, không giữ số cũ của lần thêm trước.
-            agreedSalary.value = props.employee ? null : (props.prefill?.agreed_salary ?? null);
-            contractType.value = props.employee ? null : (props.prefill?.contract_type ?? null);
+            agreedSalary.value = null;
+            contractType.value = null;
             // Nạp lại danh sách Xã/Phường đúng theo Tỉnh đã có sẵn (modal Sửa) —
             // KHÔNG gọi qua onProvinceChange() vì hàm đó xóa luôn commune_code,
             // ở đây form.commune_code vừa được fillForm() gán đúng giá trị cũ.
@@ -873,9 +900,6 @@ async function submit() {
     if (!isEdit.value) {
         payload.agreed_salary = agreedSalary.value;
         payload.contract_type = contractType.value;
-        if (props.prefill?.candidate_id) {
-            payload.candidate_id = props.prefill.candidate_id;
-        }
     }
 
     try {
@@ -885,6 +909,8 @@ async function submit() {
         } else {
             const created = await store.create(payload);
             toast.success("Đã thêm nhân viên mới.");
+
+            await uploadContractFileForNewEmployee(created.data.id);
 
             if (createAccount.value) {
                 await createAccountForNewEmployee(created.data.id);
@@ -903,6 +929,42 @@ async function submit() {
 // lỗi ở đây chỉ báo toast riêng, không throw ra ngoài để submit() vẫn đóng
 // modal + coi như đã lưu xong, người dùng tạo lại tài khoản sau ở trang chi
 // tiết nhân viên (nút riêng, xem EmployeeDetail.vue) nếu bước này thất bại.
+// Form này gửi JSON nên không đính kèm được tệp — tải tệp PDF lên ngay sau khi
+// hồ sơ + hợp đồng đầu tiên đã tạo xong, qua route bổ sung hợp đồng
+// (EmployeeContractService::fillMissing()). Cùng tinh thần với
+// createAccountForNewEmployee() bên dưới: nhân viên ĐÃ tạo thành công rồi,
+// lỗi ở bước phụ này chỉ báo toast riêng chứ không làm hỏng cả luồng — HR vẫn
+// tải lại được ở tab "Hợp đồng".
+async function uploadContractFileForNewEmployee(employeeId) {
+    const file = Array.isArray(contractFile.value)
+        ? contractFile.value[0]
+        : contractFile.value;
+
+    if (!file) {
+        return;
+    }
+
+    try {
+        const { data } = await employeeService.contracts(employeeId);
+        const contract = (data.data ?? data)[0];
+
+        if (!contract) {
+            throw new Error("Không tìm thấy hợp đồng vừa tạo");
+        }
+
+        const formData = new FormData();
+        formData.append("contract_file", file);
+        await employeeService.fillContract(employeeId, contract.id, formData);
+        toast.success("Đã tải tệp hợp đồng lên.");
+    } catch (e) {
+        toast.error(
+            e.response?.data?.errors?.contract_file?.[0] ??
+                e.response?.data?.message ??
+                "Đã tạo nhân viên nhưng chưa tải được tệp hợp đồng — vào tab Hợp đồng để tải lại.",
+        );
+    }
+}
+
 async function createAccountForNewEmployee(employeeId) {
     try {
         await employeeService.createAccount(employeeId, {
