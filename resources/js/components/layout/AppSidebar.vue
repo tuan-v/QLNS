@@ -120,13 +120,6 @@
                 to="/tuyen-dung"
                 rounded="lg"
             />
-            <v-list-item
-                v-if="can('onboarding.manage') || can('onboarding.team')"
-                prepend-icon="mdi-clipboard-check-multiple-outline"
-                title="Onboarding / Offboarding"
-                to="/onboarding"
-                rounded="lg"
-            />
 
             <v-list-subheader v-if="showLabels"
                 >Chấm công &amp; Nghỉ phép</v-list-subheader

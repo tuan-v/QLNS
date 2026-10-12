@@ -179,8 +179,6 @@ const TYPE_LABELS = {
     "recruitment.offer_pending": "Offer cần duyệt",
     "recruitment.offer_reviewed": "Kết quả duyệt offer",
     "recruitment.offer_responded": "Ứng viên trả lời offer",
-    "checklist.mine": "Việc cần làm khi nhận/nghỉ việc",
-    "checklist.team": "Checklist nhân viên cần theo dõi",
     "bank_account.pending": "Tài khoản ngân hàng cần xác nhận",
     "bank_account.reviewed": "Kết quả xác nhận tài khoản ngân hàng",
     "attendance.pending_approval": "Chấm công chờ duyệt",

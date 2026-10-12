@@ -76,8 +76,6 @@ Broadcast::channel('resource-sync.{resource}', function (User $user, string $res
         'work_shifts_public' => null,
         // Tuyển dụng — đúng quyền của trang /tuyen-dung (xem hoặc duyệt).
         'recruitment' => ['recruitment.manage', 'recruitment.approve'],
-        // Onboarding/Offboarding — trang /onboarding (HR toàn công ty, Manager nhân viên của mình).
-        'onboarding' => ['onboarding.manage', 'onboarding.team'],
         // Tài khoản ngân hàng nhận lương — tab trong Chi tiết nhân viên (chỉ người sửa được hồ sơ).
         'employee_bank_accounts' => 'employee.update',
         // Lịch nghỉ lễ — trang /ngay-nghi-le ai đăng nhập cũng xem được.

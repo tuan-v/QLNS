@@ -5,6 +5,7 @@ namespace Tests\Feature\Employee;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Position;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -45,6 +46,9 @@ class EmployeeTransferTest extends TestCase
     // chức vụ cũ -> "Trưởng phòng"; điều chuyển ghi type 'transfer' + chức vụ mới thực tế.
     public function test_head_appointment_and_transfer_are_recorded_with_old_and_new_position(): void
     {
+        // Cố định "hôm nay" trước ngày hiệu lực điều chuyển bên dưới — không thì sau ngày đó
+        // dòng bổ nhiệm (hôm nay) đứng trước dòng điều chuyển và test phụ thuộc ngày chạy.
+        $this->travelTo(Carbon::parse('2026-10-07 09:00'));
         $department = Department::create(['name' => 'Phong A', 'code' => 'PB-A']);
         $staff = Position::create(['department_id' => $department->id, 'name' => 'Nhan vien A', 'code' => 'CV-A']);
         $employee = $this->makeEmployee(['department_id' => $department->id, 'position_id' => $staff->id]);

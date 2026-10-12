@@ -77,13 +77,6 @@ const ALL_ITEMS = [
         keywords: ["recruitment", "tuyen dung", "ung vien", "cv", "phong van"],
     },
     {
-        name: "onboarding",
-        title: "Onboarding / Offboarding",
-        icon: "mdi-clipboard-check-multiple-outline",
-        permission: ["onboarding.manage", "onboarding.team"],
-        keywords: ["onboarding", "offboarding", "nhan viec", "ban giao", "checklist", "hoi nhap"],
-    },
-    {
         name: "holidays",
         title: "Ngày nghỉ lễ",
         icon: "mdi-calendar-star",
@@ -180,7 +173,6 @@ const COMMANDS = [
     { name: "employees", action: "create", title: "Thêm nhân viên", icon: "mdi-account-plus-outline", permission: "employee.create", keywords: ["them nhan vien", "tao ho so", "new employee"] },
     { name: "payrolls", action: "generate", title: "Tạo bảng lương", icon: "mdi-cash-plus", permission: "payroll.manage", keywords: ["tinh luong", "bang luong", "payroll"] },
     { name: "recruitment", action: "create", title: "Mở đợt tuyển dụng", icon: "mdi-briefcase-plus-outline", permission: "recruitment.manage", keywords: ["tuyen dung", "dot tuyen", "recruit"] },
-    { name: "onboarding", action: "create", title: "Tạo checklist nhận việc / nghỉ việc", icon: "mdi-clipboard-plus-outline", permission: "onboarding.manage", keywords: ["onboarding", "offboarding", "checklist", "nhan viec", "ban giao"] },
     { name: "holidays", action: "create", title: "Thêm ngày nghỉ của công ty", icon: "mdi-calendar-star", permission: "holiday.manage", keywords: ["ngay nghi", "nghi le", "holiday"] },
 ];
 

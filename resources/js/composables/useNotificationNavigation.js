@@ -29,8 +29,6 @@ const TYPE_ROUTES = {
     "recruitment.offer_pending": "recruitment-detail",
     "recruitment.offer_reviewed": "recruitment-detail",
     "recruitment.offer_responded": "recruitment-detail",
-    "checklist.mine": "dashboard",
-    "checklist.team": "onboarding",
     "bank_account.pending": "employee-detail",
     "bank_account.reviewed": "my-profile",
 };
@@ -50,7 +48,6 @@ const TYPE_PARAMS = {
 const TYPE_QUERY = {
     "resignation.pending": (item) => ({ id: item.data?.resignation_request_id }),
     "resignation.notice": (item) => ({ id: item.data?.resignation_request_id }),
-    "checklist.team": (item) => ({ id: item.data?.employee_checklist_id, type: item.data?.checklist_type }),
     "bank_account.pending": () => ({ tab: "bank" }),
     "bank_account.reviewed": () => ({ tab: "bank" }),
 };

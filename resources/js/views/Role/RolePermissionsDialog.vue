@@ -216,7 +216,6 @@ const GROUP_LABELS = {
     rbac: "Phân quyền",
     holiday: "Ngày nghỉ lễ",
     recruitment: "Tuyển dụng",
-    onboarding: "Onboarding / Offboarding",
     system: "Hệ thống",
 };
 

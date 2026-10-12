@@ -198,13 +198,6 @@ const routes = [
         meta: { layout: "blank", title: "Thư mời nhận việc", public: true },
         component: () => import("../views/Recruitment/OfferResponse.vue"),
     },
-    {
-        path: "/onboarding",
-        name: "onboarding",
-        // HR (toàn công ty) hoặc Quản lý (nhân viên mình quản lý trực tiếp).
-        meta: { title: "Onboarding / Offboarding", permission: ["onboarding.manage", "onboarding.team"] },
-        component: () => import("../views/Onboarding/Onboarding.vue"),
-    },
 ];
 
 const router = createRouter({

@@ -33,7 +33,6 @@ class ResignationService
     public function __construct(
         private readonly NotificationService $notificationService,
         private readonly EmployeeAccountService $employeeAccountService,
-        private readonly ChecklistService $checklistService,
     ) {
     }
 
@@ -133,10 +132,6 @@ class ResignationService
         ]);
 
         $this->notifyApprovers($employee, $request);
-        // Báo trước đủ ngày = chắc chắn nghỉ -> mở checklist offboarding ngay.
-        if ($request->status === ResignationRequest::STATUS_NOTIFIED) {
-            $this->checklistService->startOffboarding($request);
-        }
         ResourceChanged::dispatch('resignations');
 
         return $request;
@@ -156,7 +151,6 @@ class ResignationService
         }
 
         $request->update(['status' => ResignationRequest::STATUS_CANCELLED]);
-        $this->checklistService->cancelForResignation($request);
         ResourceChanged::dispatch('resignations');
 
         return $request;
@@ -189,7 +183,6 @@ class ResignationService
             ]);
 
             if ($status === ResignationRequest::STATUS_APPROVED) {
-                $this->checklistService->startOffboarding($request);
                 $this->applyIfDue($request);
             }
 

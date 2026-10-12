@@ -50,10 +50,6 @@ class PermissionSeeder extends Seeder
             ['code' => 'recruitment.manage', 'name' => 'Quản lý tuyển dụng (đợt tuyển, CV, phỏng vấn)'],
             ['code' => 'recruitment.approve', 'name' => 'Duyệt CV ứng viên'],
 
-            // Onboarding / Offboarding
-            ['code' => 'onboarding.manage', 'name' => 'Quản lý onboarding/offboarding (mẫu & checklist)'],
-            ['code' => 'onboarding.team', 'name' => 'Theo dõi onboarding/offboarding của nhân viên mình quản lý'],
-
             // Payroll
             ['code' => 'payroll.view_own', 'name' => 'Xem phiếu lương của bản thân'],
             ['code' => 'payroll.view_all', 'name' => 'Xem bảng lương toàn công ty'],

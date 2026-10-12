@@ -12,7 +12,7 @@ export const CANDIDATE_STATUS_MAP = {
     rejected: { label: "Từ chối", color: "error" },
     interview_scheduled: { label: "Đã hẹn PV", color: "indigo" },
     passed: { label: "Đạt", color: "success" },
-    failed: { label: "Không đạt", color: "default" },
+    failed: { label: "Không đạt", color: "error" },
     hired: { label: "Đã nhận việc", color: "teal" },
     offer_declined: { label: "Từ chối offer", color: "default" },
 };
@@ -29,6 +29,7 @@ export const OFFER_STATUS_MAP = {
 };
 
 export const CONTRACT_TYPE_LABELS = {
+    tat_ca: "Tất cả",
     thuc_tap: "Thực tập",
     thu_viec: "Thử việc",
     chinh_thuc: "Chính thức",

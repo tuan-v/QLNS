@@ -185,9 +185,6 @@
                     Xin chào {{ dashboard.employee_name }}
                 </div>
 
-                <!-- Checklist nhận việc/nghỉ việc đang làm (Onboarding/Offboarding). -->
-                <MyChecklistCard />
-
                 <v-row align="stretch">
                     <v-col cols="12" md="5">
                         <PersonalCheckInCard />
@@ -367,7 +364,6 @@ const GaugeChart = defineAsyncComponent(() => import("../components/dashboard/Ga
 const DonutChart = defineAsyncComponent(() => import("../components/dashboard/DonutChart.vue"));
 const AreaTrendChart = defineAsyncComponent(() => import("../components/dashboard/AreaTrendChart.vue"));
 import PersonalCheckInCard from "../components/dashboard/PersonalCheckInCard.vue";
-import MyChecklistCard from "../components/onboarding/MyChecklistCard.vue";
 import StatusChip from "../components/common/StatusChip.vue";
 import InputDate, { todayIso } from "../components/common/InputDate.vue";
 import { ATTENDANCE_STATUS_MAP } from "../composables/attendanceStatus";

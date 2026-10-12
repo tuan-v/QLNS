@@ -4,7 +4,6 @@ namespace Tests\Feature\Employee;
 
 use App\Models\Employee;
 use App\Models\EmployeeBankAccount;
-use App\Models\EmployeeChecklist;
 use App\Models\Notification;
 use App\Models\Role;
 use App\Models\User;
@@ -88,20 +87,15 @@ class BankAccountTest extends TestCase
             ->assertStatus(422)->assertJsonValidationErrors('is_primary');
     }
 
-    public function test_hr_verification_makes_primary_notifies_and_ticks_onboarding(): void
+    public function test_hr_verification_makes_primary_and_notifies_employee(): void
     {
         [$employee, $headers] = $this->employeeWithLogin();
-        $this->postJson('/api/v1/onboarding/checklists', ['employee_id' => $employee->id, 'type' => 'onboarding'], $this->hr())->assertCreated();
         $id = $this->postJson('/api/v1/employees/me/bank-accounts', $this->payload(), $headers)->json('data.id');
 
         $this->postJson("/api/v1/employees/{$employee->id}/bank-accounts/{$id}/review", ['status' => 'verified'], $this->hr())
             ->assertOk()->assertJsonPath('data.status', 'verified')->assertJsonPath('data.is_primary', true);
 
         $this->assertTrue(Notification::where('user_id', $employee->user_id)->where('type', 'bank_account.reviewed')->exists());
-
-        $checklist = $this->getJson('/api/v1/onboarding/me', $headers)->assertOk()->json('data.0');
-        $item = collect($checklist['items'])->firstWhere('auto_key', 'bank_account_verified');
-        $this->assertNotNull($item['completed_at']);
     }
 
     public function test_employee_cannot_edit_verified_account_but_can_fix_rejected_one(): void
@@ -173,6 +167,5 @@ class BankAccountTest extends TestCase
         $this->postJson("/api/v1/employees/me/bank-accounts/{$second}/primary", [], $headers)->assertOk();
 
         $this->assertSame([$second], EmployeeBankAccount::where('employee_id', $employee->id)->where('is_primary', true)->pluck('id')->all());
-        $this->assertSame(0, EmployeeChecklist::count());
     }
 }

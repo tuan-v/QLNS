@@ -1,15 +1,8 @@
 <template>
     <div>
-        <PageHeader
-            :title="employee?.full_name ?? 'Chi tiết nhân viên'"
-            :subtitle="employee?.code ?? ''"
-        >
+        <PageHeader :title="employee?.full_name ?? 'Chi tiết nhân viên'" :subtitle="employee?.code ?? ''">
             <template #actions>
-                <v-btn
-                    variant="tonal"
-                    prepend-icon="mdi-arrow-left"
-                    @click="router.push({ name: 'employees' })"
-                >
+                <v-btn variant="tonal" prepend-icon="mdi-arrow-left" @click="router.push({ name: 'employees' })">
                     Quay lại
                 </v-btn>
             </template>
@@ -42,11 +35,7 @@
 
             <v-window v-model="tab">
                 <v-window-item value="profile">
-                    <EmployeeProfileTab
-                        :employee="employee"
-                        :can-update="canUpdate"
-                        @account-created="loadEmployee"
-                    />
+                    <EmployeeProfileTab :employee="employee" :can-update="canUpdate" @account-created="loadEmployee" />
                 </v-window-item>
 
                 <v-window-item value="contracts">
@@ -60,11 +49,7 @@
                 </v-window-item>
 
                 <v-window-item value="documents">
-                    <EmployeeDocumentsTab
-                        v-if="tabsOpened.documents"
-                        :employee-id="props.id"
-                        @preview="openPreview"
-                    />
+                    <EmployeeDocumentsTab v-if="tabsOpened.documents" :employee-id="props.id" @preview="openPreview" />
                 </v-window-item>
 
                 <v-window-item value="transfers">
@@ -86,18 +71,11 @@
                 </v-window-item>
 
                 <v-window-item value="attendance">
-                    <AttendanceHistoryPanel
-                        v-if="tabsOpened.attendance"
-                        :employee-id="props.id"
-                        :read-only="false"
-                    />
+                    <AttendanceHistoryPanel v-if="tabsOpened.attendance" :employee-id="props.id" :read-only="false" />
                 </v-window-item>
 
                 <v-window-item value="payroll">
-                    <EmployeeSalaryLeaveTab
-                        v-if="tabsOpened.payroll"
-                        :employee-id="props.id"
-                    />
+                    <EmployeeSalaryLeaveTab v-if="tabsOpened.payroll" :employee-id="props.id" />
                 </v-window-item>
 
                 <v-window-item v-if="canUpdate" value="bank">
@@ -110,11 +88,7 @@
             </v-window>
         </template>
 
-        <FilePreviewDialog
-            v-model="previewDialog"
-            :file-url="previewFile.url"
-            :file-name="previewFile.name"
-        />
+        <FilePreviewDialog v-model="previewDialog" :file-url="previewFile.url" :file-name="previewFile.name" />
     </div>
 </template>
 
@@ -157,7 +131,16 @@ const canUpdate = computed(() => auth.permissions.includes("employee.update"));
 const employee = ref(null);
 const loadError = ref("");
 // ?tab=... (vd thông báo "Tài khoản ngân hàng cần xác nhận") mở thẳng đúng tab.
-const VALID_TABS = ["profile", "contracts", "documents", "transfers", "shift_assignments", "attendance", "payroll", "bank"];
+const VALID_TABS = [
+    "profile",
+    "contracts",
+    "documents",
+    "transfers",
+    "shift_assignments",
+    "attendance",
+    "payroll",
+    "bank",
+];
 const tab = ref(VALID_TABS.includes(route.query.tab) ? route.query.tab : "profile");
 
 async function loadEmployee() {
@@ -167,8 +150,7 @@ async function loadEmployee() {
         employee.value = response.data.data;
     } catch (e) {
         employee.value = null;
-        loadError.value =
-            e.response?.data?.message ?? "Không thể tải thông tin nhân viên.";
+        loadError.value = e.response?.data?.message ?? "Không thể tải thông tin nhân viên.";
     }
 }
 

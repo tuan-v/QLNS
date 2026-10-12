@@ -19,7 +19,6 @@ class EmployeeService
         private readonly EmployeeAccountService $employeeAccountService,
         private readonly EmployeeTransferService $employeeTransferService,
         private readonly RecruitmentService $recruitmentService,
-        private readonly ChecklistService $checklistService,
     ) {
     }
     public function list(array $filters = [], int $perPage = 15): LengthAwarePaginator
@@ -96,9 +95,6 @@ class EmployeeService
                 'start_date' => $employee->hire_date->toDateString(),
                 'agreed_salary' => $agreedSalary,
             ]);
-
-            // Checklist nhận việc theo mẫu mặc định (không có mẫu nào đang dùng thì bỏ qua).
-            $this->checklistService->startOnboarding($employee);
 
             return $employee;
         });

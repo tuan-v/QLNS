@@ -32,7 +32,6 @@ class RolePermissionSeeder extends Seeder
                 'resignation.view_all',
                 'holiday.manage',
                 'recruitment.manage',
-                'onboarding.manage',
                 'payroll.view_all',
                 'payroll.manage',
                 'report.view',
@@ -53,7 +52,6 @@ class RolePermissionSeeder extends Seeder
                 // trực tiếp (không có view_all — xem ResignationService).
                 'resignation.request',
                 'resignation.approve',
-                'onboarding.team',
                 'payroll.view_own',
                 'report.view',
             ],

@@ -213,8 +213,6 @@ const TYPE_CATEGORY = {
     "recruitment.offer_pending": "Tuyển dụng",
     "recruitment.offer_reviewed": "Tuyển dụng",
     "recruitment.offer_responded": "Tuyển dụng",
-    "checklist.mine": "Onboarding",
-    "checklist.team": "Onboarding",
     "bank_account.pending": "Tài khoản ngân hàng",
     "bank_account.reviewed": "Tài khoản ngân hàng",
 };
@@ -231,9 +229,6 @@ function systemIcon(item) {
     }
     if (item.type === "holiday.upcoming") {
         return { icon: "mdi-party-popper", color: "primary" };
-    }
-    if (item.type === "checklist.mine" || item.type === "checklist.team") {
-        return { icon: "mdi-clipboard-check-outline", color: "primary" };
     }
     if (item.type === "attendance.checkout_reminder") {
         return { icon: "mdi-clock-alert-outline", color: "warning" };

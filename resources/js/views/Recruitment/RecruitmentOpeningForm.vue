@@ -17,10 +17,7 @@
                     v-model="form.title"
                     density="comfortable"
                     placeholder="Ví dụ: Thực tập sinh PHP tháng 11"
-                    :rules="[
-                        notEmpty('Tên đợt tuyển'),
-                        maxLength(255, 'Tên đợt tuyển'),
-                    ]"
+                    :rules="[notEmpty('Tên đợt tuyển'), maxLength(255, 'Tên đợt tuyển')]"
                     :error-messages="errors.title"
                 />
             </FormField>
@@ -71,7 +68,7 @@
                     :error-messages="errors.position_id"
                 />
             </FormField>
-            <FormField label="Loại hợp đồng khi nhận việc" required>
+            <FormField label="Loại hợp đồng khi nhận việc">
                 <v-select
                     v-model="form.contract_type"
                     :items="CONTRACT_TYPE_OPTIONS"
@@ -80,11 +77,7 @@
                     :error-messages="errors.contract_type"
                 />
             </FormField>
-            <FormField
-                label="Số người cần tuyển"
-                required
-                hint="= số CV tối đa được duyệt"
-            >
+            <FormField label="Số người cần tuyển" required hint="= số CV tối đa được duyệt">
                 <v-text-field
                     v-model.number="form.headcount"
                     type="number"
@@ -149,13 +142,7 @@ import PositionFormDialog from "../Position/PositionForm.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useAuthStore } from "../../stores/authStore";
 import { CONTRACT_TYPE_LABELS } from "../../composables/recruitmentStatus";
-import {
-    isInteger,
-    maxLength,
-    minValue,
-    notEmpty,
-    useClearErrorsOnEdit,
-} from "../../composables/validationRules";
+import { isInteger, maxLength, minValue, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
 
 const props = defineProps({
     modelValue: { type: Boolean, default: false },
@@ -168,9 +155,7 @@ const emit = defineEmits(["update:modelValue", "saved"]);
 const toast = useToastStore();
 const auth = useAuthStore();
 const isEdit = computed(() => props.opening !== null);
-const CONTRACT_TYPE_OPTIONS = Object.entries(CONTRACT_TYPE_LABELS).map(
-    ([value, title]) => ({ title, value }),
-);
+const CONTRACT_TYPE_OPTIONS = Object.entries(CONTRACT_TYPE_LABELS).map(([value, title]) => ({ title, value }));
 
 const loading = ref(false);
 const errors = ref({});
@@ -199,9 +184,7 @@ function onDepartmentChange(value) {
 }
 
 // Tạo phòng ban/chức vụ dùng chung quyền department.manage — không có thì ẩn nút.
-const canManageOrg = computed(() =>
-    auth.permissions.includes("department.manage"),
-);
+const canManageOrg = computed(() => auth.permissions.includes("department.manage"));
 const quickDepartmentOpen = ref(false);
 const quickPositionOpen = ref(false);
 
@@ -283,18 +266,14 @@ async function submit() {
         const response = isEdit.value
             ? await recruitmentService.updateOpening(props.opening.id, payload)
             : await recruitmentService.createOpening(payload);
-        toast.success(
-            isEdit.value ? "Đã cập nhật đợt tuyển." : "Đã mở đợt tuyển dụng.",
-        );
+        toast.success(isEdit.value ? "Đã cập nhật đợt tuyển." : "Đã mở đợt tuyển dụng.");
         emit("saved", response.data.data);
         close();
     } catch (e) {
         if (e.response?.status === 422) {
             errors.value = e.response.data.errors;
         } else {
-            loadError.value =
-                e.response?.data?.message ??
-                "Không thể kết nối máy chủ, vui lòng thử lại.";
+            loadError.value = e.response?.data?.message ?? "Không thể kết nối máy chủ, vui lòng thử lại.";
         }
     } finally {
         loading.value = false;
