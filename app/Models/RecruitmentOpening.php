@@ -25,8 +25,14 @@ class RecruitmentOpening extends Model
 
     public const STATUS_CLOSED = 'closed'; // HR đóng tay
 
+    // Loại hợp đồng của đợt tuyển: 1 loại cố định, hoặc "tất cả" = để HR chọn loại cụ
+    // thể cho từng ứng viên lúc soạn offer (RecruitmentOfferService).
+    public const CONTRACT_TYPE_ANY = 'tat_ca';
+
+    public const CONTRACT_TYPES = ['thu_viec', 'chinh_thuc', 'thuc_tap', self::CONTRACT_TYPE_ANY];
+
     protected $fillable = [
-        'title', 'department_id', 'position_id', 'contract_type', 'headcount',
+        'title', 'department_id', 'position_id', 'interview_question_set_id', 'contract_type', 'headcount',
         'deadline', 'description', 'status', 'created_by',
     ];
 
@@ -38,6 +44,12 @@ class RecruitmentOpening extends Model
     public function department()
     {
         return $this->belongsTo(Department::class);
+    }
+
+    // Bộ câu hỏi phỏng vấn Admin gắn cho đợt tuyển (InterviewScorecardService).
+    public function questionSet()
+    {
+        return $this->belongsTo(InterviewQuestionSet::class, 'interview_question_set_id');
     }
 
     public function position()

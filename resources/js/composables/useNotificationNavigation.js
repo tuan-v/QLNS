@@ -16,6 +16,7 @@ const TYPE_ROUTES = {
     "leave.decided": "leave-requests",
     "holiday.upcoming": "holidays",
     "holiday.confirm_needed": "holidays",
+    "holiday.announcement": "holiday-announcement",
     "leave.pending_manager": "leave-management",
     "leave.pending_hr": "leave-management",
     "attendance.pending_approval": "attendance-overview",
@@ -29,6 +30,7 @@ const TYPE_ROUTES = {
     "recruitment.offer_pending": "recruitment-detail",
     "recruitment.offer_reviewed": "recruitment-detail",
     "recruitment.offer_responded": "recruitment-detail",
+    "recruitment.interview_confirmation": "interview-schedule",
     "bank_account.pending": "employee-detail",
     "bank_account.reviewed": "my-profile",
 };
@@ -43,11 +45,13 @@ const TYPE_PARAMS = {
     "recruitment.offer_reviewed": recruitmentParams,
     "recruitment.offer_responded": recruitmentParams,
     "bank_account.pending": (item) => ({ id: item.data?.employee_id }),
+    "holiday.announcement": (item) => ({ groupCode: item.data?.group_code }),
 };
 
 const TYPE_QUERY = {
     "resignation.pending": (item) => ({ id: item.data?.resignation_request_id }),
     "resignation.notice": (item) => ({ id: item.data?.resignation_request_id }),
+    "recruitment.interview_confirmation": (item) => ({ month: item.data?.month, interview: item.data?.interview_id }),
     "bank_account.pending": () => ({ tab: "bank" }),
     "bank_account.reviewed": () => ({ tab: "bank" }),
 };

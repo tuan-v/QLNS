@@ -68,7 +68,10 @@
                     :error-messages="errors.position_id"
                 />
             </FormField>
-            <FormField label="Loại hợp đồng khi nhận việc">
+            <FormField
+                label="Loại hợp đồng khi nhận việc"
+                hint='Chọn "Tất cả" nếu chưa cố định — HR chọn loại cụ thể khi soạn offer cho từng ứng viên.'
+            >
                 <v-select
                     v-model="form.contract_type"
                     :items="CONTRACT_TYPE_OPTIONS"
@@ -141,7 +144,7 @@ import DepartmentFormDialog from "../Department/DepartmentForm.vue";
 import PositionFormDialog from "../Position/PositionForm.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useAuthStore } from "../../stores/authStore";
-import { CONTRACT_TYPE_LABELS } from "../../composables/recruitmentStatus";
+import { ANY_CONTRACT_TYPE, OPENING_CONTRACT_TYPE_LABELS } from "../../composables/recruitmentStatus";
 import { isInteger, maxLength, minValue, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
 
 const props = defineProps({
@@ -155,7 +158,7 @@ const emit = defineEmits(["update:modelValue", "saved"]);
 const toast = useToastStore();
 const auth = useAuthStore();
 const isEdit = computed(() => props.opening !== null);
-const CONTRACT_TYPE_OPTIONS = Object.entries(CONTRACT_TYPE_LABELS).map(([value, title]) => ({ title, value }));
+const CONTRACT_TYPE_OPTIONS = Object.entries(OPENING_CONTRACT_TYPE_LABELS).map(([value, title]) => ({ title, value }));
 
 const loading = ref(false);
 const errors = ref({});
@@ -166,7 +169,7 @@ const form = reactive({
     title: "",
     department_id: null,
     position_id: null,
-    contract_type: "thuc_tap",
+    contract_type: ANY_CONTRACT_TYPE,
     headcount: 1,
     deadline: "",
     description: "",
@@ -236,7 +239,7 @@ watch(
             title: o?.title ?? "",
             department_id: o?.department_id ?? null,
             position_id: o?.position_id ?? null,
-            contract_type: o?.contract_type ?? "thuc_tap",
+            contract_type: o?.contract_type ?? ANY_CONTRACT_TYPE,
             headcount: o?.headcount ?? 1,
             deadline: o?.deadline ?? "",
             description: o?.description ?? "",

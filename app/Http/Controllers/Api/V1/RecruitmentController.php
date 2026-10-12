@@ -14,6 +14,7 @@ use App\Http\Resources\RecruitmentCandidateResource;
 use App\Http\Resources\RecruitmentOpeningResource;
 use App\Models\RecruitmentCandidate;
 use App\Models\RecruitmentOpening;
+use App\Services\CandidateHistoryService;
 use App\Services\RecruitmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -88,6 +89,22 @@ class RecruitmentController extends Controller
 
     // Kiểm tra trùng email/SĐT ngay khi rời ô ở form Tải CV (cùng ý tưởng
     // EmployeeController::checkUnique) — câu báo lấy từ đúng hàm dùng lúc lưu.
+    // Lịch sử ứng tuyển theo email hoặc SĐT (mọi đợt tuyển) — CandidateHistoryService.
+    public function candidateHistory(Request $request, CandidateHistoryService $historyService): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['nullable', 'string', 'max:255', 'required_without:phone'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'exclude_id' => ['nullable', 'integer'],
+        ], [
+            'email.required_without' => 'Nhập email hoặc số điện thoại để tra cứu',
+        ]);
+
+        return response()->json([
+            'data' => $historyService->search($data['email'] ?? null, $data['phone'] ?? null, $data['exclude_id'] ?? null),
+        ]);
+    }
+
     public function checkDuplicate(Request $request, RecruitmentOpening $opening): JsonResponse
     {
         $data = $request->validate([

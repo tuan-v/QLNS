@@ -121,10 +121,7 @@
                 />
             </FormField>
             <FormField label="Áp dụng từ ngày" hint="Bỏ trống = áp dụng cho mọi năm.">
-                <InputDate
-                    v-model="form.effective_from"
-                    :error-messages="errors.effective_from"
-                />
+                <InputDate v-model="form.effective_from" :error-messages="errors.effective_from" />
             </FormField>
             <FormField label="Tùy chọn">
                 <v-switch
@@ -182,11 +179,7 @@ import FormField from "../../components/common/FormField.vue";
 import InputDate from "../../components/common/InputDate.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useChangeGuard } from "../../composables/useChangeGuard";
-import {
-    maxLength,
-    notEmpty,
-    useClearErrorsOnEdit,
-} from "../../composables/validationRules";
+import { maxLength, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
 import {
     DURATION_OPTIONS,
     MONTH_OPTIONS,

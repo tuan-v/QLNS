@@ -41,6 +41,7 @@ class RecruitmentService
     public function __construct(
         private readonly RecruitmentRepository $recruitmentRepository,
         private readonly NotificationService $notificationService,
+        private readonly CandidateHistoryService $candidateHistoryService,
     ) {
     }
 
@@ -53,7 +54,13 @@ class RecruitmentService
 
     public function showOpening(RecruitmentOpening $opening): RecruitmentOpening
     {
-        return $this->recruitmentRepository->loadOpeningDetail($opening);
+        $opening = $this->recruitmentRepository->loadOpeningDetail($opening);
+
+        // Số lần người này từng nộp CV khác (mọi đợt tuyển) — chip "Đã nộp N lần trước".
+        $counts = $this->candidateHistoryService->previousCounts($opening->candidates);
+        $opening->candidates->each(fn (RecruitmentCandidate $c) => $c->setAttribute('previous_applications_count', $counts[$c->id] ?? 0));
+
+        return $opening;
     }
 
     public function createOpening(array $data, User $actor): RecruitmentOpening
@@ -296,7 +303,13 @@ class RecruitmentService
             $current = $locked->interviews()->where('status', RecruitmentInterview::STATUS_SCHEDULED)->first();
 
             if ($current) {
-                $current->fill($values)->save();
+                // Dời lịch = lịch mới -> phản hồi của ứng viên về "chờ xác nhận" lại.
+                $current->fill($values + [
+                    'confirmation_status' => RecruitmentInterview::CONFIRMATION_PENDING,
+                    'confirmation_note' => null,
+                    'confirmed_by' => null,
+                    'confirmed_at' => null,
+                ])->save();
                 $interview = $current;
             } else {
                 $interview = $locked->interviews()->create($values + [
@@ -337,10 +350,19 @@ class RecruitmentService
     }
 
     // Ghi kết quả sau giờ phỏng vấn. Trượt thì trả lại suất cho đợt tuyển.
-    public function recordResult(RecruitmentCandidate $candidate, string $result, ?string $note): RecruitmentCandidate
+    // $viaScorecard: gọi từ InterviewScorecardService khi nộp phiếu chấm. Đợt tuyển đã gắn bộ
+    // câu hỏi thì CHỈ ra kết quả qua phiếu chấm (kết quả luôn khớp điểm), không ghi tay.
+    public function recordResult(RecruitmentCandidate $candidate, string $result, ?string $note, bool $viaScorecard = false): RecruitmentCandidate
     {
-        $candidate = DB::transaction(function () use ($candidate, $result, $note) {
+        $candidate = DB::transaction(function () use ($candidate, $result, $note, $viaScorecard) {
             $opening = $this->lockOpening($candidate->opening);
+
+            if (! $viaScorecard && $opening->interview_question_set_id) {
+                throw ValidationException::withMessages([
+                    'result' => 'Đợt tuyển này chấm theo bộ câu hỏi — vào "Chấm điểm phỏng vấn" để ra kết quả.',
+                ]);
+            }
+
             $locked = $this->lockCandidate($candidate);
             $interview = $locked->interviews()->where('status', RecruitmentInterview::STATUS_SCHEDULED)->first();
 

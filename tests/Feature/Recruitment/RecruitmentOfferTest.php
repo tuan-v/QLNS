@@ -125,6 +125,22 @@ class RecruitmentOfferTest extends TestCase
         $this->createOffer($candidate, ['salary' => 12_000_000])->assertCreated();
     }
 
+    // Đợt tuyển "tất cả loại hợp đồng": loại cụ thể chỉ chọn lúc soạn offer.
+    public function test_opening_may_leave_contract_type_open_but_offer_must_pick_one(): void
+    {
+        $department = Department::create(['name' => 'Phong '.uniqid(), 'code' => 'PB-'.uniqid()]);
+        $this->postJson('/api/v1/recruitment/openings', [
+            'title' => 'Tuyen nhieu loai', 'department_id' => $department->id,
+            'contract_type' => 'tat_ca', 'headcount' => 1, 'deadline' => '2026-10-31',
+        ], $this->as('hr'))->assertCreated()->assertJsonPath('data.contract_type', 'tat_ca');
+
+        $candidate = $this->passedCandidate();
+        $this->createOffer($candidate, ['contract_type' => 'tat_ca'])
+            ->assertStatus(422)->assertJsonValidationErrors('contract_type');
+        $this->createOffer($candidate, ['contract_type' => 'chinh_thuc'])
+            ->assertCreated()->assertJsonPath('data.contract_type', 'chinh_thuc');
+    }
+
     public function test_validation_and_only_passed_candidates(): void
     {
         $candidate = $this->passedCandidate();

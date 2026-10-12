@@ -535,6 +535,14 @@ body {
    FormSection.vue, FormField.vue)
    ===================================================================== */
 
+/* Cho phần tử con trong flex/grid được co nhỏ hơn nội dung — thiếu cái này thì
+   text-truncate không cắt chữ mà đẩy tràn các phần tử bên cạnh ra ngoài khung
+   (lỗi thẻ tài khoản ngân hàng trên màn hẹp). Vuetify không có sẵn class này. */
+.min-width-0,
+.min-w-0 {
+    min-width: 0;
+}
+
 /* Lưới trường cho <FormSection :columns="2|3"> */
 .form-grid {
     display: grid;

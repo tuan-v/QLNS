@@ -8,10 +8,12 @@ use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\Payroll;
 use App\Models\PayrollDetail;
+use App\Models\SalaryComponent;
 use App\Models\User;
 use App\Models\WorkShift;
 use App\Repositories\PayrollDetailRepository;
 use App\Repositories\PayrollRepository;
+use App\Services\Payroll\HolidayBonusCalculator;
 use App\Services\Payroll\PersonalIncomeTaxCalculator;
 use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -62,6 +64,7 @@ class PayrollService
         private readonly PayrollDetailRepository $payrollDetailRepository,
         private readonly PersonalIncomeTaxCalculator $taxCalculator,
         private readonly WorkTimeCalculationService $workTimeCalculationService,
+        private readonly HolidayBonusCalculator $holidayBonusCalculator,
     ) {
     }
 
@@ -107,6 +110,12 @@ class PayrollService
 
             $totalNet = 0.0;
 
+            // Thưởng lễ của các thông báo nghỉ lễ đã phát hành chọn chi cùng lương kỳ này.
+            $holidayAnnouncements = $this->holidayBonusCalculator->announcementsForPeriod($month, $year);
+            $holidayBonusComponent = $holidayAnnouncements->isNotEmpty()
+                ? SalaryComponent::where('code', 'holiday_bonus')->first()
+                : null;
+
             // probation vẫn được tính lương — dùng ĐÚNG agreed_salary trên
             // hợp đồng đang active của họ, không tự áp % giảm cho thử việc:
             // hợp đồng thử việc thường đã ký sẵn đúng mức lương thỏa thuận
@@ -120,14 +129,27 @@ class PayrollService
                     continue; // Không có hợp đồng nào hiệu lực trong kỳ thì bỏ qua, không chặn cả lô.
                 }
 
+                $bonuses = $holidayAnnouncements->isEmpty() ? [] : $this->holidayBonusCalculator->bonusesFor($employee, $holidayAnnouncements);
+
                 $detail = $this->buildDetailForEmployee(
                     $employee,
                     $contract,
                     $start,
                     $end,
                     $contract->contract_type === 'thuc_tap' ? $internStandardWorkDays : $standardWorkDays,
+                    round(array_sum(array_column($bonuses, 'amount')), 2),
                 );
-                $this->payrollDetailRepository->createForPayroll($payroll, $detail);
+                $payrollDetail = $this->payrollDetailRepository->createForPayroll($payroll, $detail);
+
+                if ($bonuses !== [] && $holidayBonusComponent) {
+                    $payrollDetail->components()->create([
+                        'salary_component_id' => $holidayBonusComponent->id,
+                        'component_name_snapshot' => 'Thưởng '.implode(', ', array_column($bonuses, 'name')),
+                        'calculation_snapshot' => ['holiday_bonuses' => $bonuses],
+                        'quantity' => count($bonuses),
+                        'amount' => $detail['bonus_amount'],
+                    ]);
+                }
                 $totalNet += $detail['net_salary'];
             }
 
@@ -140,7 +162,7 @@ class PayrollService
         return $payroll;
     }
 
-    private function buildDetailForEmployee(Employee $employee, $contract, Carbon $start, Carbon $end, int $standardWorkDays): array
+    private function buildDetailForEmployee(Employee $employee, $contract, Carbon $start, Carbon $end, int $standardWorkDays, float $bonusAmount = 0.0): array
     {
         $unpaidLeaveDays = $this->leaveDaysFor($employee, $start, $end, isPaid: false);
         $paidLeaveDays = $this->leaveDaysFor($employee, $start, $end, isPaid: true);
@@ -170,7 +192,9 @@ class PayrollService
             ? round((float) $contract->insurance_salary * self::INSURANCE_RATE, 2)
             : 0.0;
 
-        $grossSalary = round($baseSalary + $overtimeAmount, 2);
+        // Thưởng lễ là thu nhập từ tiền lương, tiền công -> tính vào gross và chịu thuế TNCN;
+        // bảo hiểm vẫn theo insurance_salary trên hợp đồng nên không đổi.
+        $grossSalary = round($baseSalary + $overtimeAmount + $bonusAmount, 2);
         // Luật thuế TNCN đổi mốc 2026 (giảm trừ + biểu lũy tiến), nên phải tính
         // theo KỲ của bảng lương chứ không phải năm hiện tại — tính lại bảng
         // lương kỳ cũ vẫn ra đúng số đã chốt. Người phụ thuộc tạm truyền 0:
@@ -189,6 +213,7 @@ class PayrollService
             'actual_work_days' => $actualWorkDays,
             'overtime_minutes' => $overtimeMinutes,
             'overtime_amount' => $overtimeAmount,
+            'bonus_amount' => $bonusAmount,
             'total_allowance' => 0,
             'insurance_amount' => $insuranceAmount,
             'unpaid_leave_deduction' => $unpaidLeaveDeduction,

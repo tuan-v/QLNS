@@ -16,18 +16,11 @@
                 <v-text-field
                     v-model="form.full_name"
                     density="comfortable"
-                    :rules="[
-                        notEmpty('Họ và tên'),
-                        maxLength(255, 'Họ và tên'),
-                    ]"
+                    :rules="[notEmpty('Họ và tên'), maxLength(255, 'Họ và tên')]"
                     :error-messages="errors.full_name"
                 />
             </FormField>
-            <FormField
-                label="Email"
-                required
-                hint="Dùng để gửi thư mời và kết quả"
-            >
+            <FormField label="Email" required hint="Dùng để gửi thư mời và kết quả">
                 <v-text-field
                     v-model="form.email"
                     type="email"
@@ -44,26 +37,35 @@
                     density="comfortable"
                     inputmode="numeric"
                     maxlength="10"
-                    :rules="[
-                        (v) =>
-                            !v ||
-                            PHONE_PATTERN.test(v) ||
-                            'Số điện thoại phải gồm đúng 10 chữ số',
-                    ]"
+                    :rules="[(v) => !v || PHONE_PATTERN.test(v) || 'Số điện thoại phải gồm đúng 10 chữ số']"
                     :error-messages="fieldErrors('phone')"
                     :loading="checking.phone"
                     @blur="checkDuplicate('phone')"
                 />
             </FormField>
+            <!-- Người này từng nộp CV vào công ty chưa (mọi đợt tuyển) — chỉ để HR biết, không chặn. -->
+            <FormField v-if="history.length" span="full">
+                <v-alert type="info" variant="tonal" density="compact" icon="mdi-history">
+                    <div class="d-flex align-center ga-2">
+                        <span class="flex-grow-1"
+                            >Người này đã từng nộp CV <strong>{{ history.length }}</strong> lần vào công ty.</span
+                        >
+                        <v-btn size="x-small" variant="text" @click="showHistory = !showHistory">
+                            {{ showHistory ? "Ẩn" : "Xem chi tiết" }}
+                        </v-btn>
+                    </div>
+                    <v-expand-transition>
+                        <div v-if="showHistory" class="mt-2">
+                            <CandidateHistoryList :items="history" @navigate="close" />
+                        </div>
+                    </v-expand-transition>
+                </v-alert>
+            </FormField>
             <FormField label="CV (PDF)" required span="full">
                 <InputFile
                     v-model="form.cv_file"
                     :limit="CV_LIMIT"
-                    :rules="[
-                        (v) =>
-                            (Array.isArray(v) ? v.length > 0 : !!v) ||
-                            'Vui lòng đính kèm CV',
-                    ]"
+                    :rules="[(v) => (Array.isArray(v) ? v.length > 0 : !!v) || 'Vui lòng đính kèm CV']"
                     :error-messages="errors.cv_file"
                 />
             </FormField>
@@ -87,13 +89,9 @@ import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
 import FormField from "../../components/common/FormField.vue";
 import InputFile from "../../components/common/InputFile.vue";
+import CandidateHistoryList from "./CandidateHistoryList.vue";
 import { useToastStore } from "../../stores/useToastStore";
-import {
-    isEmail,
-    maxLength,
-    notEmpty,
-    useClearErrorsOnEdit,
-} from "../../composables/validationRules";
+import { isEmail, maxLength, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
 
 const CV_LIMIT = { maxSizeMb: 10, formats: "PDF", accept: ".pdf" };
 
@@ -115,6 +113,33 @@ const form = reactive({
     cv_file: null,
 });
 
+/* ---- Lịch sử ứng tuyển theo email/SĐT hợp lệ (tra khi rời ô) ---- */
+const history = ref([]);
+const showHistory = ref(false);
+let historyKey = "";
+
+async function loadHistory() {
+    const email = EMAIL_PATTERN.test((form.email ?? "").trim()) ? form.email.trim() : "";
+    const phone = PHONE_PATTERN.test((form.phone ?? "").trim()) ? form.phone.trim() : "";
+    const key = `${email}|${phone}`;
+    if (key === historyKey) return;
+    historyKey = key;
+    if (!email && !phone) {
+        history.value = [];
+        return;
+    }
+    try {
+        const response = await recruitmentService.candidateHistory({
+            email: email || undefined,
+            phone: phone || undefined,
+        });
+        // Người dùng đã sửa ô trong lúc chờ -> bỏ kết quả cũ.
+        if (key === historyKey) history.value = response.data.data;
+    } catch {
+        history.value = [];
+    }
+}
+
 /* ---- Kiểm tra trùng email/SĐT ngay khi rời ô (giống EmployeeForm.vue) ---- */
 const PHONE_PATTERN = /^\d{10}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -124,16 +149,13 @@ const checking = reactive({ email: false, phone: false });
 const checkedValue = { email: null, phone: null };
 
 function fieldErrors(key) {
-    return [
-        ...(errors.value[key] ?? []),
-        ...(duplicateErrors[key] ? [duplicateErrors[key]] : []),
-    ];
+    return [...(errors.value[key] ?? []), ...(duplicateErrors[key] ? [duplicateErrors[key]] : [])];
 }
 
 async function checkDuplicate(key) {
+    loadHistory();
     const value = (form[key] ?? "").trim();
-    const validFormat =
-        key === "email" ? EMAIL_PATTERN.test(value) : PHONE_PATTERN.test(value);
+    const validFormat = key === "email" ? EMAIL_PATTERN.test(value) : PHONE_PATTERN.test(value);
 
     // Rỗng hoặc sai định dạng thì để rule định dạng báo, không hỏi server.
     if (!value || !validFormat) {
@@ -147,17 +169,12 @@ async function checkDuplicate(key) {
 
     checking[key] = true;
     try {
-        const response = await recruitmentService.checkDuplicate(
-            props.opening.id,
-            { field: key, value },
-        );
+        const response = await recruitmentService.checkDuplicate(props.opening.id, { field: key, value });
         // Người dùng đã gõ tiếp trong lúc chờ -> bỏ kết quả cũ.
         if ((form[key] ?? "").trim() !== value) {
             return;
         }
-        duplicateErrors[key] = response.data.available
-            ? null
-            : response.data.message;
+        duplicateErrors[key] = response.data.available ? null : response.data.message;
         checkedValue[key] = value;
     } catch {
         // Lỗi mạng: không chặn ở đây, backend vẫn kiểm tra lại khi lưu.
@@ -197,6 +214,9 @@ watch(
             });
             Object.assign(duplicateErrors, { email: null, phone: null });
             Object.assign(checkedValue, { email: null, phone: null });
+            history.value = [];
+            showHistory.value = false;
+            historyKey = "";
             errors.value = {};
             loadError.value = "";
         }
@@ -236,9 +256,7 @@ async function submit() {
             // Lỗi của cả đợt tuyển (đủ CV, đã đóng, quá hạn) không thuộc ô nào.
             loadError.value = e.response.data.errors?.opening?.[0] ?? "";
         } else {
-            loadError.value =
-                e.response?.data?.message ??
-                "Không thể kết nối máy chủ, vui lòng thử lại.";
+            loadError.value = e.response?.data?.message ?? "Không thể kết nối máy chủ, vui lòng thử lại.";
         }
     } finally {
         loading.value = false;

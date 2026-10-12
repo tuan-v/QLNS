@@ -11,12 +11,7 @@
                 <v-tabs v-model="tab" class="notif-tabs">
                     <v-tab value="mine">
                         Thông báo của tôi
-                        <v-chip
-                            v-if="mine.unreadCount > 0"
-                            color="primary"
-                            size="x-small"
-                            class="ml-2"
-                        >
+                        <v-chip v-if="mine.unreadCount > 0" color="primary" size="x-small" class="ml-2">
                             {{ mine.unreadCount }}
                         </v-chip>
                     </v-tab>
@@ -77,10 +72,7 @@
                             </div>
                         </template>
                         <template #item.read_at="{ item }">
-                            <StatusChip
-                                :status="item.read_at ? 'read' : 'unread'"
-                                :map="READ_STATUS_MAP"
-                            />
+                            <StatusChip :status="item.read_at ? 'read' : 'unread'" :map="READ_STATUS_MAP" />
                         </template>
                         <template #item.created_at="{ item }">
                             <span class="text-body-2 text-medium-emphasis text-no-wrap">
@@ -93,10 +85,7 @@
                 <v-window-item v-if="canViewAll" value="all">
                     <!-- Bộ lọc nằm trong card, ngay trên bảng -->
                     <div class="d-flex flex-wrap ga-3 px-5 py-4 border-b">
-                        <SearchField
-                            v-model="all.search"
-                            placeholder="Tìm theo tên nhân viên nhận..."
-                        />
+                        <SearchField v-model="all.search" placeholder="Tìm theo tên nhân viên nhận..." />
                         <v-select
                             v-model="all.type"
                             :items="typeOptions"
@@ -173,12 +162,14 @@ const TYPE_LABELS = {
     "leave.decided": "Kết quả duyệt phép",
     "holiday.upcoming": "Thông báo nghỉ lễ",
     "holiday.confirm_needed": "Nhắc xác nhận lịch nghỉ",
+    "holiday.announcement": "Văn bản thông báo nghỉ lễ",
     "recruitment.cv_pending": "CV cần duyệt",
     "recruitment.cv_reviewed": "Kết quả duyệt CV",
     "recruitment.interview_assigned": "Phân công phỏng vấn",
     "recruitment.offer_pending": "Offer cần duyệt",
     "recruitment.offer_reviewed": "Kết quả duyệt offer",
     "recruitment.offer_responded": "Ứng viên trả lời offer",
+    "recruitment.interview_confirmation": "Phản hồi lịch phỏng vấn",
     "bank_account.pending": "Tài khoản ngân hàng cần xác nhận",
     "bank_account.reviewed": "Kết quả xác nhận tài khoản ngân hàng",
     "attendance.pending_approval": "Chấm công chờ duyệt",

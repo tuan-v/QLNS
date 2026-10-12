@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\EmployeeBankAccountController;
 use App\Http\Controllers\Api\V1\EmployeeController;
 use App\Http\Controllers\Api\V1\EmployeeContractController;
 use App\Http\Controllers\Api\V1\EmployeeDocumentController;
+use App\Http\Controllers\Api\V1\EmployeeJourneyController;
 use App\Http\Controllers\Api\V1\EmployeeShiftAssignmentController;
 use App\Http\Controllers\Api\V1\EmployeeTransferController;
 use App\Http\Controllers\Api\V1\PayrollController;
@@ -85,6 +86,8 @@ Route::middleware('auth:api')->prefix('employees')->group(function (): void {
         Route::post('/{employee}/bank-accounts/{bankAccount}/primary', [EmployeeBankAccountController::class, 'setPrimary']);
         Route::delete('/{employee}/bank-accounts/{bankAccount}', [EmployeeBankAccountController::class, 'destroy']);
     });
+    // Hành trình nhân viên: tuyển dụng -> hợp đồng/lương/chức vụ -> lương thực nhận (Admin + HR).
+    Route::get('/{employee}/journey', [EmployeeJourneyController::class, 'show'])->middleware('permission:employee.journey');
     Route::get('/{employee}/payslips', [PayrollController::class, 'forEmployee'])->middleware('permission:payroll.view_all');
     Route::get('/{employee}/shift-assignments', [EmployeeShiftAssignmentController::class, 'index'])->middleware('permission:shift.view');
     Route::post('/{employee}/shift-assignments', [EmployeeShiftAssignmentController::class, 'store'])->middleware('permission:shift.manage');

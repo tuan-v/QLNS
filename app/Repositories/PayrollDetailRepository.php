@@ -28,7 +28,7 @@ class PayrollDetailRepository
     {
         return PayrollDetail::where('employee_id', $employee->id)
             ->whereHas('payroll', fn ($query) => $query->whereIn('status', ['closed', 'paid']))
-            ->with(['payroll', 'employee.position', 'employee.department'])
+            ->with(['payroll', 'employee.position', 'employee.department', 'components'])
             ->latest('id')
             ->get();
     }

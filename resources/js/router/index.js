@@ -180,6 +180,13 @@ const routes = [
         component: () => import("../views/Holiday/Holidays.vue"),
     },
     {
+        path: "/ngay-nghi-le/:groupCode/thong-bao",
+        name: "holiday-announcement",
+        // Soạn (holiday.manage) hoặc xem bản đã phát hành (mọi người) — trang tự phân nhánh.
+        meta: { title: "Thông báo nghỉ lễ" },
+        component: () => import("../views/Holiday/HolidayAnnouncement.vue"),
+    },
+    {
         path: "/tuyen-dung",
         name: "recruitment",
         meta: { title: "Tuyển dụng", permission: "recruitment.manage" },
@@ -190,6 +197,26 @@ const routes = [
         name: "recruitment-detail",
         meta: { title: "Chi tiết đợt tuyển", permission: "recruitment.manage" },
         component: () => import("../views/Recruitment/RecruitmentOpeningDetail.vue"),
+    },
+    {
+        path: "/lich-phong-van",
+        name: "interview-schedule",
+        // HR ghi nhận phản hồi ứng viên; Admin xem (nhận thông báo khi HR ghi nhận).
+        meta: { title: "Lịch phỏng vấn", permission: ["recruitment.manage", "recruitment.approve"] },
+        component: () => import("../views/Recruitment/InterviewSchedule.vue"),
+    },
+    {
+        path: "/lich-phong-van/:id/cham-diem",
+        name: "interview-scorecard",
+        meta: { title: "Chấm điểm phỏng vấn", parent: "interview-schedule", permission: ["recruitment.manage", "recruitment.approve"] },
+        component: () => import("../views/Recruitment/InterviewScorecard.vue"),
+    },
+    {
+        path: "/bo-cau-hoi-phong-van",
+        name: "question-sets",
+        // Admin (recruitment.approve) soạn; HR xem.
+        meta: { title: "Bộ câu hỏi phỏng vấn", permission: ["recruitment.manage", "recruitment.approve"] },
+        component: () => import("../views/Recruitment/QuestionSets.vue"),
     },
     {
         // Trang công khai cho ứng viên trả lời thư mời nhận việc (link trong email).

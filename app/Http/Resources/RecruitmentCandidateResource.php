@@ -34,8 +34,11 @@ class RecruitmentCandidateResource extends JsonResource
                 'status' => $interview->status,
                 'result' => $interview->result,
                 'result_note' => $interview->result_note,
+                'confirmation_status' => $interview->confirmation_status,
+                'confirmation_note' => $interview->confirmation_note,
             ])->values()),
             'hired_employee' => $this->whenLoaded('hiredEmployee'),
+            'previous_applications_count' => $this->getAttribute('previous_applications_count'),
             'offer' => $this->whenLoaded('latestOffer', fn () => $this->latestOffer ? new RecruitmentOfferResource($this->latestOffer) : null),
             'created_at' => $this->created_at,
         ];

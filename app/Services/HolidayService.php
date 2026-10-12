@@ -52,12 +52,16 @@ class HolidayService
             Carbon::create($year, 12, 31),
         );
 
-        return $holidays
+        $groups = $holidays
             ->groupBy(fn (Holiday $holiday) => $this->groupKey($holiday))
             ->map(fn (Collection $days, string $code) => $this->presentGroup($code, $days))
             ->sortBy('start_date')
-            ->values()
-            ->all();
+            ->values();
+
+        // Trạng thái văn bản thông báo (HolidayAnnouncementService) của từng dịp.
+        $announcements = app(HolidayAnnouncementService::class)->statusesFor($groups->pluck('group_code')->all());
+
+        return $groups->map(fn (array $group) => $group + ['announcement' => $announcements[$group['group_code']] ?? null])->all();
     }
 
     public function showGroup(string $groupCode): array
@@ -356,6 +360,7 @@ class HolidayService
     public function deleteGroup(string $groupCode): void
     {
         $this->groupDays($groupCode)->each->delete();
+        app(HolidayAnnouncementService::class)->deleteForGroup($groupCode);
     }
 
     /* ------------------------- HR điều chỉnh & xác nhận ------------------------- */

@@ -30,6 +30,7 @@
                     <v-tab value="attendance" prepend-icon="mdi-calendar-check-outline">Chấm công</v-tab>
                     <v-tab value="payroll" prepend-icon="mdi-cash-multiple">Lương / Phép</v-tab>
                     <v-tab v-if="canUpdate" value="bank" prepend-icon="mdi-bank-outline">Tài khoản ngân hàng</v-tab>
+                    <v-tab v-if="canViewJourney" value="journey" prepend-icon="mdi-chart-timeline-variant">Hành trình</v-tab>
                 </v-tabs>
             </v-sheet>
 
@@ -78,6 +79,10 @@
                     <EmployeeSalaryLeaveTab v-if="tabsOpened.payroll" :employee-id="props.id" />
                 </v-window-item>
 
+                <v-window-item v-if="canViewJourney" value="journey">
+                    <EmployeeJourneyTab v-if="tabsOpened.journey" :employee-id="props.id" />
+                </v-window-item>
+
                 <v-window-item v-if="canUpdate" value="bank">
                     <BankAccountsPanel
                         v-if="tabsOpened.bank"
@@ -112,6 +117,7 @@ import EmployeeDocumentsTab from "./EmployeeDocumentsTab.vue";
 import EmployeeTransfersTab from "./EmployeeTransfersTab.vue";
 import EmployeeShiftAssignmentsTab from "./EmployeeShiftAssignmentsTab.vue";
 import BankAccountsPanel from "../../components/employee/BankAccountsPanel.vue";
+import EmployeeJourneyTab from "./EmployeeJourneyTab.vue";
 import EmployeeSalaryLeaveTab from "./EmployeeSalaryLeaveTab.vue";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
@@ -127,6 +133,8 @@ const route = useRoute();
 const auth = useAuthStore();
 
 const canUpdate = computed(() => auth.permissions.includes("employee.update"));
+// Hành trình (có lương qua từng giai đoạn) — Admin + HR (employee.journey).
+const canViewJourney = computed(() => auth.permissions.includes("employee.journey"));
 
 const employee = ref(null);
 const loadError = ref("");
@@ -140,6 +148,7 @@ const VALID_TABS = [
     "attendance",
     "payroll",
     "bank",
+    "journey",
 ];
 const tab = ref(VALID_TABS.includes(route.query.tab) ? route.query.tab : "profile");
 
@@ -168,6 +177,7 @@ const tabsOpened = reactive({
     attendance: false,
     payroll: false,
     bank: false,
+    journey: false,
 });
 watch(tab, (value) => {
     if (value in tabsOpened) {

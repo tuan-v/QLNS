@@ -86,22 +86,12 @@
                     />
                 </FormField>
                 <FormField span="full">
-                    <v-alert
-                        v-if="lunarPreview"
-                        type="info"
-                        variant="tonal"
-                        density="compact"
-                    >
+                    <v-alert v-if="lunarPreview" type="info" variant="tonal" density="compact">
                         Tương ứng dương lịch:
                         <strong>{{ formatDate(lunarPreview.date) }}</strong>
                         ({{ lunarPreview.lunar_label }})
                     </v-alert>
-                    <v-alert
-                        v-else-if="lunarError"
-                        type="warning"
-                        variant="tonal"
-                        density="compact"
-                    >
+                    <v-alert v-else-if="lunarError" type="warning" variant="tonal" density="compact">
                         {{ lunarError }}
                     </v-alert>
                 </FormField>
@@ -157,17 +147,8 @@ import FormSection from "../../components/common/FormSection.vue";
 import FormField from "../../components/common/FormField.vue";
 import InputDate from "../../components/common/InputDate.vue";
 import { useToastStore } from "../../stores/useToastStore";
-import {
-    maxLength,
-    notEmpty,
-    useClearErrorsOnEdit,
-} from "../../composables/validationRules";
-import {
-    DURATION_OPTIONS,
-    MONTH_OPTIONS,
-    dayOptionsFor,
-    lunarYearOptions,
-} from "./holidayOptions";
+import { maxLength, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
+import { DURATION_OPTIONS, MONTH_OPTIONS, dayOptionsFor, lunarYearOptions } from "./holidayOptions";
 
 const props = defineProps({
     modelValue: { type: Boolean, default: false },

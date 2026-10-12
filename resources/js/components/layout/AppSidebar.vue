@@ -120,6 +120,20 @@
                 to="/tuyen-dung"
                 rounded="lg"
             />
+            <v-list-item
+                v-if="can('recruitment.manage') || can('recruitment.approve')"
+                prepend-icon="mdi-calendar-account-outline"
+                title="Lịch phỏng vấn"
+                to="/lich-phong-van"
+                rounded="lg"
+            />
+            <v-list-item
+                v-if="can('recruitment.manage') || can('recruitment.approve')"
+                prepend-icon="mdi-clipboard-text-outline"
+                title="Bộ câu hỏi phỏng vấn"
+                to="/bo-cau-hoi-phong-van"
+                rounded="lg"
+            />
 
             <v-list-subheader v-if="showLabels"
                 >Chấm công &amp; Nghỉ phép</v-list-subheader

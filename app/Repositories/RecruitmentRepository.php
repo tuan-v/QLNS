@@ -28,7 +28,7 @@ class RecruitmentRepository
     public function loadOpeningDetail(RecruitmentOpening $opening): RecruitmentOpening
     {
         return $opening->load([
-            'department:id,name', 'position:id,name', 'creator:id,user_name',
+            'department:id,name', 'position:id,name', 'creator:id,user_name', 'questionSet:id,name,pass_percent',
             'candidates' => fn ($q) => $q->latest(),
             'candidates.submitter:id,user_name', 'candidates.reviewer:id,user_name',
             'candidates.interviews.interviewer:id,full_name', 'candidates.hiredEmployee:id,code,full_name',

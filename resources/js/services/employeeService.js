@@ -12,6 +12,10 @@ export default {
     stats() {
         return axios.get(`${API_BASE}/stats`);
     },
+    // Tab "Hành trình": tuyển dụng -> hợp đồng/lương/chức vụ -> lương thực nhận (employee.journey).
+    journey(id) {
+        return axios.get(`${API_BASE}/${id}/journey`);
+    },
     me() {
         return axios.get(`${API_BASE}/me`);
     },

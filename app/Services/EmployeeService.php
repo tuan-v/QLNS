@@ -65,7 +65,12 @@ class EmployeeService
         // không nhận từ client.
         unset($data['manager_id']);
 
-        $employee = DB::transaction(function () use ($data, $agreedSalary, $contractType) {
+        // Tạo từ ứng viên tuyển dụng ("Nhận việc"): đánh dấu ứng viên đã nhận việc trong
+        // CÙNG transaction — lỗi ở bước nào thì cả nhân viên lẫn ứng viên đều không đổi.
+        $candidateId = $data['candidate_id'] ?? null;
+        unset($data['candidate_id']);
+
+        $employee = DB::transaction(function () use ($data, $agreedSalary, $contractType, $contractEndDate, $candidateId) {
             $employee = $this->employeeRepository->create($data);
             if ($candidateId !== null) {
                 $this->recruitmentService->markHired((int) $candidateId, $employee);

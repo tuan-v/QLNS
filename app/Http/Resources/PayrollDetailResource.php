@@ -22,6 +22,9 @@ class PayrollDetailResource extends JsonResource
             'actual_work_days' => $this->actual_work_days,
             'overtime_minutes' => $this->overtime_minutes,
             'overtime_amount' => $this->overtime_amount,
+            'bonus_amount' => $this->bonus_amount,
+            // Tên dịp thưởng (vd "Thưởng Quốc khánh") — chỉ có khi đã nạp components.
+            'bonus_label' => $this->whenLoaded('components', fn () => $this->components->first(fn ($c) => isset($c->calculation_snapshot['holiday_bonuses']))?->component_name_snapshot),
             'total_allowance' => $this->total_allowance,
             'unpaid_leave_deduction' => $this->unpaid_leave_deduction,
             'other_deduction' => $this->other_deduction,

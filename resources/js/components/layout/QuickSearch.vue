@@ -77,6 +77,20 @@ const ALL_ITEMS = [
         keywords: ["recruitment", "tuyen dung", "ung vien", "cv", "phong van"],
     },
     {
+        name: "interview-schedule",
+        title: "Lịch phỏng vấn",
+        icon: "mdi-calendar-account-outline",
+        permission: ["recruitment.manage", "recruitment.approve"],
+        keywords: ["lich phong van", "phong van", "interview", "ung vien", "hen phong van"],
+    },
+    {
+        name: "question-sets",
+        title: "Bộ câu hỏi phỏng vấn",
+        icon: "mdi-clipboard-text-outline",
+        permission: ["recruitment.manage", "recruitment.approve"],
+        keywords: ["cau hoi", "phong van", "cham diem", "trong so", "scorecard"],
+    },
+    {
         name: "holidays",
         title: "Ngày nghỉ lễ",
         icon: "mdi-calendar-star",

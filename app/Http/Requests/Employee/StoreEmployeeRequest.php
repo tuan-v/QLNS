@@ -47,6 +47,10 @@ class StoreEmployeeRequest extends FormRequest
             // (EmployeeContractService::create()).
             'contract_type' => ['required', 'in:thu_viec,chinh_thuc,thuc_tap'],
             'agreed_salary' => ['required', 'numeric', 'min:0'],
+            // Tùy chọn: ngày kết thúc hợp đồng đầu tiên (null = không xác định thời hạn).
+            'contract_end_date' => ['nullable', 'date', 'after:hire_date'],
+            // Tạo từ ứng viên tuyển dụng ("Nhận việc") — xem RecruitmentService::markHired().
+            'candidate_id' => ['nullable', 'integer', 'exists:recruitment_candidates,id'],
         ];
     }
 

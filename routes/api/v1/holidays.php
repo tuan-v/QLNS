@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\HolidayAnnouncementController;
 use App\Http\Controllers\Api\V1\HolidayController;
 use Illuminate\Support\Facades\Route;
 
@@ -8,6 +9,9 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:api')->prefix('holidays')->group(function (): void {
     Route::get('/', [HolidayController::class, 'index']);
     Route::get('/convert', [HolidayController::class, 'convert']);
+    // Văn bản thông báo nghỉ lễ: ai cũng xem/tải BẢN ĐÃ KÝ đã phát hành (bản nháp chỉ người quản lý).
+    Route::get('/groups/{groupCode}/announcement', [HolidayAnnouncementController::class, 'show']);
+    Route::get('/groups/{groupCode}/announcement/signed', [HolidayAnnouncementController::class, 'signed']);
 
     Route::middleware('permission:holiday.manage')->group(function (): void {
         Route::post('/', [HolidayController::class, 'store']);
@@ -23,6 +27,13 @@ Route::middleware('auth:api')->prefix('holidays')->group(function (): void {
         Route::post('/groups/{groupCode}/days', [HolidayController::class, 'addDay']);
         Route::post('/groups/{groupCode}/swaps', [HolidayController::class, 'addSwap']);
         Route::post('/groups/{groupCode}/notify', [HolidayController::class, 'notifyGroup']);
+        Route::put('/groups/{groupCode}/announcement', [HolidayAnnouncementController::class, 'update']);
+        Route::post('/groups/{groupCode}/announcement/preview', [HolidayAnnouncementController::class, 'preview']);
+        Route::get('/groups/{groupCode}/announcement/docx', [HolidayAnnouncementController::class, 'download']);
+        Route::post('/groups/{groupCode}/announcement/prepare-signing', [HolidayAnnouncementController::class, 'prepareSigning']);
+        Route::post('/groups/{groupCode}/announcement/signed', [HolidayAnnouncementController::class, 'uploadSigned']);
+        Route::post('/groups/{groupCode}/announcement/publish', [HolidayAnnouncementController::class, 'publish']);
+        Route::post('/groups/{groupCode}/announcement/reopen', [HolidayAnnouncementController::class, 'reopen']);
         Route::delete('/days/{holiday}', [HolidayController::class, 'removeDay']);
         Route::delete('/groups/{groupCode}', [HolidayController::class, 'destroyGroup']);
     });

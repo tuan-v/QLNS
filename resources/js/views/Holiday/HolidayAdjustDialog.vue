@@ -1,20 +1,12 @@
 <template>
-    <v-dialog
-        :model-value="modelValue"
-        max-width="760"
-        scrollable
-        persistent
-        @update:model-value="requestClose"
-    >
+    <v-dialog :model-value="modelValue" max-width="760" scrollable persistent @update:model-value="requestClose">
         <v-card rounded="xl" elevation="12" class="glass-panel">
             <v-card-title class="d-flex align-center pa-5 pb-2">
                 <div>
-                    <div class="text-h6 font-weight-bold">
-                        Điều chỉnh lịch nghỉ — {{ group?.name }}
-                    </div>
+                    <div class="text-h6 font-weight-bold">Điều chỉnh lịch nghỉ — {{ group?.name }}</div>
                     <div class="text-body-2" style="opacity: 0.7">
-                        Đối chiếu thông báo chính thức của Nhà nước. Các thay đổi chỉ là
-                        bản nháp — chưa lưu cho tới khi bấm "Lưu &amp; xác nhận lịch".
+                        Đối chiếu thông báo chính thức của Nhà nước. Các thay đổi chỉ là bản nháp — chưa lưu cho tới khi
+                        bấm "Lưu &amp; xác nhận lịch".
                     </div>
                 </div>
                 <v-spacer />
@@ -27,13 +19,7 @@
                 </v-alert>
 
                 <template v-if="group">
-                    <v-alert
-                        v-if="dirty"
-                        type="info"
-                        variant="tonal"
-                        density="compact"
-                        class="mb-4"
-                    >
+                    <v-alert v-if="dirty" type="info" variant="tonal" density="compact" class="mb-4">
                         Có {{ changeCount }} thay đổi chưa lưu.
                     </v-alert>
                     <v-alert
@@ -55,14 +41,8 @@
                     </div>
                     <v-table density="compact" class="mb-4">
                         <tbody>
-                            <tr
-                                v-for="row in rows"
-                                :key="row.key"
-                                :class="{ 'row-removed': row.removed }"
-                            >
-                                <td style="width: 150px">
-                                    {{ weekdayOf(row.date) }} {{ formatDate(row.date) }}
-                                </td>
+                            <tr v-for="row in rows" :key="row.key" :class="{ 'row-removed': row.removed }">
+                                <td style="width: 150px">{{ weekdayOf(row.date) }} {{ formatDate(row.date) }}</td>
                                 <td>
                                     {{ row.name }}
                                     <div v-if="row.makeup_date" class="text-caption text-info">
@@ -219,7 +199,7 @@ const rows = computed(() => {
         removed: removedIds.value.has(day.id),
         chip: removedIds.value.has(day.id)
             ? { label: "Sẽ bỏ", color: "error" }
-            : SOURCE[day.source] ?? { label: day.source, color: "default" },
+            : (SOURCE[day.source] ?? { label: day.source, color: "default" }),
     }));
     const added = addedDates.value.map((date) => ({
         key: `a-${date}`,
@@ -341,7 +321,9 @@ async function save() {
     } catch (e) {
         const data = e.response?.data;
         error.value =
-            Object.values(data?.errors ?? {})[0]?.[0] ?? data?.message ?? "Không lưu được thay đổi — lịch nghỉ giữ nguyên.";
+            Object.values(data?.errors ?? {})[0]?.[0] ??
+            data?.message ??
+            "Không lưu được thay đổi — lịch nghỉ giữ nguyên.";
     } finally {
         saving.value = "";
     }

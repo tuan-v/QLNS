@@ -27,13 +27,7 @@
             </template>
         </PageHeader>
 
-        <v-alert
-            v-if="loadError"
-            type="error"
-            variant="tonal"
-            density="compact"
-            class="mb-4"
-        >
+        <v-alert v-if="loadError" type="error" variant="tonal" density="compact" class="mb-4">
             {{ loadError }}
         </v-alert>
 
@@ -44,13 +38,11 @@
             class="mb-4"
             icon="mdi-calendar-alert"
         >
-            <div class="font-weight-bold">
-                {{ pendingConfirm.length }} dịp nghỉ sắp tới chưa được xác nhận
-            </div>
+            <div class="font-weight-bold">{{ pendingConfirm.length }} dịp nghỉ sắp tới chưa được xác nhận</div>
             <div class="text-body-2">
-                Lịch do hệ thống tự tính theo luật. Đối chiếu thông báo chính thức của
-                Nhà nước, bấm "Điều chỉnh" nếu cần (thêm/bỏ ngày, hoán đổi ngày làm
-                việc) rồi "Xác nhận" — nhân viên chỉ được tự thông báo sau khi xác nhận.
+                Lịch do hệ thống tự tính theo luật. Đối chiếu thông báo chính thức của Nhà nước, bấm "Điều chỉnh" nếu
+                cần (thêm/bỏ ngày, hoán đổi ngày làm việc) rồi "Xác nhận" — nhân viên chỉ được tự thông báo sau khi xác
+                nhận.
                 <span class="font-weight-medium">
                     {{ pendingConfirm.map((g) => g.name).join(", ") }}
                 </span>
@@ -75,51 +67,27 @@
                     </span>
                 </div>
                 <div class="text-body-2" style="opacity: 0.75">
-                    Nghỉ {{ formatRange(upcoming) }} ·
-                    {{ upcoming.total_days }} ngày · đi làm lại
+                    Nghỉ {{ formatRange(upcoming) }} · {{ upcoming.total_days }} ngày · đi làm lại
                     {{ formatDate(upcoming.return_date) }}
                 </div>
             </div>
         </v-sheet>
 
-        <v-sheet
-            class="border rounded-lg pa-3 mb-4 glass-panel d-flex align-center ga-2"
-            color="transparent"
-        >
-            <v-btn
-                icon="mdi-chevron-left"
-                variant="text"
-                size="small"
-                @click="year--"
-            />
-            <div
-                class="text-subtitle-1 font-weight-bold"
-                style="min-width: 90px; text-align: center"
-            >
+        <v-sheet class="border rounded-lg pa-3 mb-4 glass-panel d-flex align-center ga-2" color="transparent">
+            <v-btn icon="mdi-chevron-left" variant="text" size="small" @click="year--" />
+            <div class="text-subtitle-1 font-weight-bold" style="min-width: 90px; text-align: center">
                 Năm {{ year }}
             </div>
-            <v-btn
-                icon="mdi-chevron-right"
-                variant="text"
-                size="small"
-                @click="year++"
-            />
+            <v-btn icon="mdi-chevron-right" variant="text" size="small" @click="year++" />
             <v-spacer />
             <div class="text-body-2" style="opacity: 0.7">
-                {{ groups.length }} dịp nghỉ · {{ totalWeekdays }} ngày làm việc
-                được nghỉ
+                {{ groups.length }} dịp nghỉ · {{ totalWeekdays }} ngày làm việc được nghỉ
             </div>
         </v-sheet>
 
         <v-tabs v-model="tab" color="primary" class="mb-3">
-            <v-tab value="calendar" prepend-icon="mdi-calendar-month-outline"
-                >Lịch nghỉ</v-tab
-            >
-            <v-tab
-                v-if="canManage"
-                value="rules"
-                prepend-icon="mdi-calendar-sync-outline"
-            >
+            <v-tab value="calendar" prepend-icon="mdi-calendar-month-outline">Lịch nghỉ</v-tab>
+            <v-tab v-if="canManage" value="rules" prepend-icon="mdi-calendar-sync-outline">
                 Ngày nghỉ lễ hằng năm
             </v-tab>
         </v-tabs>
@@ -131,7 +99,7 @@
                     :items="groups"
                     :loading="loading"
                     :actions="actions"
-                    :actions-width="190"
+                    :actions-width="230"
                 >
                     <template #item.name="{ item }">
                         <div class="font-weight-medium">{{ item.name }}</div>
@@ -139,112 +107,63 @@
                             <v-chip
                                 size="x-small"
                                 variant="tonal"
-                                :color="
-                                    item.source === 'rule'
-                                        ? 'primary'
-                                        : 'secondary'
-                                "
+                                :color="item.source === 'rule' ? 'primary' : 'secondary'"
                             >
-                                {{
-                                    item.source === "rule"
-                                        ? "Theo quy tắc"
-                                        : "Công ty"
-                                }}
+                                {{ item.source === "rule" ? "Theo quy tắc" : "Công ty" }}
                             </v-chip>
                             <v-chip size="x-small" variant="tonal" color="info">
-                                {{
-                                    item.calendar === "lunar"
-                                        ? "Âm lịch"
-                                        : "Dương lịch"
-                                }}
+                                {{ item.calendar === "lunar" ? "Âm lịch" : "Dương lịch" }}
                             </v-chip>
-                            <v-chip
-                                size="x-small"
-                                variant="tonal"
-                                :color="item.confirmed ? 'success' : 'warning'"
-                            >
+                            <v-chip size="x-small" variant="tonal" :color="item.confirmed ? 'success' : 'warning'">
                                 {{ item.confirmed ? "Đã xác nhận" : "Chưa xác nhận" }}
                             </v-chip>
-                            <v-chip
-                                v-if="item.adjusted"
-                                size="x-small"
-                                variant="tonal"
-                                color="secondary"
-                            >
+                            <v-chip v-if="item.adjusted" size="x-small" variant="tonal" color="secondary">
                                 HR đã điều chỉnh
                             </v-chip>
-                            <v-chip
-                                v-if="!item.is_paid"
-                                size="x-small"
-                                variant="tonal"
-                                color="warning"
-                            >
+                            <v-chip v-if="!item.is_paid" size="x-small" variant="tonal" color="warning">
                                 Không lương
                             </v-chip>
                             <v-chip
-                                v-if="!item.intern_paid"
+                                v-if="item.announcement"
                                 size="x-small"
                                 variant="tonal"
-                                color="info"
+                                :color="ANNOUNCEMENT_STATUS[item.announcement.status]?.color"
+                                prepend-icon="mdi-file-document-outline"
+                                @click="openAnnouncement(item)"
                             >
+                                {{ ANNOUNCEMENT_STATUS[item.announcement.status]?.label
+                                }}{{ item.announcement.has_bonus ? " · có thưởng" : "" }}
+                            </v-chip>
+                            <v-chip v-if="!item.intern_paid" size="x-small" variant="tonal" color="info">
                                 Thực tập sinh không lương
                             </v-chip>
                         </div>
                     </template>
                     <template #item.period="{ item }">
                         <div>{{ formatRange(item) }}</div>
-                        <div
-                            v-for="day in item.days"
-                            :key="day.id"
-                            class="text-caption"
-                            style="opacity: 0.7"
-                        >
+                        <div v-for="day in item.days" :key="day.id" class="text-caption" style="opacity: 0.7">
                             {{ day.weekday }} {{ formatDate(day.date) }} ·
                             {{ day.lunar_label }}
-                            <span
-                                v-if="day.source === 'compensatory'"
-                                class="text-warning"
-                                >· nghỉ bù</span
-                            >
-                            <span v-if="day.source === 'swap'" class="text-info"
-                                >· hoán đổi</span
-                            >
+                            <span v-if="day.source === 'compensatory'" class="text-warning">· nghỉ bù</span>
+                            <span v-if="day.source === 'swap'" class="text-info">· hoán đổi</span>
                         </div>
-                        <div
-                            v-for="m in item.makeup_days"
-                            :key="m.date"
-                            class="text-caption text-info"
-                        >
+                        <div v-for="m in item.makeup_days" :key="m.date" class="text-caption text-info">
                             Đi làm bù: {{ m.weekday }} {{ formatDate(m.date) }}
                         </div>
                     </template>
                     <template #item.total_days="{ item }">
                         {{ item.total_days }} ngày
-                        <div class="text-caption" style="opacity: 0.6">
-                            ({{ item.weekday_days }} ngày làm việc)
-                        </div>
+                        <div class="text-caption" style="opacity: 0.6">({{ item.weekday_days }} ngày làm việc)</div>
                     </template>
                     <template #item.return_date="{ item }">
                         {{ formatDate(item.return_date) }}
                     </template>
                     <template #item.notify="{ item }">
-                        <v-chip
-                            v-if="item.notified_at"
-                            size="small"
-                            variant="tonal"
-                            color="success"
-                        >
+                        <v-chip v-if="item.notified_at" size="small" variant="tonal" color="success">
                             Đã gửi {{ formatDateTime(item.notified_at) }}
                         </v-chip>
-                        <span
-                            v-else-if="isPast(item.start_date)"
-                            style="opacity: 0.5"
-                            >—</span
-                        >
-                        <span
-                            v-else-if="!item.confirmed"
-                            class="text-body-2 text-warning"
-                        >
+                        <span v-else-if="isPast(item.start_date)" style="opacity: 0.5">—</span>
+                        <span v-else-if="!item.confirmed" class="text-body-2 text-warning">
                             Chờ xác nhận (nhắc HR ngày {{ formatDate(item.remind_on) }})
                         </span>
                         <span v-else class="text-body-2" style="opacity: 0.75">
@@ -257,56 +176,32 @@
             <v-window-item v-if="canManage" value="rules">
                 <div class="d-flex mb-3">
                     <v-spacer />
-                    <v-btn
-                        color="primary"
-                        variant="flat"
-                        prepend-icon="mdi-plus"
-                        @click="openRule(null)"
-                    >
+                    <v-btn color="primary" variant="flat" prepend-icon="mdi-plus" @click="openRule(null)">
                         Ngày nghỉ
                     </v-btn>
                 </div>
-                <DataTable
-                    :headers="ruleHeaders"
-                    :items="rules"
-                    :loading="rulesLoading"
-                    :actions="ruleActions"
-                >
+                <DataTable :headers="ruleHeaders" :items="rules" :loading="rulesLoading" :actions="ruleActions">
                     <template #item.name="{ item }">
                         <div class="font-weight-medium">{{ item.name }}</div>
-                        <div
-                            v-if="item.description"
-                            class="text-caption"
-                            style="opacity: 0.6"
-                        >
+                        <div v-if="item.description" class="text-caption" style="opacity: 0.6">
                             {{ item.description }}
                         </div>
                     </template>
                     <template #item.base="{ item }">
                         {{ item.day }}/{{ item.month }}
-                        {{
-                            item.calendar === "lunar" ? "âm lịch" : "dương lịch"
-                        }}
+                        {{ item.calendar === "lunar" ? "âm lịch" : "dương lịch" }}
                     </template>
                     <template #item.how="{ item }">
                         {{ item.duration_days }} ngày
                         <span v-if="item.offset_days" style="opacity: 0.7">
                             (bắt đầu
-                            {{
-                                item.offset_days < 0
-                                    ? `trước ${-item.offset_days}`
-                                    : `sau ${item.offset_days}`
-                            }}
+                            {{ item.offset_days < 0 ? `trước ${-item.offset_days}` : `sau ${item.offset_days}` }}
                             ngày)
                         </span>
                         <div class="text-caption" style="opacity: 0.6">
                             Báo trước {{ item.notify_days_before }} ngày
-                            <span v-if="item.compensate_weekend">
-                                · nghỉ bù cuối tuần</span
-                            >
-                            <span v-if="!item.intern_paid">
-                                · thực tập sinh không lương</span
-                            >
+                            <span v-if="item.compensate_weekend"> · nghỉ bù cuối tuần</span>
+                            <span v-if="!item.intern_paid"> · thực tập sinh không lương</span>
                             <span v-if="item.effective_from">
                                 · áp dụng từ
                                 {{ formatDate(item.effective_from) }}</span
@@ -314,20 +209,10 @@
                         </div>
                     </template>
                     <template #item.status="{ item }">
-                        <v-chip
-                            size="small"
-                            variant="tonal"
-                            :color="item.is_active ? 'success' : 'default'"
-                        >
+                        <v-chip size="small" variant="tonal" :color="item.is_active ? 'success' : 'default'">
                             {{ item.is_active ? "Đang áp dụng" : "Đã tắt" }}
                         </v-chip>
-                        <v-chip
-                            v-if="item.is_system"
-                            size="small"
-                            variant="tonal"
-                            color="primary"
-                            class="ml-1"
-                        >
+                        <v-chip v-if="item.is_system" size="small" variant="tonal" color="primary" class="ml-1">
                             Theo luật
                         </v-chip>
                     </template>
@@ -336,16 +221,8 @@
         </v-window>
 
         <HolidayForm v-model="formDialog" :year="year" @saved="loadData" />
-        <HolidayAdjustDialog
-            v-model="adjustDialog"
-            :group-code="adjustingGroup"
-            @changed="loadData"
-        />
-        <HolidayRuleForm
-            v-model="ruleDialog"
-            :rule="editingRule"
-            @saved="onRuleSaved"
-        />
+        <HolidayAdjustDialog v-model="adjustDialog" :group-code="adjustingGroup" @changed="loadData" />
+        <HolidayRuleForm v-model="ruleDialog" :rule="editingRule" @saved="onRuleSaved" />
     </div>
 </template>
 
@@ -361,8 +238,10 @@ import { useAuthStore } from "../../stores/authStore";
 import { useToastStore } from "../../stores/useToastStore";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 import { useRouteAction } from "../../composables/useRouteAction";
+import { useRouter } from "vue-router";
 
 const auth = useAuthStore();
+const router = useRouter();
 const toast = useToastStore();
 const canManage = computed(() => auth.permissions.includes("holiday.manage"));
 
@@ -395,18 +274,12 @@ const ruleHeaders = [
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 const isPast = (date) => date < todayIso();
-const upcoming = computed(
-    () => groups.value.find((g) => g.end_date >= todayIso()) ?? null,
-);
+const upcoming = computed(() => groups.value.find((g) => g.end_date >= todayIso()) ?? null);
 const adjustDialog = ref(false);
 const adjustingGroup = ref(null);
 // Dịp sắp tới (chưa kết thúc) mà chưa xác nhận — cần HR đối chiếu lịch chính thức.
-const pendingConfirm = computed(() =>
-    groups.value.filter((g) => !g.confirmed && g.end_date >= todayIso()),
-);
-const totalWeekdays = computed(() =>
-    groups.value.reduce((sum, g) => sum + g.weekday_days, 0),
-);
+const pendingConfirm = computed(() => groups.value.filter((g) => !g.confirmed && g.end_date >= todayIso()));
+const totalWeekdays = computed(() => groups.value.reduce((sum, g) => sum + g.weekday_days, 0));
 
 function daysUntil(date) {
     const ms = new Date(date) - new Date(todayIso());
@@ -433,8 +306,7 @@ async function loadData() {
         const response = await holidayService.list(year.value);
         groups.value = response.data.data;
     } catch (e) {
-        loadError.value =
-            e.response?.data?.message ?? "Không tải được lịch nghỉ lễ.";
+        loadError.value = e.response?.data?.message ?? "Không tải được lịch nghỉ lễ.";
     } finally {
         loading.value = false;
     }
@@ -469,7 +341,27 @@ async function generate() {
     }
 }
 
+// Văn bản thông báo (mẫu Word): soạn -> chờ ký -> phát hành bản đã ký.
+const ANNOUNCEMENT_STATUS = {
+    draft: { label: "Văn bản nháp", color: "grey" },
+    pending_signature: { label: "Văn bản chờ ký", color: "warning" },
+    published: { label: "Đã phát hành văn bản", color: "success" },
+};
+
+// Người quản lý soạn; nhân viên xem bản đã ký đã phát hành.
+function openAnnouncement(item) {
+    if (!canManage.value && item.announcement?.status !== "published") return;
+    router.push({ name: "holiday-announcement", params: { groupCode: item.group_code } });
+}
+
 const actions = computed(() => [
+    {
+        icon: "mdi-file-word-outline",
+        tooltip: canManage.value ? "Soạn văn bản thông báo (Word)" : "Xem văn bản thông báo",
+        color: "primary",
+        hidden: (item) => !canManage.value && item.announcement?.status !== "published",
+        onClick: openAnnouncement,
+    },
     {
         icon: "mdi-check-decagram-outline",
         tooltip: "Xác nhận lịch",
@@ -510,8 +402,7 @@ const actions = computed(() => [
                 item.intern_paid
                     ? `Đặt "${item.name}" (${formatRange(item)}) là KHÔNG hưởng lương với thực tập sinh?`
                     : `Đặt "${item.name}" (${formatRange(item)}) là CÓ hưởng lương với thực tập sinh?`,
-            warning: () =>
-                "Chỉ áp dụng cho nhân viên hợp đồng thực tập; bảng lương đã tạo không tự tính lại.",
+            warning: () => "Chỉ áp dụng cho nhân viên hợp đồng thực tập; bảng lương đã tạo không tự tính lại.",
             confirmText: "Đồng ý",
         },
         onClick: async (item) => {
@@ -534,16 +425,12 @@ const actions = computed(() => [
             message: (item) =>
                 `Gửi thông báo nghỉ "${item.name}" (${formatRange(item)}) tới toàn bộ nhân viên ngay bây giờ?`,
             warning: (item) =>
-                item.notified_at
-                    ? "Dịp này đã được thông báo trước đó — nhân viên sẽ nhận thêm một lần."
-                    : null,
+                item.notified_at ? "Dịp này đã được thông báo trước đó — nhân viên sẽ nhận thêm một lần." : null,
             confirmText: "Gửi thông báo",
         },
         onClick: async (item) => {
             const response = await holidayService.notifyGroup(item.group_code);
-            toast.success(
-                `Đã gửi thông báo tới ${response.data.recipients} tài khoản.`,
-            );
+            toast.success(`Đã gửi thông báo tới ${response.data.recipients} tài khoản.`);
             await loadData();
         },
     },
@@ -554,8 +441,7 @@ const actions = computed(() => [
         hidden: () => !canManage.value,
         confirm: {
             title: "Xóa dịp nghỉ",
-            message: (item) =>
-                `Xóa toàn bộ ${item.total_days} ngày nghỉ "${item.name}" của năm ${year.value}?`,
+            message: (item) => `Xóa toàn bộ ${item.total_days} ngày nghỉ "${item.name}" của năm ${year.value}?`,
             warning: (item) =>
                 item.source === "rule"
                     ? "Lần tính tự động sau sẽ KHÔNG tạo lại dịp này. Muốn bỏ hẳn hằng năm thì tắt quy tắc ở tab Quy tắc."
@@ -584,8 +470,7 @@ const ruleActions = computed(() => [
         hidden: (item) => item.is_system,
         confirm: {
             title: "Xóa quy tắc",
-            message: (item) =>
-                `Xóa quy tắc "${item.name}"? Các ngày nghỉ sắp tới của quy tắc này cũng bị gỡ.`,
+            message: (item) => `Xóa quy tắc "${item.name}"? Các ngày nghỉ sắp tới của quy tắc này cũng bị gỡ.`,
             confirmText: "Xóa",
         },
         onClick: async (item) => {

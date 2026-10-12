@@ -42,10 +42,11 @@
                             <span class="text-caption font-weight-bold">{{ account.bank_code }}</span>
                         </v-avatar>
                         <div class="flex-grow-1 min-width-0">
-                            <div class="text-body-2 font-weight-bold text-truncate">{{ account.bank_name }}</div>
+                            <!-- Tên ngân hàng dài: cho xuống dòng (màn hẹp), không đẩy chip "Nhận lương" ra ngoài thẻ. -->
+                            <div class="text-body-2 font-weight-bold bank-card__name">{{ account.bank_name }}</div>
                             <div class="text-caption" style="opacity: 0.7">{{ account.bank_branch || "Không ghi chi nhánh" }}</div>
                         </div>
-                        <v-chip v-if="account.is_primary" color="success" size="small" variant="flat" prepend-icon="mdi-cash-check">
+                        <v-chip v-if="account.is_primary" class="flex-shrink-0" color="success" size="small" variant="flat" prepend-icon="mdi-cash-check">
                             Nhận lương
                         </v-chip>
                     </div>
@@ -291,5 +292,9 @@ onMounted(() => {
 <style scoped>
 .bank-card--primary {
     border-color: rgb(var(--v-theme-success)) !important;
+}
+.bank-card__name {
+    overflow-wrap: anywhere;
+    line-height: 1.35;
 }
 </style>

@@ -6,6 +6,14 @@
         >
             <template #actions>
                 <v-btn
+                    variant="tonal"
+                    size="large"
+                    prepend-icon="mdi-account-search-outline"
+                    @click="historyOpen = true"
+                >
+                    Tra cứu ứng viên
+                </v-btn>
+                <v-btn
                     v-if="canManage"
                     color="primary"
                     variant="flat"
@@ -29,15 +37,9 @@
             {{ loadError }}
         </v-alert>
 
-        <v-sheet
-            class="border rounded-lg pa-4 mb-4 glass-panel"
-            color="transparent"
-        >
+        <v-sheet class="border rounded-lg pa-4 mb-4 glass-panel" color="transparent">
             <div class="d-flex flex-wrap align-center ga-3">
-                <SearchField
-                    v-model="search"
-                    placeholder="Tìm tên đợt tuyển..."
-                />
+                <SearchField v-model="search" placeholder="Tìm tên đợt tuyển..." />
                 <v-select
                     v-model="statusFilter"
                     :items="statusOptions"
@@ -67,36 +69,20 @@
                 </router-link>
                 <div class="text-caption" style="opacity: 0.7">
                     {{ item.department?.name ?? "—"
-                    }}<template v-if="item.position">
-                        · {{ item.position.name }}</template
-                    >
+                    }}<template v-if="item.position"> · {{ item.position.name }}</template>
                     ·
-                    {{
-                        CONTRACT_TYPE_LABELS[item.contract_type] ??
-                        item.contract_type
-                    }}
+                    {{ OPENING_CONTRACT_TYPE_LABELS[item.contract_type] ?? item.contract_type }}
                 </div>
             </template>
             <template #item.progress="{ item }">
                 <div style="min-width: 160px">
                     <div class="d-flex justify-space-between text-caption mb-1">
-                        <span
-                            >{{ item.approved_count }}/{{ item.headcount }} CV
-                            đã duyệt</span
-                        >
-                        <span v-if="item.pending_count" class="text-warning"
-                            >{{ item.pending_count }} chờ duyệt</span
-                        >
+                        <span>{{ item.approved_count }}/{{ item.headcount }} CV đã duyệt</span>
+                        <span v-if="item.pending_count" class="text-warning">{{ item.pending_count }} chờ duyệt</span>
                     </div>
                     <v-progress-linear
-                        :model-value="
-                            (item.approved_count / item.headcount) * 100
-                        "
-                        :color="
-                            item.approved_count >= item.headcount
-                                ? 'info'
-                                : 'primary'
-                        "
+                        :model-value="(item.approved_count / item.headcount) * 100"
+                        :color="item.approved_count >= item.headcount ? 'info' : 'primary'"
                         rounded
                         height="6"
                     />
@@ -105,26 +91,17 @@
             <template #item.deadline="{ item }">
                 <template v-if="item.deadline">
                     <span :class="{ 'text-error': item.is_past_deadline }">
-                        {{ formatDate(item.deadline)
-                        }}<template v-if="item.is_past_deadline">
-                            (đã hết hạn)</template
-                        >
+                        {{ formatDate(item.deadline) }}<template v-if="item.is_past_deadline"> (đã hết hạn)</template>
                     </span>
                     <v-chip
-                        v-if="
-                            !item.is_past_deadline &&
-                            item.status === 'open' &&
-                            daysUntil(item.deadline) <= 3
-                        "
+                        v-if="!item.is_past_deadline && item.status === 'open' && daysUntil(item.deadline) <= 3"
                         class="ml-1"
                         color="warning"
                         size="x-small"
                         variant="tonal"
                     >
                         {{
-                            daysUntil(item.deadline) === 0
-                                ? "Hết hạn hôm nay"
-                                : `Còn ${daysUntil(item.deadline)} ngày`
+                            daysUntil(item.deadline) === 0 ? "Hết hạn hôm nay" : `Còn ${daysUntil(item.deadline)} ngày`
                         }}
                     </v-chip>
                 </template>
@@ -135,6 +112,7 @@
             </template>
         </DataTable>
 
+        <CandidateHistoryDialog v-model="historyOpen" />
         <RecruitmentOpeningForm
             v-model="formDialog"
             :opening="editing"
@@ -156,13 +134,11 @@ import PageHeader from "../../components/common/PageHeader.vue";
 import SearchField from "../../components/common/SearchField.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
 import RecruitmentOpeningForm from "./RecruitmentOpeningForm.vue";
+import CandidateHistoryDialog from "./CandidateHistoryDialog.vue";
 import { daysUntil } from "../../composables/employeeAlerts";
 import { useRememberedRef } from "../../composables/useRememberedRef";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
-import {
-    CONTRACT_TYPE_LABELS,
-    OPENING_STATUS_MAP,
-} from "../../composables/recruitmentStatus";
+import { OPENING_CONTRACT_TYPE_LABELS, OPENING_STATUS_MAP } from "../../composables/recruitmentStatus";
 import { useRouteAction } from "../../composables/useRouteAction";
 
 const router = useRouter();
@@ -170,9 +146,7 @@ const auth = useAuthStore();
 const departmentStore = useDepartmentStore();
 const toast = useToastStore();
 
-const canManage = computed(() =>
-    auth.permissions.includes("recruitment.manage"),
-);
+const canManage = computed(() => auth.permissions.includes("recruitment.manage"));
 
 const openings = ref([]);
 const loading = ref(false);
@@ -180,6 +154,7 @@ const loadError = ref("");
 const search = ref("");
 const statusFilter = useRememberedRef("recruitment.status", null);
 const formDialog = ref(false);
+const historyOpen = ref(false);
 const editing = ref(null);
 
 const statusOptions = [
@@ -200,9 +175,7 @@ const headers = [
 function flatten(nodes) {
     return nodes.flatMap((node) => [node, ...flatten(node.children ?? [])]);
 }
-const departmentOptions = computed(() =>
-    flatten(departmentStore.tree).map((d) => ({ title: d.name, value: d.id })),
-);
+const departmentOptions = computed(() => flatten(departmentStore.tree).map((d) => ({ title: d.name, value: d.id })));
 
 function formatDate(value) {
     return value ? new Date(value).toLocaleDateString("vi-VN") : "";
@@ -220,8 +193,7 @@ async function loadData() {
         openings.value = response.data.data;
     } catch (e) {
         openings.value = [];
-        loadError.value =
-            e.response?.data?.message ?? "Không thể tải danh sách đợt tuyển.";
+        loadError.value = e.response?.data?.message ?? "Không thể tải danh sách đợt tuyển.";
     } finally {
         loading.value = false;
     }

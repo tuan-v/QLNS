@@ -38,6 +38,9 @@ class RecruitmentCandidate extends Model
 
     public const STATUS_OFFER_DECLINED = 'offer_declined';
 
+    // Ứng viên báo không tham gia phỏng vấn nữa (HR ghi nhận) — trả lại suất.
+    public const STATUS_INTERVIEW_DECLINED = 'interview_declined';
+
     // CV đang "chiếm suất" của đợt tuyển — tính vào giới hạn headcount. Bị từ chối
     // hoặc trượt phỏng vấn thì trả lại suất cho CV khác.
     public const COUNTED_STATUSES = [

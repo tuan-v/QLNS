@@ -500,10 +500,12 @@ import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputMoney from "../../components/common/InputMoney.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useChangeGuard } from "../../composables/useChangeGuard";
-import { isEmail, maxLength, minValue, notEmpty } from "../../composables/validationRules";
+import { isEmail, maxLength, notEmpty } from "../../composables/validationRules";
+import { normalizeVietnamese } from "../../composables/normalizeVietnamese";
 import { useAuthStore } from "../../stores/authStore";
 import DepartmentFormDialog from "../Department/DepartmentForm.vue";
 import PositionFormDialog from "../Position/PositionForm.vue";
+import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import InputDate, {
     shiftIsoDate,
     todayIso,

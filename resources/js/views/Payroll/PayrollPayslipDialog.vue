@@ -1,15 +1,9 @@
 <template>
     <v-dialog v-model="open" max-width="720">
-        <v-card
-            rounded="xl"
-            elevation="12"
-            class="glass-panel payslip-print-area"
-        >
+        <v-card rounded="xl" elevation="12" class="glass-panel payslip-print-area">
             <v-card-text class="pa-6">
                 <div class="text-center mb-1">
-                    <div class="text-h5 font-weight-bold">
-                        BẢNG LƯƠNG NHÂN VIÊN
-                    </div>
+                    <div class="text-h5 font-weight-bold">BẢNG LƯƠNG NHÂN VIÊN</div>
                     <div class="text-body-2 text-medium-emphasis">
                         Tháng {{ payroll?.period_month }} năm
                         {{ payroll?.period_year }}
@@ -21,9 +15,7 @@
                         <!-- I. Thông tin chung -->
                         <tr>
                             <td class="col-roman" rowspan="5">I</td>
-                            <td class="col-section" rowspan="5">
-                                Thông tin chung
-                            </td>
+                            <td class="col-section" rowspan="5">Thông tin chung</td>
                             <td class="col-label">Họ và tên</td>
                             <td class="col-value">
                                 {{ detail?.employee?.full_name ?? "—" }}
@@ -67,8 +59,8 @@
 
                         <!-- III. Lương làm thêm giờ / Thưởng -->
                         <tr>
-                            <td class="col-roman">III</td>
-                            <td class="col-section">Lương thêm giờ - Thưởng</td>
+                            <td class="col-roman" rowspan="2">III</td>
+                            <td class="col-section" rowspan="2">Lương thêm giờ - Thưởng</td>
                             <td class="col-label font-italic">
                                 Lương làm thêm giờ - OT
                                 {{ formatMinutesAsHours(detail?.overtime_minutes) }}
@@ -77,14 +69,18 @@
                                 {{ formatMoney(detail?.overtime_amount) }}
                             </td>
                         </tr>
+                        <tr>
+                            <td class="col-label font-italic">{{ bonusLabel }}</td>
+                            <td class="col-value font-weight-medium">
+                                {{ formatMoney(detail?.bonus_amount) }}
+                            </td>
+                        </tr>
 
                         <!-- IV. Khoản trừ -->
                         <tr>
                             <td class="col-roman" rowspan="5">IV</td>
                             <td class="col-section" rowspan="5">Khoản trừ</td>
-                            <td class="col-label">
-                                BHXH, BHYT, BHTN (10,5%)
-                            </td>
+                            <td class="col-label">BHXH, BHYT, BHTN (10,5%)</td>
                             <td class="col-value">
                                 {{ formatMoney(detail?.insurance_amount) }}
                             </td>
@@ -98,9 +94,7 @@
                         <tr>
                             <td class="col-label">Nghỉ không lương</td>
                             <td class="col-value">
-                                {{
-                                    formatMoney(detail?.unpaid_leave_deduction)
-                                }}
+                                {{ formatMoney(detail?.unpaid_leave_deduction) }}
                             </td>
                         </tr>
                         <tr>
@@ -110,9 +104,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td class="col-label font-weight-bold font-italic">
-                                Tổng giảm trừ
-                            </td>
+                            <td class="col-label font-weight-bold font-italic">Tổng giảm trừ</td>
                             <td class="col-value font-weight-bold">
                                 {{ formatMoney(totalDeduction) }}
                             </td>
@@ -172,6 +164,9 @@ function formatMoney(value) {
     return new Intl.NumberFormat("vi-VN").format(Number(value)) + " ₫";
 }
 
+// Thưởng lễ (thông báo nghỉ lễ có thưởng) — tên dịp lấy từ thành phần lương nếu có.
+const bonusLabel = computed(() => props.detail?.bonus_label ?? "Thưởng lễ");
+
 const totalDeduction = computed(() => {
     if (!props.detail) return 0;
     return (
@@ -212,9 +207,7 @@ async function exportPdf() {
             fetch("/fonts/NotoSans-Regular.ttf"),
         ]);
         const autoTable = autoTableModule.default;
-        const fontBase64 = arrayBufferToBase64(
-            await fontResponse.arrayBuffer(),
-        );
+        const fontBase64 = arrayBufferToBase64(await fontResponse.arrayBuffer());
 
         const doc = new jsPDF();
         doc.addFileToVFS("NotoSans-Regular.ttf", fontBase64);
@@ -224,12 +217,9 @@ async function exportPdf() {
         doc.setFontSize(16);
         doc.text("BẢNG LƯƠNG NHÂN VIÊN", 105, 15, { align: "center" });
         doc.setFontSize(11);
-        doc.text(
-            `Tháng ${props.payroll?.period_month} năm ${props.payroll?.period_year}`,
-            105,
-            22,
-            { align: "center" },
-        );
+        doc.text(`Tháng ${props.payroll?.period_month} năm ${props.payroll?.period_year}`, 105, 22, {
+            align: "center",
+        });
 
         const d = props.detail;
         const money = (v) => formatMoney(v);
@@ -245,18 +235,16 @@ async function exportPdf() {
             ],
             ["Vị trí/chức vụ", d?.employee?.position_name ?? "—"],
             ["Phòng ban", d?.employee?.department_name ?? "—"],
-            [
-                "Ngày công thực tế",
-                `${d?.actual_work_days ?? "—"} / ${d?.standard_work_days ?? "—"}`,
-            ],
+            ["Ngày công thực tế", `${d?.actual_work_days ?? "—"} / ${d?.standard_work_days ?? "—"}`],
             ["Lương cơ bản", money(d?.base_salary)],
             ["II", "Phụ cấp (P)", "Tổng phụ cấp", money(d?.total_allowance)],
             [
-                "III",
-                "Lương thêm giờ - Thưởng",
+                { content: "III", rowSpan: 2 },
+                { content: "Lương thêm giờ - Thưởng", rowSpan: 2 },
                 `Lương làm thêm giờ - OT ${formatMinutesAsHours(d?.overtime_minutes)}`,
                 money(d?.overtime_amount),
             ],
+            [bonusLabel.value, money(d?.bonus_amount)],
             [
                 { content: "IV", rowSpan: 5 },
                 { content: "Khoản trừ", rowSpan: 5 },
@@ -315,9 +303,7 @@ async function exportPdf() {
         });
 
         const code = d?.employee?.code ?? "nv";
-        doc.save(
-            `phieu-luong-${code}-${props.payroll?.period_month}-${props.payroll?.period_year}.pdf`,
-        );
+        doc.save(`phieu-luong-${code}-${props.payroll?.period_month}-${props.payroll?.period_year}.pdf`);
     } catch (e) {
         console.error(e);
         toast.error("Không thể xuất PDF, vui lòng thử lại.");

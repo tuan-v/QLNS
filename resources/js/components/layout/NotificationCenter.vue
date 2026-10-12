@@ -201,6 +201,7 @@ const TYPE_CATEGORY = {
     "leave.decided": "Nghỉ phép",
     "holiday.upcoming": "Ngày nghỉ lễ",
     "holiday.confirm_needed": "Ngày nghỉ lễ",
+    "holiday.announcement": "Ngày nghỉ lễ",
     "attendance.pending_approval": "Chấm công",
     "attendance.checkout_reminder": "Nhắc nhở",
     "attendance_adjustment.pending": "Điều chỉnh công",
@@ -213,19 +214,23 @@ const TYPE_CATEGORY = {
     "recruitment.offer_pending": "Tuyển dụng",
     "recruitment.offer_reviewed": "Tuyển dụng",
     "recruitment.offer_responded": "Tuyển dụng",
+    "recruitment.interview_confirmation": "Lịch phỏng vấn",
     "bank_account.pending": "Tài khoản ngân hàng",
     "bank_account.reviewed": "Tài khoản ngân hàng",
 };
 
 // Thông báo hệ thống (không có actor) — icon + màu theo loại.
 function systemIcon(item) {
-    if (item.type === "leave.decided" || item.type === "resignation.decided" || item.type === "bank_account.reviewed" || item.type === "recruitment.offer_reviewed" || item.type === "recruitment.offer_responded") {
+    if (item.type === "leave.decided" || item.type === "resignation.decided" || item.type === "bank_account.reviewed" || item.type === "recruitment.offer_reviewed" || item.type === "recruitment.offer_responded" || item.type === "recruitment.interview_confirmation") {
         return item.data?.status === "approved"
             ? { icon: "mdi-check-circle-outline", color: "success" }
             : { icon: "mdi-close-circle-outline", color: "error" };
     }
     if (item.type === "holiday.confirm_needed") {
         return { icon: "mdi-calendar-alert", color: "warning" };
+    }
+    if (item.type === "holiday.announcement") {
+        return { icon: "mdi-file-document-outline", color: "primary" };
     }
     if (item.type === "holiday.upcoming") {
         return { icon: "mdi-party-popper", color: "primary" };

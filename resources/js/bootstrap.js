@@ -4,9 +4,40 @@ import { isPublicPath } from "./publicPaths";
 window.axios = axios;
 
 window.axios.defaults.headers.common["X-Requested-With"] = "XMLHttpRequest";
-axios.interceptors.request.use((config) => {
+// Thời điểm hết hạn (ms) của access token — đọc trường "exp" trong JWT. Token hỏng -> 0.
+function tokenExpiresAt(token) {
+    try {
+        const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+        return (payload.exp ?? 0) * 1000;
+    } catch {
+        return 0;
+    }
+}
+
+// Làm mới TRƯỚC khi hết hạn (còn < 60 giây) để request không bị 401 rồi mới gửi lại —
+// tránh lỗi đỏ trong console (tiêu chí nghiệm thu). Interceptor 401 bên dưới vẫn là lưới
+// an toàn (máy ngủ lâu, lệch giờ...). Không áp dụng cho chính API đăng nhập/làm mới.
+const REFRESH_BEFORE_EXPIRY_MS = 60 * 1000;
+
+axios.interceptors.request.use(async (config) => {
     useLoadingStore().start();
-    const token = localStorage.getItem("access_token");
+    let token = localStorage.getItem("access_token");
+    const isAuthCall = /\/auth\/(login|refresh)/.test(config.url ?? "");
+
+    if (token && !isAuthCall && localStorage.getItem("refresh_token")) {
+        const expiresAt = tokenExpiresAt(token);
+        if (expiresAt && expiresAt - Date.now() < REFRESH_BEFORE_EXPIRY_MS) {
+            try {
+                refreshPromise ??= refreshAccessToken(token).finally(() => {
+                    refreshPromise = null;
+                });
+                token = await refreshPromise;
+            } catch {
+                // Làm mới thất bại: cứ gửi bằng token cũ, interceptor 401 sẽ xử lý (về đăng nhập).
+            }
+        }
+    }
+
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }

@@ -15,6 +15,7 @@ class PermissionSeeder extends Seeder
             ['code' => 'employee.create', 'name' => 'Tạo hồ sơ nhân viên'],
             ['code' => 'employee.update', 'name' => 'Cập nhật hồ sơ nhân viên'],
             ['code' => 'employee.delete', 'name' => 'Xóa hồ sơ nhân viên'],
+            ['code' => 'employee.journey', 'name' => 'Xem hành trình nhân viên (lương qua từng giai đoạn)'],
 
             // Department & Position
             ['code' => 'department.view', 'name' => 'Xem phòng ban'],

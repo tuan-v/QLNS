@@ -2,7 +2,11 @@
     <FormDialog
         :model-value="modelValue"
         title="Soạn thư mời nhận việc"
-        :subtitle="candidate ? `Cho ${candidate.full_name} — gửi Admin duyệt, duyệt xong hệ thống tự gửi email cho ứng viên.` : ''"
+        :subtitle="
+            candidate
+                ? `Cho ${candidate.full_name} — gửi Admin duyệt, duyệt xong hệ thống tự gửi email cho ứng viên.`
+                : ''
+        "
         icon="mdi-email-check-outline"
         size="sm"
         :loading="saving"
@@ -16,6 +20,8 @@
                 <v-select
                     v-model="form.contract_type"
                     :items="contractOptions"
+                    placeholder="Chọn loại hợp đồng"
+                    :rules="[(v) => !!v || 'Vui lòng chọn loại hợp đồng']"
                     variant="outlined"
                     density="comfortable"
                     rounded="lg"
@@ -37,7 +43,11 @@
                     :error-messages="errors.start_date"
                 />
             </FormField>
-            <FormField label="Hạn ứng viên trả lời" required hint="Quá hạn mà ứng viên chưa trả lời thì thư mời tự hết hiệu lực và trả lại suất.">
+            <FormField
+                label="Hạn ứng viên trả lời"
+                required
+                hint="Quá hạn mà ứng viên chưa trả lời thì thư mời tự hết hiệu lực và trả lại suất."
+            >
                 <InputDate
                     v-model="form.response_deadline"
                     :min="todayIso()"
@@ -70,12 +80,12 @@ import FormSection from "../../components/common/FormSection.vue";
 import FormField from "../../components/common/FormField.vue";
 import InputMoney from "../../components/common/InputMoney.vue";
 import InputDate, { shiftIsoDate, todayIso } from "../../components/common/InputDate.vue";
-import { CONTRACT_TYPE_LABELS } from "../../composables/recruitmentStatus";
+import { ANY_CONTRACT_TYPE, CONTRACT_TYPE_LABELS } from "../../composables/recruitmentStatus";
 
 const props = defineProps({
     modelValue: { type: Boolean, default: false },
     candidate: { type: Object, default: null },
-    // Loại hợp đồng mặc định = loại của đợt tuyển.
+    // Loại hợp đồng mặc định = loại của đợt tuyển ("tat_ca" -> HR tự chọn).
     defaultContractType: { type: String, default: "thu_viec" },
 });
 
@@ -102,7 +112,7 @@ watch(
         error.value = "";
         // Mặc định: bắt đầu sau 1 tuần, trả lời trong 3 ngày.
         form.value = {
-            contract_type: props.defaultContractType,
+            contract_type: props.defaultContractType === ANY_CONTRACT_TYPE ? null : props.defaultContractType,
             salary: null,
             start_date: shiftIsoDate(todayIso(), 7),
             response_deadline: shiftIsoDate(todayIso(), 3),
@@ -117,7 +127,10 @@ async function submit() {
     errors.value = {};
     error.value = "";
     try {
-        await recruitmentService.createOffer(props.candidate.id, { ...form.value, message: form.value.message || null });
+        await recruitmentService.createOffer(props.candidate.id, {
+            ...form.value,
+            message: form.value.message || null,
+        });
         emit("saved");
         emit("update:modelValue", false);
     } catch (e) {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Recruitment;
 
+use App\Models\RecruitmentOpening;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -25,7 +26,8 @@ class SaveRecruitmentOpeningRequest extends FormRequest
                 'nullable', 'integer',
                 Rule::exists('positions', 'id')->where('department_id', $this->input('department_id'))->whereNull('deleted_at'),
             ],
-            'contract_type' => ['required', 'in:thu_viec,chinh_thuc,thuc_tap'],
+            // "tat_ca" = chưa cố định, chọn loại cụ thể khi soạn offer cho từng ứng viên.
+            'contract_type' => ['required', Rule::in(RecruitmentOpening::CONTRACT_TYPES)],
             'headcount' => ['required', 'integer', 'min:1', 'max:100'],
             'deadline' => array_values(array_filter(['nullable', 'date', $isCreate ? 'after_or_equal:today' : null])),
             'description' => ['nullable', 'string', 'max:5000'],

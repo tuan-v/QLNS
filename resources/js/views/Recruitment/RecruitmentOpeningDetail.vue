@@ -1,16 +1,8 @@
 <template>
     <div>
-        <PageHeader
-            :title="opening?.title ?? 'Đợt tuyển dụng'"
-            :subtitle="subtitle"
-        >
+        <PageHeader :title="opening?.title ?? 'Đợt tuyển dụng'" :subtitle="subtitle">
             <template #actions>
-                <v-btn
-                    variant="tonal"
-                    prepend-icon="mdi-arrow-left"
-                    :to="{ name: 'recruitment' }"
-                    >Quay lại</v-btn
-                >
+                <v-btn variant="tonal" prepend-icon="mdi-arrow-left" :to="{ name: 'recruitment' }">Quay lại</v-btn>
                 <template v-if="opening && canManage">
                     <v-btn
                         v-if="opening.status !== 'closed'"
@@ -66,74 +58,58 @@
         </v-alert>
 
         <template v-if="opening">
-            <v-sheet
-                class="border rounded-lg pa-4 mb-4 glass-panel"
-                color="transparent"
-            >
+            <v-sheet class="border rounded-lg pa-4 mb-4 glass-panel" color="transparent">
                 <div class="d-flex flex-wrap align-center ga-4">
-                    <StatusChip
-                        :status="opening.status"
-                        :map="OPENING_STATUS_MAP"
-                    />
+                    <StatusChip :status="opening.status" :map="OPENING_STATUS_MAP" />
                     <div style="min-width: 260px; flex: 1">
-                        <div
-                            class="d-flex justify-space-between text-body-2 mb-1"
-                        >
+                        <div class="d-flex justify-space-between text-body-2 mb-1">
                             <span
-                                ><strong
-                                    >{{ opening.approved_count }}/{{
-                                        opening.headcount
-                                    }}</strong
-                                >
-                                CV đã duyệt</span
+                                ><strong>{{ opening.approved_count }}/{{ opening.headcount }}</strong> CV đã duyệt</span
                             >
-                            <span
-                                v-if="opening.pending_count"
-                                class="text-warning"
+                            <span v-if="opening.pending_count" class="text-warning"
                                 >{{ opening.pending_count }} CV chờ duyệt</span
                             >
                         </div>
                         <v-progress-linear
-                            :model-value="
-                                (opening.approved_count / opening.headcount) *
-                                100
-                            "
-                            :color="
-                                opening.approved_count >= opening.headcount
-                                    ? 'info'
-                                    : 'primary'
-                            "
+                            :model-value="(opening.approved_count / opening.headcount) * 100"
+                            :color="opening.approved_count >= opening.headcount ? 'info' : 'primary'"
                             rounded
                             height="8"
                         />
                     </div>
                     <div class="text-body-2">
                         Hạn nộp:
-                        <strong
-                            :class="{ 'text-error': opening.is_past_deadline }"
-                        >
-                            {{
-                                opening.deadline
-                                    ? formatDate(opening.deadline)
-                                    : "Không giới hạn"
-                            }}
+                        <strong :class="{ 'text-error': opening.is_past_deadline }">
+                            {{ opening.deadline ? formatDate(opening.deadline) : "Không giới hạn" }}
                         </strong>
                     </div>
+                    <!-- Bộ câu hỏi phỏng vấn: Admin gắn; HR chỉ xem. -->
+                    <div class="d-flex align-center ga-2">
+                        <v-icon icon="mdi-clipboard-text-outline" size="20" />
+                        <v-select
+                            v-if="canApprove"
+                            v-model="questionSetId"
+                            :items="questionSetOptions"
+                            label="Bộ câu hỏi phỏng vấn"
+                            placeholder="Chưa gắn — ghi kết quả tay"
+                            persistent-placeholder
+                            density="compact"
+                            hide-details
+                            clearable
+                            :loading="assigningSet"
+                            style="min-width: 260px"
+                            @update:model-value="assignSet"
+                        />
+                        <span v-else class="text-body-2">
+                            Bộ câu hỏi:
+                            <strong>{{ opening.question_set?.name ?? "Chưa gắn" }}</strong>
+                        </span>
+                    </div>
                 </div>
-                <v-alert
-                    v-if="!acceptingCv"
-                    type="info"
-                    variant="tonal"
-                    density="compact"
-                    class="mt-3"
-                >
+                <v-alert v-if="!acceptingCv" type="info" variant="tonal" density="compact" class="mt-3">
                     {{ notAcceptingReason }}
                 </v-alert>
-                <div
-                    v-if="opening.description"
-                    class="text-body-2 mt-3"
-                    style="white-space: pre-line; opacity: 0.8"
-                >
+                <div v-if="opening.description" class="text-body-2 mt-3" style="white-space: pre-line; opacity: 0.8">
                     {{ opening.description }}
                 </div>
             </v-sheet>
@@ -154,29 +130,16 @@
                 <template #item.full_name="{ item }">
                     <div class="font-weight-medium">{{ item.full_name }}</div>
                     <div class="text-caption" style="opacity: 0.7">
-                        {{ item.email
-                        }}<template v-if="item.phone">
-                            · {{ item.phone }}</template
-                        >
+                        {{ item.email }}<template v-if="item.phone"> · {{ item.phone }}</template>
                     </div>
-                    <div
-                        v-if="item.submitter"
-                        class="text-caption"
-                        style="opacity: 0.5"
-                    >
+                    <div v-if="item.submitter" class="text-caption" style="opacity: 0.5">
                         HR gửi: {{ item.submitter }}
                     </div>
                 </template>
                 <template #item.status="{ item }">
-                    <StatusChip
-                        :status="item.status"
-                        :map="CANDIDATE_STATUS_MAP"
-                    />
+                    <StatusChip :status="item.status" :map="CANDIDATE_STATUS_MAP" />
                     <v-chip
-                        v-if="
-                            item.status === 'pending' &&
-                            pendingDays(item) >= PENDING_WARN_DAYS
-                        "
+                        v-if="item.status === 'pending' && pendingDays(item) >= PENDING_WARN_DAYS"
                         class="ml-1"
                         color="error"
                         size="x-small"
@@ -202,17 +165,38 @@
                             {{ item.hired_employee.code }}
                         </router-link>
                     </div>
+                    <!-- Từng nộp CV vào công ty (mọi đợt tuyển) — bấm để xem lịch sử. -->
+                    <v-chip
+                        v-if="item.previous_applications_count"
+                        class="mt-1"
+                        size="x-small"
+                        color="info"
+                        variant="tonal"
+                        prepend-icon="mdi-history"
+                        @click="openHistory(item)"
+                    >
+                        Đã nộp {{ item.previous_applications_count }} lần trước
+                    </v-chip>
                     <!-- Thư mời nhận việc gần nhất (RecruitmentOfferService). -->
                     <div v-if="item.offer && item.status !== 'hired'" class="mt-1">
                         <StatusChip :status="item.offer.status" :map="OFFER_STATUS_MAP" size="x-small" />
                         <div class="text-caption" style="opacity: 0.7">
                             {{ formatMoney(item.offer.salary) }} · bắt đầu {{ formatDate(item.offer.start_date) }}
-                            <template v-if="item.offer.status === 'sent'"> · hạn trả lời {{ formatDate(item.offer.response_deadline) }}</template>
+                            <template v-if="item.offer.status === 'sent'">
+                                · hạn trả lời {{ formatDate(item.offer.response_deadline) }}</template
+                            >
                         </div>
-                        <div v-if="item.offer.status === 'rejected' && item.offer.review_note" class="text-caption text-error">
+                        <div
+                            v-if="item.offer.status === 'rejected' && item.offer.review_note"
+                            class="text-caption text-error"
+                        >
                             Admin: {{ item.offer.review_note }}
                         </div>
-                        <div v-if="item.offer.status === 'declined' && item.offer.response_note" class="text-caption" style="opacity: 0.7">
+                        <div
+                            v-if="item.offer.status === 'declined' && item.offer.response_note"
+                            class="text-caption"
+                            style="opacity: 0.7"
+                        >
                             Ứng viên: {{ item.offer.response_note }}
                         </div>
                     </div>
@@ -220,41 +204,30 @@
                 <template #item.interview="{ item }">
                     <template v-if="item.interviews?.length">
                         <div>
-                            {{
-                                formatDateTime(item.interviews[0].scheduled_at)
-                            }}
+                            {{ formatDateTime(item.interviews[0].scheduled_at) }}
                         </div>
-                        <div
-                            class="text-caption"
-                            style="opacity: 0.7; word-break: break-word"
-                        >
-                            {{
-                                item.interviews[0].format === "online"
-                                    ? "Trực tuyến"
-                                    : "Trực tiếp"
-                            }}
+                        <!-- Phản hồi của ứng viên (HR ghi nhận ở trang Lịch phỏng vấn). -->
+                        <StatusChip
+                            v-if="item.interviews[0].status !== 'completed'"
+                            :status="item.interviews[0].confirmation_status"
+                            :map="INTERVIEW_CONFIRMATION_MAP"
+                        />
+                        <div class="text-caption" style="opacity: 0.7; word-break: break-word">
+                            {{ item.interviews[0].format === "online" ? "Trực tuyến" : "Trực tiếp" }}
                             ·
                             <a
                                 v-if="
                                     item.interviews[0].format === 'online' &&
-                                    /^https?:\/\//i.test(
-                                        item.interviews[0].location,
-                                    )
+                                    /^https?:\/\//i.test(item.interviews[0].location)
                                 "
                                 :href="item.interviews[0].location"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 >{{ item.interviews[0].location }}</a
                             >
-                            <template v-else>{{
-                                item.interviews[0].location
-                            }}</template>
+                            <template v-else>{{ item.interviews[0].location }}</template>
                         </div>
-                        <div
-                            v-if="item.interviews[0].result_note"
-                            class="text-caption"
-                            style="opacity: 0.7"
-                        >
+                        <div v-if="item.interviews[0].result_note" class="text-caption" style="opacity: 0.7">
                             {{ item.interviews[0].result_note }}
                         </div>
                     </template>
@@ -263,35 +236,22 @@
             </DataTable>
         </template>
 
-        <CandidateUploadDialog
-            v-model="uploadDialog"
-            :opening="opening"
-            @saved="loadData"
-        />
-        <BulkCandidateUploadDialog
-            v-model="bulkUploadDialog"
-            :opening="opening"
-            @saved="loadData"
-        />
+        <CandidateUploadDialog v-model="uploadDialog" :opening="opening" @saved="loadData" />
+        <BulkCandidateUploadDialog v-model="bulkUploadDialog" :opening="opening" @saved="loadData" />
         <InterviewScheduleDialog
             v-model="bulkScheduleDialog"
             :bulk-candidates="bulkScheduleTargets"
             @saved="loadData"
         />
-        <InterviewScheduleDialog
-            v-model="scheduleDialog"
-            :candidate="selected"
-            @saved="loadData"
-        />
-        <InterviewResultDialog
-            v-model="resultDialog"
-            :candidate="selected"
-            @saved="loadData"
-        />
-        <FilePreviewDialog
-            v-model="previewDialog"
-            :file-url="previewFile.url"
-            :file-name="previewFile.name"
+        <InterviewScheduleDialog v-model="scheduleDialog" :candidate="selected" @saved="loadData" />
+        <InterviewResultDialog v-model="resultDialog" :candidate="selected" @saved="loadData" />
+        <FilePreviewDialog v-model="previewDialog" :file-url="previewFile.url" :file-name="previewFile.name" />
+        <CandidateHistoryDialog
+            v-model="historyOpen"
+            :title="historyCandidate ? `Lịch sử ứng tuyển — ${historyCandidate.full_name}` : undefined"
+            :preset-email="historyCandidate?.email ?? ''"
+            :preset-phone="historyCandidate?.phone ?? ''"
+            :exclude-id="historyCandidate?.id ?? null"
         />
         <OfferDialog
             v-model="offerDialog"
@@ -311,7 +271,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import recruitmentService from "../../services/recruitmentService";
 import { useAuthStore } from "../../stores/authStore";
 import { useDepartmentStore } from "../../stores/useDepartmentStore";
@@ -326,25 +286,25 @@ import InterviewScheduleDialog from "./InterviewScheduleDialog.vue";
 import InterviewResultDialog from "./InterviewResultDialog.vue";
 import BulkCandidateUploadDialog from "./BulkCandidateUploadDialog.vue";
 import OfferDialog from "./OfferDialog.vue";
+import CandidateHistoryDialog from "./CandidateHistoryDialog.vue";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 import {
     CANDIDATE_STATUS_MAP,
     CONTRACT_TYPE_LABELS,
+    INTERVIEW_CONFIRMATION_MAP,
     OFFER_STATUS_MAP,
+    OPENING_CONTRACT_TYPE_LABELS,
     OPENING_STATUS_MAP,
 } from "../../composables/recruitmentStatus";
 
 const route = useRoute();
+const router = useRouter();
 const auth = useAuthStore();
 const departmentStore = useDepartmentStore();
 const toast = useToastStore();
 
-const canManage = computed(() =>
-    auth.permissions.includes("recruitment.manage"),
-);
-const canApprove = computed(() =>
-    auth.permissions.includes("recruitment.approve"),
-);
+const canManage = computed(() => auth.permissions.includes("recruitment.manage"));
+const canApprove = computed(() => auth.permissions.includes("recruitment.approve"));
 
 const opening = ref(null);
 const loading = ref(false);
@@ -359,6 +319,13 @@ const previewFile = ref({ url: "", name: "" });
 const hireDialog = ref(false);
 const hirePrefill = ref(null);
 const offerDialog = ref(false);
+const historyOpen = ref(false);
+const historyCandidate = ref(null);
+
+function openHistory(item) {
+    historyCandidate.value = item;
+    historyOpen.value = true;
+}
 
 // Offer "đang mở" — mỗi ứng viên tối đa 1 (khớp RecruitmentOffer::OPEN_STATUSES).
 const OPEN_OFFER_STATUSES = ["pending_approval", "sent", "accepted"];
@@ -382,26 +349,14 @@ const headers = [
 const subtitle = computed(() => {
     const o = opening.value;
     if (!o) return "";
-    return [
-        o.department?.name,
-        o.position?.name,
-        CONTRACT_TYPE_LABELS[o.contract_type],
-    ]
+    return [o.department?.name, o.position?.name, OPENING_CONTRACT_TYPE_LABELS[o.contract_type]]
         .filter(Boolean)
         .join(" · ");
 });
 
-const isFull = computed(
-    () =>
-        opening.value &&
-        opening.value.approved_count >= opening.value.headcount,
-);
+const isFull = computed(() => opening.value && opening.value.approved_count >= opening.value.headcount);
 const acceptingCv = computed(
-    () =>
-        opening.value &&
-        opening.value.status === "open" &&
-        !isFull.value &&
-        !opening.value.is_past_deadline,
+    () => opening.value && opening.value.status === "open" && !isFull.value && !opening.value.is_past_deadline,
 );
 const notAcceptingReason = computed(() => {
     const o = opening.value;
@@ -416,9 +371,7 @@ const notAcceptingReason = computed(() => {
 function flatten(nodes) {
     return nodes.flatMap((node) => [node, ...flatten(node.children ?? [])]);
 }
-const departmentOptions = computed(() =>
-    flatten(departmentStore.tree).map((d) => ({ title: d.name, value: d.id })),
-);
+const departmentOptions = computed(() => flatten(departmentStore.tree).map((d) => ({ title: d.name, value: d.id })));
 
 function formatDate(value) {
     return value ? new Date(value).toLocaleDateString("vi-VN") : "";
@@ -439,15 +392,51 @@ function firstError(e) {
     return errors ? Object.values(errors)[0]?.[0] : e?.response?.data?.message;
 }
 
+// Bộ câu hỏi phỏng vấn (Admin gắn cho đợt tuyển — InterviewScorecardService).
+const questionSets = ref([]);
+const questionSetId = ref(null);
+const assigningSet = ref(false);
+const questionSetOptions = computed(() =>
+    questionSets.value
+        .filter((set) => set.is_active || set.id === questionSetId.value)
+        .map((set) => ({ title: `${set.name} (đạt từ ${set.pass_percent}%)`, value: set.id })),
+);
+
+async function loadQuestionSets() {
+    try {
+        questionSets.value = (await recruitmentService.questionSets()).data.data;
+    } catch {
+        questionSets.value = [];
+    }
+}
+
+async function assignSet(value) {
+    assigningSet.value = true;
+    try {
+        await recruitmentService.assignQuestionSet(opening.value.id, value ?? null);
+        toast.success(
+            value
+                ? "Đã gắn bộ câu hỏi — kết quả phỏng vấn sẽ chấm theo phiếu."
+                : "Đã bỏ bộ câu hỏi — ghi kết quả tay như trước.",
+        );
+        await loadData();
+    } catch (e) {
+        toast.error(firstError(e) ?? "Không gắn được bộ câu hỏi.");
+        questionSetId.value = opening.value?.interview_question_set_id ?? null;
+    } finally {
+        assigningSet.value = false;
+    }
+}
+
 async function loadData() {
     loading.value = true;
     loadError.value = "";
     try {
         const response = await recruitmentService.showOpening(route.params.id);
         opening.value = response.data.data;
+        questionSetId.value = opening.value.interview_question_set_id ?? null;
     } catch (e) {
-        loadError.value =
-            e.response?.data?.message ?? "Không thể tải đợt tuyển.";
+        loadError.value = e.response?.data?.message ?? "Không thể tải đợt tuyển.";
     } finally {
         loading.value = false;
     }
@@ -485,9 +474,7 @@ async function downloadCv(item) {
     const response = await window.axios.get(item.cv_url, {
         responseType: "blob",
     });
-    const url = window.URL.createObjectURL(
-        new Blob([response.data], { type: "application/pdf" }),
-    );
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
     const link = document.createElement("a");
     link.href = url;
     link.download = item.cv_original_name || `cv-${item.id}.pdf`;
@@ -504,8 +491,7 @@ const bulkScheduleTargets = ref([]);
 function itemSelectableForBulk(item) {
     return (
         (canApprove.value && item.status === "pending") ||
-        (canManage.value &&
-            ["approved", "interview_scheduled"].includes(item.status))
+        (canManage.value && ["approved", "interview_scheduled"].includes(item.status))
     );
 }
 
@@ -514,9 +500,7 @@ function bulkResultMessage(result, verb) {
     if (result.failed.length) {
         toast.error(
             `Không ${verb} được ${result.failed.length} CV: ` +
-                result.failed
-                    .map((f) => `${f.full_name} — ${f.message}`)
-                    .join("; "),
+                result.failed.map((f) => `${f.full_name} — ${f.message}`).join("; "),
         );
     }
 }
@@ -537,9 +521,7 @@ const bulkActions = computed(() =>
             },
             onClick: async (items) => {
                 const { data } = await recruitmentService.bulkReview({
-                    candidate_ids: items
-                        .filter((i) => i.status === "pending")
-                        .map((i) => i.id),
+                    candidate_ids: items.filter((i) => i.status === "pending").map((i) => i.id),
                     status: "approved",
                 });
                 bulkResultMessage(data, "duyệt");
@@ -561,9 +543,7 @@ const bulkActions = computed(() =>
             },
             onClick: async (items, { input }) => {
                 const { data } = await recruitmentService.bulkReview({
-                    candidate_ids: items
-                        .filter((i) => i.status === "pending")
-                        .map((i) => i.id),
+                    candidate_ids: items.filter((i) => i.status === "pending").map((i) => i.id),
                     status: "rejected",
                     review_note: input,
                 });
@@ -575,14 +555,9 @@ const bulkActions = computed(() =>
             icon: "mdi-calendar-multiple",
             label: "Hẹn phỏng vấn",
             hidden: () => !canManage.value,
-            disabled: (items) =>
-                !items.some((i) =>
-                    ["approved", "interview_scheduled"].includes(i.status),
-                ),
+            disabled: (items) => !items.some((i) => ["approved", "interview_scheduled"].includes(i.status)),
             onClick: (items) => {
-                bulkScheduleTargets.value = items.filter((i) =>
-                    ["approved", "interview_scheduled"].includes(i.status),
-                );
+                bulkScheduleTargets.value = items.filter((i) => ["approved", "interview_scheduled"].includes(i.status));
                 bulkScheduleDialog.value = true;
             },
         },
@@ -593,11 +568,7 @@ const bulkActions = computed(() =>
 // CV chờ duyệt quá lâu -> gắn chip đỏ để Admin thấy ngay.
 const PENDING_WARN_DAYS = 3;
 function pendingDays(item) {
-    return item.created_at
-        ? Math.floor(
-              (Date.now() - new Date(item.created_at).getTime()) / 86400000,
-          )
-        : 0;
+    return item.created_at ? Math.floor((Date.now() - new Date(item.created_at).getTime()) / 86400000) : 0;
 }
 
 function onHired() {
@@ -649,8 +620,7 @@ const actions = computed(() => [
         hidden: (item) => !canApprove.value || item.status !== "pending",
         confirm: {
             title: "Từ chối CV",
-            message: (item) =>
-                `Từ chối CV của ${item.full_name}? Ứng viên sẽ nhận email thông báo kết quả.`,
+            message: (item) => `Từ chối CV của ${item.full_name}? Ứng viên sẽ nhận email thông báo kết quả.`,
             confirmText: "Từ chối",
             input: { label: "Lý do (chỉ nội bộ thấy)", required: true },
         },
@@ -665,13 +635,8 @@ const actions = computed(() => [
     },
     {
         icon: "mdi-calendar-account-outline",
-        tooltip: (item) =>
-            item.status === "interview_scheduled"
-                ? "Dời lịch phỏng vấn"
-                : "Hẹn phỏng vấn",
-        hidden: (item) =>
-            !canManage.value ||
-            !["approved", "interview_scheduled"].includes(item.status),
+        tooltip: (item) => (item.status === "interview_scheduled" ? "Dời lịch phỏng vấn" : "Hẹn phỏng vấn"),
+        hidden: (item) => !canManage.value || !["approved", "interview_scheduled"].includes(item.status),
         onClick: (item) => {
             selected.value = item;
             scheduleDialog.value = true;
@@ -679,17 +644,28 @@ const actions = computed(() => [
     },
     {
         icon: "mdi-clipboard-check-outline",
-        tooltip: (item) =>
-            interviewIsDue(item)
-                ? "Ghi kết quả phỏng vấn"
-                : "Chưa tới giờ phỏng vấn",
+        tooltip: (item) => (interviewIsDue(item) ? "Ghi kết quả phỏng vấn" : "Chưa tới giờ phỏng vấn"),
         color: "success",
         hidden: (item) =>
-            !canManage.value || item.status !== "interview_scheduled",
+            !canManage.value || item.status !== "interview_scheduled" || !!opening.value?.interview_question_set_id,
         disabled: (item) => !interviewIsDue(item),
         onClick: (item) => {
             selected.value = item;
             resultDialog.value = true;
+        },
+    },
+    {
+        icon: "mdi-clipboard-text-outline",
+        tooltip: "Chấm điểm phỏng vấn (theo bộ câu hỏi)",
+        color: "success",
+        hidden: (item) =>
+            !(canManage.value || canApprove.value) ||
+            !opening.value?.interview_question_set_id ||
+            !item.interviews?.length ||
+            !["interview_scheduled", "passed", "failed"].includes(item.status),
+        onClick: (item) => {
+            const interview = item.interviews.find((i) => i.status === "scheduled") ?? item.interviews[0];
+            router.push({ name: "interview-scorecard", params: { id: interview.id } });
         },
     },
     {
@@ -792,8 +768,7 @@ const actions = computed(() => [
         icon: "mdi-delete-outline",
         tooltip: "Xóa CV",
         color: "error",
-        hidden: (item) =>
-            !canManage.value || !["pending", "rejected"].includes(item.status),
+        hidden: (item) => !canManage.value || !["pending", "rejected"].includes(item.status),
         confirm: {
             title: "Xóa CV",
             message: (item) => `Xóa CV của ${item.full_name}?`,
@@ -830,6 +805,9 @@ watch(
 
 onMounted(() => {
     loadData();
+    if (canApprove.value) {
+        loadQuestionSets();
+    }
     if (canManage.value) {
         departmentStore.fetchTree();
     }
