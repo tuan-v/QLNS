@@ -219,11 +219,10 @@ const routes = [
         component: () => import("../views/Recruitment/QuestionSets.vue"),
     },
     {
-        // Trang công khai cho ứng viên trả lời thư mời nhận việc (link trong email).
-        path: "/thu-moi-nhan-viec/:token",
-        name: "offer-response",
-        meta: { layout: "blank", title: "Thư mời nhận việc", public: true },
-        component: () => import("../views/Recruitment/OfferResponse.vue"),
+        path: "/bao-cao-tuyen-dung",
+        name: "recruitment-report",
+        meta: { title: "Báo cáo tuyển dụng", permission: ["recruitment.manage", "recruitment.approve"] },
+        component: () => import("../views/Recruitment/RecruitmentReport.vue"),
     },
 ];
 

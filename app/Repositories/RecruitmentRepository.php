@@ -28,11 +28,14 @@ class RecruitmentRepository
     public function loadOpeningDetail(RecruitmentOpening $opening): RecruitmentOpening
     {
         return $opening->load([
-            'department:id,name', 'position:id,name', 'creator:id,user_name', 'questionSet:id,name,pass_percent',
+            'department:id,name', 'position:id,name', 'creator:id,user_name', 'questionSets:id,name,pass_percent',
             'candidates' => fn ($q) => $q->latest(),
             'candidates.submitter:id,user_name', 'candidates.reviewer:id,user_name',
             'candidates.interviews.interviewer:id,full_name', 'candidates.hiredEmployee:id,code,full_name',
             'candidates.latestOffer.creator:id,user_name', 'candidates.latestOffer.reviewer:id,user_name',
+            'candidates.latestOffer.department:id,name', 'candidates.latestOffer.position:id,name', 'candidates.latestOffer.responseRecorder:id,user_name',
+            'candidates.appliedPosition:id,name,department_id', 'candidates.appliedPosition.questionSets:id,name,pass_percent',
+            'candidates.questionSets:id,name,pass_percent',
         ])->loadCount([
             'candidates as approved_count' => fn ($q) => $q->whereIn('status', RecruitmentCandidate::COUNTED_STATUSES),
             'candidates as pending_count' => fn ($q) => $q->where('status', RecruitmentCandidate::STATUS_PENDING),

@@ -20,6 +20,8 @@ class ScheduleRecruitmentInterviewRequest extends FormRequest
 
         return [
             'scheduled_at' => ['required', 'date', 'after:now'],
+            // Thời lượng buổi PV (phút) — để chặn trùng lịch người phỏng vấn. Mặc định 60.
+            'duration_minutes' => ['nullable', 'integer', 'min:10', 'max:480'],
             'format' => ['required', 'in:onsite,online'],
             'location' => [Rule::requiredIf(! $onsite), 'nullable', 'string', 'max:500', Rule::when(! $onsite, ['url:http,https'])],
             'province_code' => [Rule::requiredIf($onsite), 'nullable', 'integer', 'exists:provinces,code'],
@@ -38,6 +40,8 @@ class ScheduleRecruitmentInterviewRequest extends FormRequest
             'scheduled_at.required' => 'Vui lòng chọn thời gian phỏng vấn',
             'scheduled_at.date' => 'Thời gian phỏng vấn không hợp lệ',
             'scheduled_at.after' => 'Thời gian phỏng vấn phải ở tương lai',
+            'duration_minutes.min' => 'Thời lượng tối thiểu 10 phút',
+            'duration_minutes.max' => 'Thời lượng tối đa 8 tiếng',
             'format.required' => 'Vui lòng chọn hình thức phỏng vấn',
             'format.in' => 'Hình thức phỏng vấn không hợp lệ',
             'location.required' => 'Vui lòng nhập link phỏng vấn',

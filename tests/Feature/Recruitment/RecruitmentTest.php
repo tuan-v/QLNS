@@ -97,9 +97,23 @@ class RecruitmentTest extends TestCase
         ], $overrides), $this->as('hr'));
     }
 
-    private function recordResult(RecruitmentCandidate $candidate, string $result): TestResponse
+    // Mặc định HR đã xác nhận ứng viên đồng ý tham gia (điều kiện để ghi kết quả).
+    private function recordResult(RecruitmentCandidate $candidate, string $result, bool $confirmFirst = true): TestResponse
     {
+        if ($confirmFirst) {
+            $this->confirmInterview($candidate);
+        }
+
         return $this->postJson("/api/v1/recruitment/candidates/{$candidate->id}/result", ['result' => $result], $this->as('hr'));
+    }
+
+    // HR ghi nhận phản hồi của ứng viên cho buổi PV đang hẹn (bỏ qua nếu đã xác nhận / chưa có lịch).
+    private function confirmInterview(RecruitmentCandidate $candidate, string $status = 'confirmed'): void
+    {
+        $interview = $candidate->interviews()->where('status', 'scheduled')->first();
+        if ($interview && $interview->confirmation_status !== 'confirmed') {
+            $this->postJson("/api/v1/recruitment/interviews/{$interview->id}/confirmation", ['status' => $status, 'note' => 'Ghi chu'], $this->as('hr'))->assertOk();
+        }
     }
 
     // Ứng viên đã qua phỏng vấn (để test nhận việc).
@@ -184,7 +198,17 @@ class RecruitmentTest extends TestCase
         $this->review($candidate, 'rejected', 'x')->assertStatus(422);
 
         $this->schedule($candidate)->assertOk();
-        // Chưa tới giờ phỏng vấn -> chưa ghi kết quả.
+        $notConfirmed = 'HR chưa xác nhận ứng viên đồng ý tham gia phỏng vấn — ghi nhận phản hồi của ứng viên ở trang "Lịch phỏng vấn" trước.';
+        // HR chưa xác nhận ứng viên đồng ý tham gia -> chưa ghi kết quả (kể cả đã tới giờ).
+        $this->recordResult($candidate, 'passed', confirmFirst: false)->assertStatus(422)->assertJsonPath('errors.result.0', $notConfirmed);
+        $this->travelTo(Carbon::parse('2026-10-08 10:00'));
+        $this->recordResult($candidate, 'passed', confirmFirst: false)->assertStatus(422)->assertJsonPath('errors.result.0', $notConfirmed);
+        // Ứng viên xin đổi lịch -> vẫn chưa ghi được.
+        $this->confirmInterview($candidate, 'reschedule_requested');
+        $this->recordResult($candidate, 'passed', confirmFirst: false)->assertStatus(422)->assertJsonPath('errors.result.0', $notConfirmed);
+
+        // Đã xác nhận nhưng chưa tới giờ phỏng vấn -> chưa ghi kết quả.
+        $this->travelTo(Carbon::parse('2026-10-08 08:00'));
         $this->recordResult($candidate, 'passed')->assertStatus(422)->assertJsonValidationErrors('result');
 
         $this->travelTo(Carbon::parse('2026-10-08 10:00'));
@@ -448,5 +472,27 @@ class RecruitmentTest extends TestCase
             $this->assertArrayHasKey('candidate_id', $e->errors());
         }
         $this->assertSame('pending', $candidate->fresh()->status);
+    }
+
+    // Mở đợt tuyển -> báo người còn lại có quyền tuyển dụng (HR mở thì Admin biết, Admin mở thì HR biết).
+    public function test_new_opening_notifies_other_recruiters(): void
+    {
+        $admin = User::where('email', 'admin@qlns.local')->firstOrFail();
+        $hr = User::where('email', 'hr@qlns.local')->firstOrFail();
+        $employee = User::where('email', 'employee@qlns.local')->firstOrFail();
+
+        $opening = $this->createOpening(3, ['title' => 'Ke toan tong hop']);
+        $notice = Notification::where('type', 'recruitment.opening_created')->where('user_id', $admin->id)->firstOrFail();
+        $this->assertSame('Đợt tuyển dụng mới', $notice->title);
+        $this->assertStringContainsString('"Ke toan tong hop"', $notice->message);
+        $this->assertStringContainsString('cần 3 người', $notice->message);
+        $this->assertSame($opening->id, $notice->data['recruitment_opening_id']);
+        $this->assertFalse(Notification::where('type', 'recruitment.opening_created')->where('user_id', $hr->id)->exists());
+        $this->assertFalse(Notification::where('type', 'recruitment.opening_created')->where('user_id', $employee->id)->exists());
+
+        // Admin mở đợt tuyển chung -> HR được báo.
+        $this->postJson('/api/v1/recruitment/openings', ['title' => 'Tuyen dung chung', 'contract_type' => 'tat_ca'], $this->as('admin'))->assertCreated();
+        $toHr = Notification::where('type', 'recruitment.opening_created')->where('user_id', $hr->id)->firstOrFail();
+        $this->assertStringContainsString('Tuyển dụng chung · không giới hạn số lượng', $toHr->message);
     }
 }

@@ -88,6 +88,12 @@ class CandidateHistoryService
             'email' => $candidate->email,
             'phone' => $candidate->phone,
             'status' => $candidate->status,
+            'stage' => RecruitmentCandidate::stageFor(
+                $candidate->status,
+                $offer?->status,
+                $interview?->status === 'scheduled' ? $interview->confirmation_status : null,
+                $interview?->status === 'scheduled' ? $interview->scheduled_at : null,
+            ),
             'applied_at' => $candidate->created_at,
             'deleted' => $candidate->trashed(),
             'review_note' => $candidate->review_note,

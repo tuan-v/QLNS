@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Employee;
 use App\Models\RecruitmentCandidate;
 use App\Models\RecruitmentInterview;
 use App\Models\RecruitmentOpening;
@@ -27,6 +28,39 @@ class RecruitmentInterviewService
     }
 
     /** @return array{interviews: Collection<int, RecruitmentInterview>, summary: array<string, int>} */
+    /** @return array<int, array{id: int, title: string, subtitle: string}> */
+    public function interviewers(): array
+    {
+        return Employee::whereIn('employment_status', Employee::WORKING_STATUSES)
+            ->with(['department:id,name', 'position:id,name'])
+            ->orderBy('full_name')
+            ->get(['id', 'code', 'full_name', 'department_id', 'position_id'])
+            ->map(fn ($e) => [
+                'id' => $e->id,
+                'title' => "{$e->code} – {$e->full_name}",
+                'subtitle' => implode(' · ', array_filter([$e->position?->name, $e->department?->name])),
+            ])
+            ->all();
+    }
+
+    // Nhóm buổi PV (không trùng nhau, cộng lại = tổng) — khớp giai đoạn ứng viên
+    // (RecruitmentCandidate::stageFor): chờ xác nhận / xin đổi lịch / sắp PV (đã đồng ý, chưa
+    // tới giờ) / chờ ghi kết quả (đã đồng ý, tới giờ) / đã PV / không tham gia.
+    public const BUCKETS = ['pending', 'reschedule_requested', 'upcoming', 'awaiting_result', 'completed', 'cancelled'];
+
+    public static function bucketOf(RecruitmentInterview $interview, ?Carbon $now = null): string
+    {
+        $now ??= now();
+
+        return match (true) {
+            $interview->status === RecruitmentInterview::STATUS_COMPLETED => 'completed',
+            $interview->status === RecruitmentInterview::STATUS_CANCELLED => 'cancelled',
+            $interview->confirmation_status === RecruitmentInterview::CONFIRMATION_RESCHEDULE => 'reschedule_requested',
+            $interview->confirmation_status === RecruitmentInterview::CONFIRMATION_CONFIRMED => $interview->scheduled_at->lte($now) ? 'awaiting_result' : 'upcoming',
+            default => 'pending',
+        };
+    }
+
     public function month(string $month, array $filters = []): array
     {
         $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
@@ -35,43 +69,40 @@ class RecruitmentInterviewService
         $base = RecruitmentInterview::query()
             ->whereBetween('scheduled_at', [$start, $end])
             ->whereHas('candidate')
-            ->when($filters['opening_id'] ?? null, fn ($q, $id) => $q->whereHas('candidate', fn ($c) => $c->where('recruitment_opening_id', $id)));
-
-        // Số liệu tháng tính trước khi lọc theo phản hồi (để thẻ số liệu không đổi khi lọc).
-        $counts = (clone $base)->selectRaw('confirmation_status, status, count(*) as total')
-            ->groupBy('confirmation_status', 'status')->get();
+            ->when($filters['opening_id'] ?? null, fn ($q, $id) => $q->whereHas('candidate', fn ($c) => $c->where('recruitment_opening_id', $id)))
+            ->when($filters['interviewer_id'] ?? null, fn ($q, $id) => $id === 'none' ? $q->whereNull('interviewer_id') : $q->where('interviewer_id', $id));
 
         $interviews = $base
-            ->when($filters['confirmation_status'] ?? null, function ($q, $status) {
-                $q->where('confirmation_status', $status);
-                // "Chờ xác nhận" chỉ tính buổi còn đang hẹn — buổi đã phỏng vấn xong không còn gì để chờ.
-                if ($status === RecruitmentInterview::CONFIRMATION_PENDING) {
-                    $q->where('status', RecruitmentInterview::STATUS_SCHEDULED);
-                }
-            })
             ->with([
                 'candidate:id,recruitment_opening_id,full_name,email,phone,status',
-                'candidate.opening:id,title,department_id,headcount,status,interview_question_set_id',
+                'candidate.opening:id,title,department_id,headcount,status',
+                'candidate.opening.questionSets:id',
+                'candidate.questionSets:id',
+                'candidate.appliedPosition:id,name',
+                'candidate.appliedPosition.questionSets:id',
                 'scorecard:id,recruitment_interview_id,status,score_percent,result',
                 'candidate.opening.department:id,name',
-                'confirmer:id,user_name', 'interviewer:id,full_name',
+                'confirmer:id,user_name',
+                'interviewer:id,full_name',
             ])
             ->orderBy('scheduled_at')
             ->get();
 
-        $sum = fn (callable $filter) => (int) $counts->filter($filter)->sum('total');
+        // Số liệu tính TRƯỚC khi lọc theo nhóm (thẻ số liệu không đổi khi bấm lọc).
+        $now = now();
+        $buckets = $interviews->groupBy(fn (RecruitmentInterview $i) => self::bucketOf($i, $now));
+        $completed = $buckets->get('completed', collect());
+
+        $bucket = $filters['bucket'] ?? null;
 
         return [
-            'interviews' => $interviews,
-            'summary' => [
-                'total' => $sum(fn () => true),
-                'pending' => $sum(fn ($r) => $r->confirmation_status === RecruitmentInterview::CONFIRMATION_PENDING
-                    && $r->status === RecruitmentInterview::STATUS_SCHEDULED),
-                'confirmed' => $sum(fn ($r) => $r->confirmation_status === RecruitmentInterview::CONFIRMATION_CONFIRMED),
-                'reschedule_requested' => $sum(fn ($r) => $r->confirmation_status === RecruitmentInterview::CONFIRMATION_RESCHEDULE),
-                'withdrawn' => $sum(fn ($r) => $r->confirmation_status === RecruitmentInterview::CONFIRMATION_WITHDRAWN),
-                'completed' => $sum(fn ($r) => $r->status === RecruitmentInterview::STATUS_COMPLETED),
-            ],
+            'interviews' => $bucket ? $buckets->get($bucket, collect())->values() : $interviews,
+            'summary' => ['total' => $interviews->count()]
+                + collect(self::BUCKETS)->mapWithKeys(fn ($key) => [$key => $buckets->get($key, collect())->count()])->all()
+                + [
+                    'passed' => $completed->where('result', 'passed')->count(),
+                    'failed' => $completed->where('result', 'failed')->count(),
+                ],
         ];
     }
 
@@ -82,8 +113,10 @@ class RecruitmentInterviewService
             $opening = RecruitmentOpening::whereKey($candidate->recruitment_opening_id)->lockForUpdate()->firstOrFail();
             $locked = RecruitmentInterview::whereKey($interview->id)->lockForUpdate()->firstOrFail();
 
-            if ($locked->status !== RecruitmentInterview::STATUS_SCHEDULED
-                || $candidate->status !== RecruitmentCandidate::STATUS_INTERVIEW_SCHEDULED) {
+            if (
+                $locked->status !== RecruitmentInterview::STATUS_SCHEDULED
+                || $candidate->status !== RecruitmentCandidate::STATUS_INTERVIEW_SCHEDULED
+            ) {
                 throw ValidationException::withMessages(['status' => 'Lịch phỏng vấn này đã có kết quả hoặc đã hủy — không ghi nhận được nữa.']);
             }
 

@@ -17,6 +17,7 @@ class RecruitmentInterviewResource extends JsonResource
             'id' => $this->id,
             'scheduled_at' => $this->scheduled_at,
             'format' => $this->format,
+            'duration_minutes' => $this->duration_minutes,
             'location' => $this->location,
             'province_code' => $this->province_code,
             'commune_code' => $this->commune_code,
@@ -35,12 +36,14 @@ class RecruitmentInterviewResource extends JsonResource
                 'email' => $candidate->email,
                 'phone' => $candidate->phone,
                 'status' => $candidate->status,
+                // Vị trí ứng tuyển (đợt tuyển chung).
+                'applied_position' => $candidate->relationLoaded('appliedPosition') ? $candidate->appliedPosition?->name : null,
             ] : null,
             'opening' => $opening ? [
                 'id' => $opening->id,
                 'title' => $opening->title,
                 'department' => $opening->department?->name,
-                'has_question_set' => (bool) $opening->interview_question_set_id,
+                'has_question_set' => $candidate ? $this->candidate->effectiveQuestionSets()[0]->isNotEmpty() : false,
             ] : null,
             'scorecard' => $this->relationLoaded('scorecard') && $this->scorecard ? [
                 'id' => $this->scorecard->id,

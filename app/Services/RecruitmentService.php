@@ -24,7 +24,8 @@ use Illuminate\Validation\ValidationException;
 
 // Tuyển dụng. Quy tắc giữ đúng logic:
 //  - Giới hạn: số CV "chiếm suất" (RecruitmentCandidate::COUNTED_STATUSES) không vượt
-//    headcount. Đủ thì đợt tuyển tự "full" và ngưng nhận CV; CV bị từ chối hoặc trượt
+//    headcount (null = không giới hạn — đợt "tuyển dụng chung"). Đủ thì đợt tuyển tự
+//    "full" và ngưng nhận CV; CV bị từ chối hoặc trượt
 //    phỏng vấn trả lại suất (đợt tuyển tự mở lại nếu chưa bị đóng tay).
 //  - Mọi thao tác làm đổi số CV chiếm suất / nhận CV mới đều KHÓA dòng đợt tuyển
 //    (lockForUpdate) trong transaction -> 2 người thao tác cùng lúc không vượt giới hạn.
@@ -55,6 +56,8 @@ class RecruitmentService
     public function showOpening(RecruitmentOpening $opening): RecruitmentOpening
     {
         $opening = $this->recruitmentRepository->loadOpeningDetail($opening);
+        // Gắn ngược đợt tuyển cho từng ứng viên -> effectiveQuestionSets() không truy vấn lại.
+        $opening->candidates->each(fn (RecruitmentCandidate $c) => $c->setRelation('opening', $opening));
 
         // Số lần người này từng nộp CV khác (mọi đợt tuyển) — chip "Đã nộp N lần trước".
         $counts = $this->candidateHistoryService->previousCounts($opening->candidates);
@@ -65,10 +68,79 @@ class RecruitmentService
 
     public function createOpening(array $data, User $actor): RecruitmentOpening
     {
-        return DB::transaction(fn () => RecruitmentOpening::create($data + [
-            'status' => RecruitmentOpening::STATUS_OPEN,
-            'created_by' => $actor->id,
+        $opening = DB::transaction(function () use ($data, $actor) {
+            $opening = RecruitmentOpening::create($this->normalizeOpening($data) + [
+                'status' => RecruitmentOpening::STATUS_OPEN,
+                'created_by' => $actor->id,
+            ]);
+            $this->applyPositionQuestionSets($opening);
+
+            return $opening;
+        });
+
+        $this->notifyOpeningCreated($opening, $actor);
+
+        return $opening;
+    }
+
+    // Mở đợt tuyển -> báo những người còn lại có quyền tuyển dụng (HR mở thì Admin biết và
+    // ngược lại, người dùng yêu cầu 2026-10-13). Gửi sau khi transaction đã commit.
+    private function notifyOpeningCreated(RecruitmentOpening $opening, User $actor): void
+    {
+        $opening->loadMissing('department:id,name', 'position:id,name');
+        $where = $opening->isGeneral()
+            ? 'Tuyển dụng chung'
+            : implode(' · ', array_filter([$opening->department?->name, $opening->position?->name]));
+        $details = implode(' · ', array_filter([
+            $where,
+            $opening->headcount ? "cần {$opening->headcount} người" : 'không giới hạn số lượng',
+            $opening->deadline ? 'hạn nộp CV '.$opening->deadline->format('d/m/Y') : null,
         ]));
+
+        $recipients = User::where('status', 'active')
+            ->where('id', '!=', $actor->id)
+            ->whereHas('roles.permissions', fn ($q) => $q->whereIn('code', ['recruitment.manage', 'recruitment.approve']))
+            ->get();
+
+        foreach ($recipients as $user) {
+            $this->notificationService->send(
+                $user,
+                'recruitment.opening_created',
+                'Đợt tuyển dụng mới',
+                "{$actor->user_name} vừa mở đợt tuyển \"{$opening->title}\" ({$details}).",
+                ['recruitment_opening_id' => $opening->id],
+            );
+        }
+    }
+
+    // Đợt tuyển chung (không phòng ban): không chức vụ, không giới hạn số lượng.
+    private function normalizeOpening(array $data): array
+    {
+        if (empty($data['department_id'])) {
+            $data['department_id'] = null;
+            $data['position_id'] = null;
+            $data['headcount'] = null;
+        }
+
+        return $data;
+    }
+
+    // Đợt tuyển CHƯA có bộ câu hỏi nào -> chép bộ mặc định (kèm tỉ trọng) của chức vụ.
+    // Đã có (Admin đã chọn) thì giữ nguyên, kể cả khi đổi chức vụ.
+    private function applyPositionQuestionSets(RecruitmentOpening $opening): void
+    {
+        if (! $opening->position_id || $opening->questionSets()->exists()) {
+            return;
+        }
+
+        $defaults = $opening->position()->first()?->questionSets()->where('is_active', true)->get() ?? collect();
+        if ($defaults->isEmpty() || (int) $defaults->sum('pivot.weight') !== 100) {
+            return; // bộ mặc định có bộ đã ngừng dùng -> tỉ trọng lệch, để Admin tự chọn
+        }
+
+        $opening->questionSets()->sync($defaults->mapWithKeys(fn ($set) => [
+            $set->id => ['weight' => (int) $set->pivot->weight, 'sort_order' => (int) $set->pivot->sort_order],
+        ])->all());
     }
 
     public function updateOpening(RecruitmentOpening $opening, array $data): RecruitmentOpening
@@ -77,13 +149,16 @@ class RecruitmentService
             $locked = $this->lockOpening($opening);
             $counted = $this->recruitmentRepository->countedCandidates($locked);
 
-            if ((int) $data['headcount'] < $counted) {
+            if (($data['headcount'] ?? null) !== null && (int) $data['headcount'] < $counted) {
                 throw ValidationException::withMessages([
                     'headcount' => "Đợt tuyển đã có {$counted} CV được duyệt — số người cần tuyển không được nhỏ hơn {$counted}.",
                 ]);
             }
 
-            $locked->fill($data)->save();
+            $locked->fill($this->normalizeOpening($data))->save();
+            if ($locked->wasChanged('position_id')) {
+                $this->applyPositionQuestionSets($locked);
+            }
             $this->syncOpeningStatus($locked);
 
             return $locked;
@@ -117,6 +192,32 @@ class RecruitmentService
         });
     }
 
+    // HR sửa thông tin ứng tuyển trước khi nhận việc: nguồn (mọi đợt), vị trí ứng tuyển + hình
+    // thức mong muốn (vị trí chỉ đổi được ở đợt tuyển chung).
+    public function updateApplication(RecruitmentCandidate $candidate, array $data): RecruitmentCandidate
+    {
+        // Đã có offer đang mở (chờ duyệt / đã gửi / đã chấp nhận) thì phòng ban, chức vụ, hợp đồng
+        // đã chốt trong offer -> khóa; offer bị hủy / không duyệt / hết hạn thì sửa lại được.
+        if ($candidate->status === RecruitmentCandidate::STATUS_HIRED) {
+            throw ValidationException::withMessages(['candidate' => 'Ứng viên đã tuyển — không sửa thông tin ứng tuyển nữa.']);
+        }
+        if ($candidate->offers()->whereIn('status', RecruitmentOffer::OPEN_STATUSES)->exists()) {
+            throw ValidationException::withMessages(['candidate' => 'Ứng viên đang có offer (chờ duyệt / đã gửi / đã chấp nhận) — thông tin đã chốt trong offer, không sửa thông tin ứng tuyển nữa.']);
+        }
+        $attributes = array_intersect_key($data, array_flip(['source', 'source_note', 'desired_contract_type']));
+        if (array_key_exists('applied_position_id', $data)) {
+            // Đợt theo chức vụ: vị trí ứng tuyển cố định = chức vụ của đợt.
+            if (! $candidate->opening->isGeneral() && (int) $data['applied_position_id'] !== (int) $candidate->opening->position_id) {
+                throw ValidationException::withMessages(['applied_position_id' => 'Chỉ đợt tuyển chung mới chọn vị trí ứng tuyển cho từng ứng viên.']);
+            }
+            $attributes['applied_position_id'] = $data['applied_position_id'];
+        }
+
+        $candidate->update($attributes);
+
+        return $candidate;
+    }
+
     public function deleteOpening(RecruitmentOpening $opening): void
     {
         if ($opening->candidates()->withTrashed()->exists()) {
@@ -146,6 +247,11 @@ class RecruitmentService
                     'full_name' => $data['full_name'],
                     'email' => $data['email'],
                     'phone' => $data['phone'] ?? null,
+                    // Đợt theo chức vụ: vị trí ứng tuyển = chức vụ của đợt.
+                    'applied_position_id' => $locked->isGeneral() ? ($data['applied_position_id'] ?? null) : $locked->position_id,
+                    'desired_contract_type' => $data['desired_contract_type'] ?? null,
+                    'source' => $data['source'] ?? null,
+                    'source_note' => $data['source_note'] ?? null,
                     'note' => $data['note'] ?? null,
                     'cv_file' => $path,
                     'cv_original_name' => mb_substr($cvFile->getClientOriginalName(), 0, 255),
@@ -181,7 +287,7 @@ class RecruitmentService
                     throw ValidationException::withMessages(['status' => 'Đợt tuyển đã đóng — không thể duyệt thêm CV.']);
                 }
 
-                if ($this->recruitmentRepository->countedCandidates($opening) >= $opening->headcount) {
+                if ($opening->isFullWith($this->recruitmentRepository->countedCandidates($opening))) {
                     throw ValidationException::withMessages([
                         'status' => "Đợt tuyển đã đủ {$opening->headcount} CV được duyệt — chỉ có thể từ chối CV này.",
                     ]);
@@ -227,8 +333,23 @@ class RecruitmentService
         $index = 0;
 
         return $this->runEach($candidateIds, function (RecruitmentCandidate $candidate) use ($data, $actor, $start, $slot, &$index) {
+            // Hẹn hàng loạt chỉ cho CV chưa có lịch — đã có lịch thì "Dời lịch" từng người (tránh âm
+            // thầm dời lịch + gửi lại email mời).
+            if ($candidate->status !== RecruitmentCandidate::STATUS_APPROVED) {
+                throw ValidationException::withMessages([
+                    'candidate_ids' => $candidate->status === RecruitmentCandidate::STATUS_INTERVIEW_SCHEDULED
+                        ? 'Đã có lịch phỏng vấn — dùng "Dời lịch" cho từng ứng viên.'
+                        : 'Chỉ hẹn được CV đã duyệt và chưa có lịch phỏng vấn.',
+                ]);
+            }
+            // Khung giờ trùng lịch khác của người phỏng vấn -> tự nhảy sang khung trống kế tiếp.
+            $interviewerId = $data['interviewer_id'] ?? null;
+            for ($tries = 0; $tries < 48 && $this->interviewerConflict($interviewerId, $start->copy()->addMinutes($slot * $index), $slot); $tries++) {
+                $index++;
+            }
             $this->scheduleInterview($candidate, $data + [
                 'scheduled_at' => $start->copy()->addMinutes($slot * $index)->toDateTimeString(),
+                'duration_minutes' => $slot,
             ], $actor);
             // Chỉ ứng viên hẹn THÀNH CÔNG mới chiếm 1 khung giờ — không để trống giờ vì CV lỗi.
             $index++;
@@ -296,11 +417,18 @@ class RecruitmentService
 
             $values = [
                 'scheduled_at' => Carbon::parse($data['scheduled_at']),
+                'duration_minutes' => (int) ($data['duration_minutes'] ?? 60),
                 'format' => $data['format'],
                 'interviewer_id' => $data['interviewer_id'] ?? null,
             ] + $this->interviewLocation($data);
 
             $current = $locked->interviews()->where('status', RecruitmentInterview::STATUS_SCHEDULED)->first();
+
+            // Người phỏng vấn không được có 2 buổi chồng giờ (dời lịch thì bỏ qua chính buổi đang dời).
+            $conflict = $this->interviewerConflict($values['interviewer_id'], $values['scheduled_at'], $values['duration_minutes'], $current?->id, lock: true);
+            if ($conflict) {
+                throw ValidationException::withMessages(['scheduled_at' => $this->conflictMessage($conflict)]);
+            }
 
             if ($current) {
                 // Dời lịch = lịch mới -> phản hồi của ứng viên về "chờ xác nhận" lại.
@@ -330,6 +458,39 @@ class RecruitmentService
         return $interview;
     }
 
+    /**
+     * Buổi PV đang hẹn của cùng người phỏng vấn mà chồng giờ với [start, start + duration).
+     * Không chọn người phỏng vấn thì không kiểm tra.
+     */
+    public function interviewerConflict(?int $interviewerId, Carbon $start, int $duration, ?int $ignoreId = null, bool $lock = false): ?RecruitmentInterview
+    {
+        if (! $interviewerId) {
+            return null;
+        }
+
+        $end = $start->copy()->addMinutes($duration);
+        // Lọc thô theo khoảng rộng (buổi dài nhất 8 tiếng), so chồng giờ chính xác bằng PHP.
+        $query = RecruitmentInterview::with('candidate:id,full_name')
+            ->where('interviewer_id', $interviewerId)
+            ->where('status', RecruitmentInterview::STATUS_SCHEDULED)
+            ->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))
+            ->whereBetween('scheduled_at', [$start->copy()->subHours(8), $end]);
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        return $query->get()->first(fn (RecruitmentInterview $other) => $other->scheduled_at->lt($end) && $start->lt($other->endsAt()));
+    }
+
+    private function conflictMessage(RecruitmentInterview $conflict): string
+    {
+        $conflict->loadMissing('interviewer:id,full_name');
+
+        return 'Người phỏng vấn '.($conflict->interviewer?->full_name ?? '').' đã có lịch phỏng vấn '
+            .($conflict->candidate?->full_name ?? 'ứng viên khác').' lúc '.$conflict->scheduled_at->format('H:i')
+            .'–'.$conflict->endsAt()->format('H:i d/m/Y').' — chọn giờ khác hoặc người phỏng vấn khác.';
+    }
+
     // Trực tiếp: ghép "chi tiết, Xã/Phường, Tỉnh/Thành" thành location (dùng cho email,
     // hiển thị) + giữ mã tỉnh/xã để dời lịch điền lại được. Trực tuyến: location = link.
     private function interviewLocation(array $data): array
@@ -357,7 +518,7 @@ class RecruitmentService
         $candidate = DB::transaction(function () use ($candidate, $result, $note, $viaScorecard) {
             $opening = $this->lockOpening($candidate->opening);
 
-            if (! $viaScorecard && $opening->interview_question_set_id) {
+            if (! $viaScorecard && $candidate->effectiveQuestionSets()[0]->isNotEmpty()) {
                 throw ValidationException::withMessages([
                     'result' => 'Đợt tuyển này chấm theo bộ câu hỏi — vào "Chấm điểm phỏng vấn" để ra kết quả.',
                 ]);
@@ -368,6 +529,14 @@ class RecruitmentService
 
             if ($locked->status !== RecruitmentCandidate::STATUS_INTERVIEW_SCHEDULED || $interview === null) {
                 throw ValidationException::withMessages(['result' => 'Ứng viên chưa có lịch phỏng vấn hoặc đã có kết quả.']);
+            }
+
+            // Ứng viên phải được HR xác nhận ĐỒNG Ý tham gia (trang Lịch phỏng vấn) mới ghi kết
+            // quả — tránh ghi Đạt/Không đạt cho buổi ứng viên chưa trả lời hoặc xin đổi lịch.
+            if ($interview->confirmation_status !== RecruitmentInterview::CONFIRMATION_CONFIRMED) {
+                throw ValidationException::withMessages([
+                    'result' => 'HR chưa xác nhận ứng viên đồng ý tham gia phỏng vấn — ghi nhận phản hồi của ứng viên ở trang "Lịch phỏng vấn" trước.',
+                ]);
             }
 
             if ($interview->scheduled_at->isFuture()) {
@@ -442,7 +611,7 @@ class RecruitmentService
         }
 
         if ($opening->status === RecruitmentOpening::STATUS_FULL
-            || $this->recruitmentRepository->countedCandidates($opening) >= $opening->headcount) {
+            || $opening->isFullWith($this->recruitmentRepository->countedCandidates($opening))) {
             throw ValidationException::withMessages([
                 'opening' => "Đợt tuyển đã đủ {$opening->headcount} CV được duyệt — ngưng nhận CV mới.",
             ]);
@@ -506,7 +675,7 @@ class RecruitmentService
             return;
         }
 
-        $status = $this->recruitmentRepository->countedCandidates($opening) >= $opening->headcount
+        $status = $opening->isFullWith($this->recruitmentRepository->countedCandidates($opening))
             ? RecruitmentOpening::STATUS_FULL
             : RecruitmentOpening::STATUS_OPEN;
 

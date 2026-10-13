@@ -91,6 +91,13 @@ const ALL_ITEMS = [
         keywords: ["cau hoi", "phong van", "cham diem", "trong so", "scorecard"],
     },
     {
+        name: "recruitment-report",
+        title: "Báo cáo tuyển dụng",
+        icon: "mdi-chart-box-outline",
+        permission: ["recruitment.manage", "recruitment.approve"],
+        keywords: ["bao cao", "tuyen dung", "pheu", "nguon ung vien", "ti le", "funnel"],
+    },
+    {
         name: "holidays",
         title: "Ngày nghỉ lễ",
         icon: "mdi-calendar-star",

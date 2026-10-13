@@ -22,8 +22,10 @@ class RecruitmentInterviewController extends Controller
     {
         $validated = $request->validate([
             'month' => ['required', 'date_format:Y-m'],
-            'confirmation_status' => ['nullable', 'in:'.implode(',', RecruitmentInterview::CONFIRMATION_STATUSES)],
+            // Nhóm buổi PV (RecruitmentInterviewService::BUCKETS) + người phỏng vấn ("none" = chưa phân công).
+            'bucket' => ['nullable', 'in:'.implode(',', RecruitmentInterviewService::BUCKETS)],
             'opening_id' => ['nullable', 'integer'],
+            'interviewer_id' => ['nullable', 'regex:/^(none|\d+)$/'],
         ], [
             'month.required' => 'Thiếu tháng cần xem',
             'month.date_format' => 'Tháng không hợp lệ (dạng YYYY-MM)',
@@ -35,6 +37,12 @@ class RecruitmentInterviewController extends Controller
             'data' => RecruitmentInterviewResource::collection($result['interviews']),
             'summary' => $result['summary'],
         ]);
+    }
+
+    // Người có thể phân công phỏng vấn: nhân viên đang làm việc (ô chọn ở form hẹn lịch).
+    public function interviewers(): JsonResponse
+    {
+        return response()->json(['data' => $this->interviewService->interviewers()]);
     }
 
     public function confirm(RecordInterviewConfirmationRequest $request, RecruitmentInterview $interview): RecruitmentInterviewResource

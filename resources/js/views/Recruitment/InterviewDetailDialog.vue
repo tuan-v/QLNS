@@ -47,13 +47,15 @@
                     </div>
                     <div class="info-label">Phản hồi</div>
                     <div>
-                        <span
-                            v-if="interview.status === 'completed' && interview.confirmation_status === 'pending'"
-                            style="opacity: 0.7"
-                            >Đã phỏng vấn</span
-                        >
+                        <!-- Đã phỏng vấn xong: hiện "Đã phỏng vấn" như bảng; phản hồi trước đó (nếu có) ghi ở dòng phụ. -->
+                        <v-chip v-if="interview.status === 'completed'" size="small" variant="tonal" prepend-icon="mdi-check-all">
+                            Đã phỏng vấn
+                        </v-chip>
                         <StatusChip v-else :status="interview.confirmation_status" :map="INTERVIEW_CONFIRMATION_MAP" />
                         <div v-if="interview.confirmed_by" class="text-caption mt-1" style="opacity: 0.7">
+                            <template v-if="interview.status === 'completed'">
+                                Ứng viên {{ INTERVIEW_CONFIRMATION_MAP[interview.confirmation_status]?.label.toLowerCase() }} tham gia —
+                            </template>
                             HR {{ interview.confirmed_by }} ghi nhận {{ formatDateTime(interview.confirmed_at) }}
                         </div>
                         <div v-if="interview.confirmation_note" class="text-caption">
@@ -64,12 +66,15 @@
                         <div class="info-label">Kết quả</div>
                         <div>
                             <v-chip
-                                :color="interview.result === 'passed' ? 'success' : 'default'"
+                                :color="interview.result === 'passed' ? 'success' : 'error'"
                                 size="small"
                                 variant="tonal"
                             >
                                 {{ interview.result === "passed" ? "Đạt" : "Không đạt" }}
                             </v-chip>
+                            <span v-if="interview.scorecard?.score_percent != null" class="text-caption ml-1">
+                                {{ interview.scorecard.score_percent }}% theo phiếu chấm
+                            </span>
                         </div>
                     </template>
                 </div>

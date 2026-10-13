@@ -6,6 +6,8 @@ use App\Models\Commune;
 use App\Models\Department;
 use App\Models\Notification;
 use App\Models\Province;
+use App\Models\Employee;
+use App\Models\RecruitmentInterview;
 use App\Models\RecruitmentCandidate;
 use App\Models\RecruitmentOpening;
 use Carbon\Carbon;
@@ -113,7 +115,8 @@ class RecruitmentInterviewTest extends TestCase
             ->assertJsonPath('data.confirmed_by', 'Nhân sự');
 
         $this->assertTrue(Notification::where('type', 'recruitment.interview_confirmation')->exists());
-        $this->getJson('/api/v1/recruitment/interviews?month=2026-10&confirmation_status=confirmed', $this->as('admin'))
+        // Đã đồng ý, chưa tới giờ -> nhóm "Sắp phỏng vấn".
+        $this->getJson('/api/v1/recruitment/interviews?month=2026-10&bucket=upcoming', $this->as('admin'))
             ->assertOk()->assertJsonCount(1, 'data');
     }
 
@@ -150,5 +153,50 @@ class RecruitmentInterviewTest extends TestCase
         $this->confirm($id, 'confirmed')->assertStatus(422);
         $this->travelTo(Carbon::parse('2026-10-15 10:00'));
         $this->postJson("/api/v1/recruitment/candidates/{$candidate->id}/result", ['result' => 'passed'], $this->as('hr'))->assertStatus(422);
+    }
+
+    // Thẻ số liệu: các nhóm không trùng nhau, cộng lại = tổng; "Chờ ghi kết quả" tự có khi tới giờ.
+    public function test_month_buckets_add_up_and_follow_time_and_interviewer_filter(): void
+    {
+        $first = $this->scheduledCandidate('2026-10-15 09:00'); // chờ xác nhận
+        $openingId = $first->recruitment_opening_id;
+        $interviewer = Employee::create([
+            'full_name' => 'Nguoi PV', 'company_email' => uniqid().'@qlns.local', 'hire_date' => '2025-01-01',
+            'code' => 'NV-'.uniqid(), 'department_id' => Department::first()->id, 'employment_status' => 'active',
+        ]);
+        $make = function (string $at, string $status, string $confirmation, ?string $result = null, ?int $interviewerId = null) use ($openingId) {
+            $c = RecruitmentCandidate::create(['recruitment_opening_id' => $openingId, 'full_name' => 'UV '.uniqid(), 'email' => uniqid().'@mail.com',
+                'cv_file' => 'x.pdf', 'cv_original_name' => 'x.pdf', 'status' => 'interview_scheduled', 'submitted_by' => 1]);
+            RecruitmentInterview::create(['recruitment_candidate_id' => $c->id, 'scheduled_at' => $at, 'format' => 'online', 'location' => 'meet',
+                'status' => $status, 'confirmation_status' => $confirmation, 'result' => $result, 'interviewer_id' => $interviewerId]);
+        };
+        $make('2026-10-16 09:00', 'scheduled', 'reschedule_requested');
+        $make('2026-10-20 09:00', 'scheduled', 'confirmed', null, $interviewer->id); // sắp PV
+        $make('2026-10-06 08:00', 'scheduled', 'confirmed'); // đã qua giờ -> chờ ghi kết quả
+        $make('2026-10-02 09:00', 'completed', 'confirmed', 'passed');
+        $make('2026-10-03 09:00', 'completed', 'pending', 'failed'); // lịch cũ chưa từng ghi nhận phản hồi
+        $make('2026-10-04 09:00', 'cancelled', 'withdrawn');
+
+        $summary = $this->getJson('/api/v1/recruitment/interviews?month=2026-10', $this->as('hr'))->assertOk()->json('summary');
+        $this->assertSame(
+            ['total' => 7, 'pending' => 1, 'reschedule_requested' => 1, 'upcoming' => 1, 'awaiting_result' => 1, 'completed' => 2, 'cancelled' => 1, 'passed' => 1, 'failed' => 1],
+            $summary,
+        );
+
+        // Lọc theo nhóm: thẻ số liệu giữ nguyên.
+        $this->getJson('/api/v1/recruitment/interviews?month=2026-10&bucket=completed', $this->as('hr'))
+            ->assertOk()->assertJsonCount(2, 'data')->assertJsonPath('summary.total', 7);
+
+        // Tới giờ buổi "sắp PV" (20/10 09:00) -> tự thành "chờ ghi kết quả".
+        $this->travelTo(Carbon::parse('2026-10-20 09:30'));
+        $this->getJson('/api/v1/recruitment/interviews?month=2026-10', $this->as('hr'))
+            ->assertJsonPath('summary.upcoming', 0)->assertJsonPath('summary.awaiting_result', 2);
+
+        // Lọc theo người phỏng vấn / chưa phân công.
+        $this->getJson("/api/v1/recruitment/interviews?month=2026-10&interviewer_id={$interviewer->id}", $this->as('hr'))
+            ->assertJsonCount(1, 'data')->assertJsonPath('summary.total', 1);
+        $this->getJson('/api/v1/recruitment/interviews?month=2026-10&interviewer_id=none', $this->as('hr'))
+            ->assertJsonPath('summary.total', 6);
+        $this->getJson('/api/v1/recruitment/interviews?month=2026-10&bucket=abc', $this->as('hr'))->assertStatus(422);
     }
 }

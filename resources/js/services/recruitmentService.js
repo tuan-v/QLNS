@@ -76,10 +76,34 @@ export default {
     removeQuestionSet(id) {
         return axios.delete(`${API_BASE}/question-sets/${id}`);
     },
-    assignQuestionSet(openingId, questionSetId) {
-        return axios.put(`${API_BASE}/openings/${openingId}/question-set`, { interview_question_set_id: questionSetId });
+    // Các bộ câu hỏi + tỉ trọng của đợt tuyển: [{ id, weight }] (tổng 100; [] = bỏ hết).
+    assignQuestionSets(openingId, questionSets) {
+        return axios.put(`${API_BASE}/openings/${openingId}/question-sets`, { question_sets: questionSets });
     },
-    // Phiếu chấm phỏng vấn: { interview, question_set, scorecard, start_blocker }.
+    // Bộ câu hỏi riêng của 1 ứng viên ([] = dùng mặc định).
+    assignCandidateQuestionSets(candidateId, questionSets) {
+        return axios.put(`${API_BASE}/candidates/${candidateId}/question-sets`, { question_sets: questionSets });
+    },
+    // Đợt tuyển chung: vị trí ứng tuyển + hình thức mong muốn của ứng viên.
+    updateApplication(candidateId, payload) {
+        return axios.put(`${API_BASE}/candidates/${candidateId}/application`, payload);
+    },
+    // Nhân viên có thể phân công phỏng vấn: [{ id, title, subtitle }].
+    interviewers() {
+        return axios.get(`${API_BASE}/interviewers`);
+    },
+    // Báo cáo tuyển dụng: { from, to, opening_id, position_id, source }.
+    report(params) {
+        return axios.get(`${API_BASE}/report`, { params });
+    },
+    // Bộ câu hỏi mặc định theo chức vụ.
+    positionQuestionSets() {
+        return axios.get(`${API_BASE}/position-question-sets`);
+    },
+    assignPositionQuestionSets(positionId, questionSets) {
+        return axios.put(`${API_BASE}/positions/${positionId}/question-sets`, { question_sets: questionSets });
+    },
+    // Phiếu chấm phỏng vấn: { interview, question_sets, scorecard, start_blocker }.
     scorecard(interviewId) {
         return axios.get(`${API_BASE}/interviews/${interviewId}/scorecard`);
     },
@@ -97,6 +121,14 @@ export default {
     createOffer(candidateId, payload) {
         return axios.post(`${API_BASE}/candidates/${candidateId}/offers`, payload);
     },
+    // Sửa offer đang chờ duyệt (cùng dữ liệu như lúc soạn).
+    updateOffer(offerId, payload) {
+        return axios.put(`${API_BASE}/offers/${offerId}`, payload);
+    },
+    // Điền sẵn form offer: { contact_name, contact_phone, contact_email (email công ty) }.
+    offerDefaults() {
+        return axios.get(`${API_BASE}/offer-defaults`);
+    },
     // { status: "approved" | "rejected", review_note? } — chỉ Admin.
     reviewOffer(offerId, payload) {
         return axios.post(`${API_BASE}/offers/${offerId}/review`, payload);
@@ -104,11 +136,8 @@ export default {
     withdrawOffer(offerId) {
         return axios.post(`${API_BASE}/offers/${offerId}/withdraw`);
     },
-    // Trang công khai cho ứng viên (không đăng nhập).
-    publicOffer(token) {
-        return axios.get(`/api/v1/public/offers/${token}`);
-    },
-    respondOffer(token, payload) {
-        return axios.post(`/api/v1/public/offers/${token}/respond`, payload);
+    // Ứng viên báo chấp nhận / từ chối qua điện thoại, email -> HR ghi nhận: { decision: accept|decline, note }.
+    recordOfferResponse(offerId, payload) {
+        return axios.post(`${API_BASE}/offers/${offerId}/response`, payload);
     },
 };

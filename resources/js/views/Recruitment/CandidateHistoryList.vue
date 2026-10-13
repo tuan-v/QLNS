@@ -22,10 +22,13 @@
                     </div>
                 </div>
                 <v-chip v-if="item.deleted" size="x-small" variant="outlined">CV đã xóa</v-chip>
-                <StatusChip :status="item.status" :map="CANDIDATE_STATUS_MAP" />
+                <StatusChip :status="item.stage?.key" :map="CANDIDATE_STAGE_MAP" />
             </div>
 
             <div class="d-flex flex-column ga-1 mt-2 text-caption">
+                <div v-if="item.stage?.reason" style="opacity: 0.8">
+                    <v-icon icon="mdi-information-outline" size="14" /> {{ item.stage.reason }}
+                </div>
                 <div v-if="item.review_note && item.status === 'rejected'">
                     <v-icon icon="mdi-close-circle-outline" size="14" color="error" /> Lý do từ chối CV:
                     {{ item.review_note }}
@@ -66,7 +69,7 @@
 
 <script setup>
 import StatusChip from "../../components/common/StatusChip.vue";
-import { CANDIDATE_STATUS_MAP, OFFER_STATUS_MAP } from "../../composables/recruitmentStatus";
+import { CANDIDATE_STAGE_MAP, OFFER_STATUS_MAP } from "../../composables/recruitmentStatus";
 
 defineProps({
     items: { type: Array, default: () => [] },

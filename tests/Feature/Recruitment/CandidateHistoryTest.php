@@ -69,6 +69,7 @@ class CandidateHistoryTest extends TestCase
         $this->assertSame([$first], array_column($byEmail, 'id'));
         $this->assertSame('rejected', $byEmail[0]['status']);
         $this->assertSame('Thieu kinh nghiem', $byEmail[0]['review_note']);
+        $this->assertSame(['key' => 'not_passed', 'label' => 'Không đạt', 'reason' => 'Loại ở vòng CV'], $byEmail[0]['stage']);
         $this->assertSame('Ke toan 2025', $byEmail[0]['opening']['title']);
 
         $both = $this->getJson('/api/v1/recruitment/candidates/history?email=an.tran@mail.com&phone=0911111111', $this->as('admin'))->assertOk()->json('data');
@@ -87,7 +88,8 @@ class CandidateHistoryTest extends TestCase
         $this->assertTrue($deleted['deleted']);
 
         $this->getJson("/api/v1/recruitment/openings/{$openingId}", $this->as('hr'))->assertOk()
-            ->assertJsonPath('data.candidates.0.previous_applications_count', 1);
+            ->assertJsonPath('data.candidates.0.previous_applications_count', 1)
+            ->assertJsonPath('data.candidates.0.stage', ['key' => 'screening', 'label' => 'Chờ duyệt CV', 'reason' => null]);
         $this->assertSame(2, RecruitmentCandidate::withTrashed()->where('email', 'lap@mail.com')->count());
     }
 

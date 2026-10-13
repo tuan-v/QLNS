@@ -35,6 +35,24 @@
                     <v-btn value="list" prepend-icon="mdi-format-list-bulleted">Danh sách</v-btn>
                 </v-btn-toggle>
                 <v-spacer />
+                <v-text-field
+                    v-model="search"
+                    density="compact"
+                    hide-details
+                    clearable
+                    prepend-inner-icon="mdi-magnify"
+                    placeholder="Tìm ứng viên (tên, email, SĐT)"
+                    style="max-width: 260px; min-width: 200px"
+                />
+                <v-autocomplete
+                    v-model="interviewerId"
+                    :items="interviewerOptions"
+                    density="compact"
+                    hide-details
+                    clearable
+                    placeholder="Tất cả người phỏng vấn"
+                    style="max-width: 240px; min-width: 190px"
+                />
                 <v-select
                     v-model="openingId"
                     :items="openingOptions"
@@ -42,7 +60,7 @@
                     hide-details
                     clearable
                     placeholder="Tất cả đợt tuyển"
-                    style="max-width: 260px; min-width: 200px"
+                    style="max-width: 240px; min-width: 190px"
                 />
             </div>
         </v-sheet>
@@ -52,7 +70,7 @@
             <v-card
                 v-for="stat in stats"
                 :key="stat.key"
-                :class="['stat-card glass-panel', { 'stat-card--active': confirmationFilter === stat.filter }]"
+                :class="['stat-card glass-panel', { 'stat-card--active': bucketFilter === stat.filter }]"
                 variant="outlined"
                 rounded="lg"
                 @click="toggleFilter(stat.filter)"
@@ -64,16 +82,20 @@
                     <div>
                         <div class="text-caption" style="opacity: 0.7">{{ stat.label }}</div>
                         <div class="text-h6 font-weight-bold">{{ summary[stat.key] ?? 0 }}</div>
+                        <div v-if="stat.key === 'completed' && summary.completed" class="text-caption" style="opacity: 0.7">
+                            Đạt {{ summary.passed ?? 0 }} · Không đạt {{ summary.failed ?? 0 }}
+                        </div>
                     </div>
                 </v-card-text>
             </v-card>
         </div>
 
         <v-alert v-if="loadError" type="error" variant="tonal" density="compact" class="mb-4">{{ loadError }}</v-alert>
-        <div v-if="confirmationFilter" class="mb-3">
-            <v-chip closable color="primary" variant="tonal" @click:close="confirmationFilter = null">
-                Đang lọc: {{ INTERVIEW_CONFIRMATION_MAP[confirmationFilter]?.label }}
+        <div v-if="bucketFilter || search" class="d-flex flex-wrap ga-2 mb-3">
+            <v-chip v-if="bucketFilter" closable color="primary" variant="tonal" @click:close="bucketFilter = null">
+                Đang lọc: {{ stats.find((s) => s.filter === bucketFilter)?.label }}
             </v-chip>
+            <v-chip v-if="search" closable variant="tonal" @click:close="search = ''">Tìm: "{{ search }}"</v-chip>
         </div>
 
         <!-- Lịch tháng -->
@@ -124,7 +146,7 @@
         <DataTable
             v-else
             :headers="headers"
-            :items="interviews"
+            :items="visibleInterviews"
             :loading="loading"
             :actions="actions"
             no-data-text="Không có buổi phỏng vấn nào trong tháng."
@@ -151,29 +173,30 @@
                     {{ item.format === "online" ? "Trực tuyến" : "Trực tiếp" }}
                 </div>
             </template>
+            <!-- Buổi đã phỏng vấn xong: luôn "Đã phỏng vấn" (dù trước đó ghi nhận gì) — khớp lịch tháng. -->
             <template #item.confirmation_status="{ item }">
-                <span v-if="item.status === 'completed' && item.confirmation_status === 'pending'" style="opacity: 0.6"
-                    >Đã phỏng vấn</span
-                >
-                <StatusChip v-else :status="item.confirmation_status" :map="INTERVIEW_CONFIRMATION_MAP" />
-                <div v-if="item.confirmed_by" class="text-caption" style="opacity: 0.7">HR {{ item.confirmed_by }}</div>
-                <div v-if="item.confirmation_note" class="text-caption">{{ item.confirmation_note }}</div>
-            </template>
-            <template #item.result="{ item }">
-                <v-chip
-                    v-if="item.status === 'completed'"
-                    :color="item.result === 'passed' ? 'success' : 'default'"
-                    size="small"
-                    variant="tonal"
-                >
-                    {{ item.result === "passed" ? "Đạt" : "Không đạt" }}
+                <v-chip v-if="item.status === 'completed'" size="small" variant="tonal" prepend-icon="mdi-check-all">
+                    Đã phỏng vấn
                 </v-chip>
-                <div v-if="item.scorecard?.score_percent != null" class="text-caption">
-                    {{ item.scorecard.score_percent }}%
+                <template v-else>
+                    <StatusChip :status="item.confirmation_status" :map="INTERVIEW_CONFIRMATION_MAP" />
+                    <div v-if="item.confirmed_by" class="text-caption" style="opacity: 0.7">HR {{ item.confirmed_by }}</div>
+                    <div v-if="item.confirmation_note" class="text-caption">{{ item.confirmation_note }}</div>
+                </template>
+            </template>
+            <!-- 1 chuỗi điều kiện duy nhất: có kết quả -> chip (+ % phiếu chấm) / đang chấm / đã hủy / chưa có. -->
+            <template #item.result="{ item }">
+                <div v-if="item.status === 'completed'" class="d-flex align-center flex-wrap ga-1">
+                    <v-chip :color="item.result === 'passed' ? 'success' : 'error'" size="small" variant="tonal">
+                        {{ item.result === "passed" ? "Đạt" : "Không đạt" }}
+                    </v-chip>
+                    <span v-if="item.scorecard?.score_percent != null" class="text-caption">
+                        {{ item.scorecard.score_percent }}%
+                    </span>
                 </div>
-                <v-chip v-else-if="item.scorecard?.status === 'draft'" size="x-small" variant="outlined"
-                    >Đang chấm</v-chip
-                >
+                <v-chip v-else-if="item.scorecard?.status === 'draft'" size="small" variant="outlined" prepend-icon="mdi-pencil-outline">
+                    Đang chấm
+                </v-chip>
                 <span v-else-if="item.status === 'cancelled'" style="opacity: 0.6">Đã hủy</span>
                 <span v-else style="opacity: 0.5">—</span>
             </template>
@@ -227,6 +250,7 @@ import InterviewScheduleDialog from "./InterviewScheduleDialog.vue";
 import { INTERVIEW_CONFIRMATION_MAP } from "../../composables/recruitmentStatus";
 import { useRememberedRef } from "../../composables/useRememberedRef";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
+import { normalizeVietnamese } from "../../composables/normalizeVietnamese";
 
 const route = useRoute();
 const router = useRouter();
@@ -242,7 +266,11 @@ const WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 const month = ref(/^\d{4}-\d{2}$/.test(route.query.month ?? "") ? route.query.month : currentMonth);
 const view = useRememberedRef("interview-schedule.view", "calendar");
 const openingId = ref(null);
-const confirmationFilter = ref(null);
+// Nhóm buổi PV (RecruitmentInterviewService::BUCKETS) — bấm thẻ số liệu để lọc.
+const bucketFilter = ref(null);
+const interviewerId = ref(null);
+const search = ref("");
+const interviewers = ref([]);
 const interviews = ref([]);
 const summary = ref({});
 const openings = ref([]);
@@ -260,24 +288,15 @@ const monthLabel = computed(() => {
     return `${m}/${y}`;
 });
 
+// Các nhóm KHÔNG trùng nhau, cộng lại = "Tất cả" (khớp giai đoạn ứng viên).
 const stats = [
-    { key: "total", filter: null, label: "Tổng buổi", icon: "mdi-calendar-account-outline", color: "primary" },
-    { key: "confirmed", filter: "confirmed", label: "Đồng ý", icon: "mdi-check-circle-outline", color: "success" },
+    { key: "total", filter: null, label: "Tất cả", icon: "mdi-calendar-account-outline", color: "primary" },
     { key: "pending", filter: "pending", label: "Chờ xác nhận", icon: "mdi-timer-sand", color: "warning" },
-    {
-        key: "reschedule_requested",
-        filter: "reschedule_requested",
-        label: "Xin đổi lịch",
-        icon: "mdi-calendar-sync-outline",
-        color: "info",
-    },
-    {
-        key: "withdrawn",
-        filter: "withdrawn",
-        label: "Không tham gia",
-        icon: "mdi-close-circle-outline",
-        color: "error",
-    },
+    { key: "reschedule_requested", filter: "reschedule_requested", label: "Xin đổi lịch", icon: "mdi-calendar-sync-outline", color: "info" },
+    { key: "upcoming", filter: "upcoming", label: "Sắp phỏng vấn", icon: "mdi-calendar-clock-outline", color: "primary" },
+    { key: "awaiting_result", filter: "awaiting_result", label: "Chờ ghi kết quả", icon: "mdi-clipboard-alert-outline", color: "deep-orange" },
+    { key: "completed", filter: "completed", label: "Đã phỏng vấn", icon: "mdi-check-all", color: "success" },
+    { key: "cancelled", filter: "cancelled", label: "Không tham gia", icon: "mdi-close-circle-outline", color: "error" },
 ];
 
 const headers = [
@@ -285,12 +304,25 @@ const headers = [
     { title: "Ứng viên", key: "candidate", sortable: false },
     { title: "Đợt tuyển", key: "opening", sortable: false },
     { title: "Phản hồi", key: "confirmation_status", width: 200 },
-    { title: "Kết quả", key: "result", sortable: false, width: 110 },
+    { title: "Kết quả", key: "result", sortable: false, width: 160 },
 ];
 
 const actions = [{ icon: "mdi-eye-outline", tooltip: "Xem & ghi nhận phản hồi", onClick: (item) => openDetail(item) }];
 
 const openingOptions = computed(() => openings.value.map((o) => ({ title: o.title, value: o.id })));
+const interviewerOptions = computed(() => [
+    { title: "Chưa phân công", value: "none" },
+    ...interviewers.value.map((i) => ({ title: i.title, value: i.id })),
+]);
+
+// Tìm theo tên / email / SĐT ứng viên (lọc tại chỗ, áp cho cả lịch tháng và danh sách).
+const visibleInterviews = computed(() => {
+    const keyword = normalizeVietnamese((search.value ?? "").trim());
+    if (!keyword) return interviews.value;
+    return interviews.value.filter((i) =>
+        normalizeVietnamese(`${i.candidate?.full_name ?? ""} ${i.candidate?.email ?? ""} ${i.candidate?.phone ?? ""}`).includes(keyword),
+    );
+});
 
 function formatTime(value) {
     const d = new Date(value);
@@ -326,7 +358,7 @@ const calendarCells = computed(() => {
     end.setDate(last.getDate() + (6 - ((last.getDay() + 6) % 7)));
 
     const byDay = {};
-    for (const item of interviews.value) {
+    for (const item of visibleInterviews.value) {
         (byDay[dayKey(new Date(item.scheduled_at))] ??= []).push(item);
     }
 
@@ -353,7 +385,8 @@ async function load() {
         const response = await recruitmentService.listInterviews({
             month: month.value,
             opening_id: openingId.value || undefined,
-            confirmation_status: confirmationFilter.value || undefined,
+            bucket: bucketFilter.value || undefined,
+            interviewer_id: interviewerId.value || undefined,
         });
         interviews.value = response.data.data;
         summary.value = response.data.summary;
@@ -384,7 +417,15 @@ function shiftMonth(step) {
 }
 
 function toggleFilter(filter) {
-    confirmationFilter.value = confirmationFilter.value === filter ? null : filter;
+    bucketFilter.value = bucketFilter.value === filter ? null : filter;
+}
+
+async function loadInterviewers() {
+    try {
+        interviewers.value = (await recruitmentService.interviewers()).data.data;
+    } catch {
+        interviewers.value = [];
+    }
 }
 
 function openDetail(item) {
@@ -422,7 +463,7 @@ async function openFromQuery() {
     router.replace({ query: { ...route.query, interview: undefined } });
 }
 
-watch([month, openingId, confirmationFilter], load);
+watch([month, openingId, bucketFilter, interviewerId], load);
 watch(
     () => route.query.month,
     async (value) => {
@@ -445,6 +486,7 @@ useRealtimeRefresh(load, {
 
 onMounted(async () => {
     loadOpenings();
+    loadInterviewers();
     await load();
     openFromQuery();
 });
@@ -453,8 +495,13 @@ onMounted(async () => {
 <style scoped>
 .stat-grid {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 12px;
+}
+@media (max-width: 1400px) {
+    .stat-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
 }
 .stat-card {
     cursor: pointer;

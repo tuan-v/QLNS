@@ -43,17 +43,24 @@ class RecruitmentInterview extends Model
     public const FORMAT_ONLINE = 'online';
 
     protected $fillable = [
-        'recruitment_candidate_id', 'scheduled_at', 'format', 'location', 'province_code', 'commune_code', 'address_detail', 'interviewer_id',
+        'recruitment_candidate_id', 'scheduled_at', 'duration_minutes', 'format', 'location', 'province_code', 'commune_code', 'address_detail', 'interviewer_id',
         'status', 'result', 'result_note', 'created_by',
         'confirmation_status', 'confirmation_note', 'confirmed_by', 'confirmed_at',
     ];
 
     protected $casts = [
         'scheduled_at' => 'datetime',
+        'duration_minutes' => 'integer',
         'province_code' => 'integer',
         'commune_code' => 'integer',
         'confirmed_at' => 'datetime',
     ];
+
+    // Giờ kết thúc dự kiến (dùng để chặn trùng lịch người phỏng vấn).
+    public function endsAt(): \Carbon\Carbon
+    {
+        return $this->scheduled_at->copy()->addMinutes($this->duration_minutes ?: 60);
+    }
 
     public function scorecard()
     {

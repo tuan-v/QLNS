@@ -47,6 +47,34 @@
                 />
             </FormField>
 
+            <!-- Người phỏng vấn: 1 người không được có 2 buổi chồng giờ (backend chặn; hẹn
+                 hàng loạt tự bỏ qua khung trùng). Thời lượng dùng để tính chồng giờ. -->
+            <FormField label="Người phỏng vấn" :hint="isBulk ? 'Khung giờ người này đã bận sẽ tự được bỏ qua' : ''">
+                <v-autocomplete
+                    v-model="form.interviewer_id"
+                    :items="interviewers"
+                    item-title="title"
+                    item-value="id"
+                    placeholder="Chọn nhân viên phỏng vấn"
+                    clearable
+                    density="comfortable"
+                    :loading="interviewersLoading"
+                    :error-messages="errors.interviewer_id"
+                >
+                    <template #item="{ props: itemProps, item }">
+                        <v-list-item v-bind="itemProps" :subtitle="item.raw.subtitle" />
+                    </template>
+                </v-autocomplete>
+            </FormField>
+            <FormField v-if="!isBulk" label="Thời lượng" required>
+                <v-select
+                    v-model="form.duration_minutes"
+                    :items="DURATION_OPTIONS"
+                    density="comfortable"
+                    :error-messages="errors.duration_minutes"
+                />
+            </FormField>
+
             <template v-if="isBulk">
                 <FormField label="Mỗi lượt" required>
                     <v-select
@@ -181,7 +209,32 @@ const form = reactive({
     commune_code: null,
     address_detail: "",
     slot_minutes: 30,
+    duration_minutes: 60,
+    interviewer_id: null,
 });
+
+const DURATION_OPTIONS = [
+    { title: "30 phút", value: 30 },
+    { title: "45 phút", value: 45 },
+    { title: "1 giờ", value: 60 },
+    { title: "1 giờ 30 phút", value: 90 },
+    { title: "2 giờ", value: 120 },
+];
+
+/* ---- Người phỏng vấn (nhân viên đang làm việc) — nạp 1 lần ---- */
+const interviewers = ref([]);
+const interviewersLoading = ref(false);
+async function loadInterviewers() {
+    if (interviewers.value.length) return;
+    interviewersLoading.value = true;
+    try {
+        interviewers.value = (await recruitmentService.interviewers()).data.data;
+    } catch {
+        interviewers.value = [];
+    } finally {
+        interviewersLoading.value = false;
+    }
+}
 
 const isBulk = computed(
     () =>
@@ -289,7 +342,10 @@ watch(
             commune_code: i?.commune_code ?? null,
             address_detail: i?.address_detail ?? "",
             slot_minutes: 30,
+            duration_minutes: i?.duration_minutes ?? 60,
+            interviewer_id: i?.interviewer?.id ?? null,
         });
+        loadInterviewers();
         errors.value = {};
         loadError.value = "";
         loadProvinces();
@@ -315,6 +371,7 @@ async function submit() {
         province_code: onsite ? form.province_code : null,
         commune_code: onsite ? form.commune_code : null,
         address_detail: onsite ? form.address_detail : null,
+        interviewer_id: form.interviewer_id || null,
     };
     try {
         if (isBulk.value) {
@@ -341,6 +398,7 @@ async function submit() {
             await recruitmentService.scheduleInterview(props.candidate.id, {
                 ...place,
                 scheduled_at: form.scheduled_at.replace("T", " "),
+                duration_minutes: form.duration_minutes,
             });
             toast.success(
                 isReschedule.value

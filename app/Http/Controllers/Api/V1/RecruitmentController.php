@@ -20,6 +20,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 // Tuyển dụng — xem RecruitmentService cho toàn bộ quy tắc. Quyền: recruitment.manage
@@ -85,6 +86,23 @@ class RecruitmentController extends Controller
         );
 
         return (new RecruitmentCandidateResource($candidate))->response()->setStatusCode(201);
+    }
+
+    // Sửa thông tin ứng tuyển: nguồn (mọi đợt); vị trí + hình thức mong muốn (đợt tuyển chung).
+    public function updateApplication(Request $request, RecruitmentCandidate $candidate): RecruitmentCandidateResource
+    {
+        $data = $request->validate([
+            'applied_position_id' => ['nullable', 'integer', Rule::exists('positions', 'id')->whereNull('deleted_at')],
+            'desired_contract_type' => ['nullable', 'in:thu_viec,chinh_thuc,thuc_tap'],
+            'source' => ['nullable', Rule::in(array_keys(RecruitmentCandidate::SOURCES))],
+            'source_note' => ['nullable', 'string', 'max:255'],
+        ], [
+            'applied_position_id.exists' => 'Vị trí ứng tuyển không tồn tại',
+            'desired_contract_type.in' => 'Hình thức mong muốn không hợp lệ',
+            'source.in' => 'Nguồn ứng viên không hợp lệ',
+        ]);
+
+        return new RecruitmentCandidateResource($this->recruitmentService->updateApplication($candidate, $data));
     }
 
     // Kiểm tra trùng email/SĐT ngay khi rời ô ở form Tải CV (cùng ý tưởng

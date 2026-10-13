@@ -10,7 +10,8 @@ class BulkScheduleRecruitmentInterviewsRequest extends ScheduleRecruitmentInterv
     public function rules(): array
     {
         $rules = parent::rules();
-        unset($rules['scheduled_at'], $rules['interviewer_id']);
+        // Giữ interviewer_id: cả loạt cùng 1 người phỏng vấn -> khung trùng lịch tự được bỏ qua.
+        unset($rules['scheduled_at'], $rules['duration_minutes']);
 
         return $rules + [
             'candidate_ids' => ['required', 'array', 'min:1', 'max:50'],
