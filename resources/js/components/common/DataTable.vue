@@ -531,8 +531,10 @@ async function submitBulkConfirm() {
             <template v-if="useBuiltInActions" #item.actions="{ item }">
                 <div class="d-flex justify-center ga-2">
                     <template v-for="(action, index) in actions" :key="index">
+                        <!-- Bọc span để tooltip vẫn hiện khi nút bị khóa (nút disabled của Vuetify
+                             không nhận rê chuột) — người dùng thấy được LÝ DO không bấm được. -->
+                        <span v-if="!isHidden(action, item)" class="d-inline-flex">
                         <v-btn
-                            v-if="!isHidden(action, item)"
                             :color="
                                 action.color && action.color !== 'primary'
                                     ? action.color
@@ -551,14 +553,15 @@ async function submitBulkConfirm() {
                             <span v-if="action.label" class="ml-1">
                                 {{ action.label }}
                             </span>
-                            <v-tooltip
-                                v-if="action.tooltip"
-                                activator="parent"
-                                location="top"
-                            >
-                                {{ resolve(action.tooltip, item) }}
-                            </v-tooltip>
                         </v-btn>
+                        <v-tooltip
+                            v-if="action.tooltip"
+                            activator="parent"
+                            location="top"
+                        >
+                            {{ resolve(action.tooltip, item) }}
+                        </v-tooltip>
+                        </span>
                     </template>
                 </div>
             </template>
