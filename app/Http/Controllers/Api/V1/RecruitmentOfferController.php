@@ -11,9 +11,10 @@ use App\Models\RecruitmentCandidate;
 use App\Models\RecruitmentOffer;
 use App\Services\RecruitmentOfferService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
-// Thư mời nhận việc — xem RecruitmentOfferService. Nội bộ: soạn/rút (recruitment.manage),
-// duyệt (recruitment.approve). Công khai (không đăng nhập): ứng viên xem/trả lời qua mã link.
+// Thư mời nhận việc — xem RecruitmentOfferService. Soạn / rút / ghi nhận phản hồi của ứng viên
+// (recruitment.manage), duyệt (recruitment.approve). Không còn trang công khai cho ứng viên.
 class RecruitmentOfferController extends Controller
 {
     public function __construct(private readonly RecruitmentOfferService $offerService)
@@ -27,6 +28,12 @@ class RecruitmentOfferController extends Controller
         return (new RecruitmentOfferResource($offer->load('creator:id,user_name')))->response()->setStatusCode(201);
     }
 
+    // Giá trị điền sẵn form soạn offer (người liên hệ = HR đang soạn, email = email công ty).
+    public function defaults(Request $request): JsonResponse
+    {
+        return response()->json(['data' => $this->offerService->defaults($request->user())]);
+    }
+
     public function review(ReviewRecruitmentOfferRequest $request, RecruitmentOffer $offer): RecruitmentOfferResource
     {
         $offer = $this->offerService->review($offer, $request->input('status') === 'approved', $request->input('review_note'), $request->user());
@@ -34,45 +41,24 @@ class RecruitmentOfferController extends Controller
         return new RecruitmentOfferResource($offer->load('creator:id,user_name', 'reviewer:id,user_name'));
     }
 
+    // Sửa offer đang chờ duyệt (HR hoặc Admin lúc xem duyệt).
+    public function update(StoreRecruitmentOfferRequest $request, RecruitmentOffer $offer): RecruitmentOfferResource
+    {
+        $offer = $this->offerService->update($offer, $request->validated(), $request->user());
+
+        return new RecruitmentOfferResource($offer->load('creator:id,user_name', 'department:id,name', 'position:id,name'));
+    }
+
     public function withdraw(RecruitmentOffer $offer): RecruitmentOfferResource
     {
         return new RecruitmentOfferResource($this->offerService->withdraw($offer));
     }
 
-    // --- Công khai cho ứng viên ---
-
-    public function showPublic(string $token): JsonResponse
+    // HR ghi nhận ứng viên chấp nhận / từ chối (ứng viên báo qua điện thoại hoặc email).
+    public function recordResponse(RespondRecruitmentOfferRequest $request, RecruitmentOffer $offer): RecruitmentOfferResource
     {
-        return response()->json(['data' => $this->publicPayload($this->offerService->findByToken($token))]);
-    }
+        $offer = $this->offerService->recordResponse($offer, $request->input('decision') === 'accept', $request->input('note'), $request->user());
 
-    public function respondPublic(RespondRecruitmentOfferRequest $request, string $token): JsonResponse
-    {
-        $offer = $this->offerService->respond($token, $request->input('decision') === 'accept', $request->input('note'));
-
-        return response()->json(['data' => $this->publicPayload($offer)]);
-    }
-
-    // Chỉ những gì ứng viên cần thấy — không lộ ghi chú nội bộ, người duyệt, id nội bộ.
-    private function publicPayload(RecruitmentOffer $offer): array
-    {
-        $opening = $offer->candidate->opening;
-
-        return [
-            'company' => config('app.name'),
-            'candidate_name' => $offer->candidate->full_name,
-            'title' => $opening->title,
-            'department' => $opening->department?->name,
-            'position' => $opening->position?->name,
-            'contract_type' => $offer->contract_type,
-            'salary' => (float) $offer->salary,
-            'start_date' => $offer->start_date->toDateString(),
-            'response_deadline' => $offer->response_deadline->toDateString(),
-            'message' => $offer->message,
-            'status' => $offer->status,
-            'can_respond' => $offer->status === RecruitmentOffer::STATUS_SENT,
-            'closed_message' => $offer->status === RecruitmentOffer::STATUS_SENT ? null : $this->offerService->closedMessage($offer),
-            'responded_at' => $offer->responded_at,
-        ];
+        return new RecruitmentOfferResource($offer->load('creator:id,user_name', 'reviewer:id,user_name', 'responseRecorder:id,user_name'));
     }
 }

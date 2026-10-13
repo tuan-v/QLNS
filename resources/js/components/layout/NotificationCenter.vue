@@ -209,6 +209,7 @@ const TYPE_CATEGORY = {
     "resignation.notice": "Nghỉ việc",
     "resignation.decided": "Nghỉ việc",
     "recruitment.cv_pending": "Tuyển dụng",
+    "recruitment.opening_created": "Tuyển dụng",
     "recruitment.cv_reviewed": "Tuyển dụng",
     "recruitment.interview_assigned": "Tuyển dụng",
     "recruitment.offer_pending": "Tuyển dụng",

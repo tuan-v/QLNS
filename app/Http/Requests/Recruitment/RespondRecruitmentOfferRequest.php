@@ -25,7 +25,7 @@ class RespondRecruitmentOfferRequest extends FormRequest
         return [
             'decision.required' => 'Vui lòng chọn chấp nhận hoặc từ chối',
             'decision.in' => 'Lựa chọn không hợp lệ',
-            'note.max' => 'Lời nhắn tối đa 1000 ký tự',
+            'note.max' => 'Ghi chú tối đa 1000 ký tự',
         ];
     }
 }

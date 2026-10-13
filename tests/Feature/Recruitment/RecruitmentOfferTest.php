@@ -10,6 +10,7 @@ use App\Models\Province;
 use App\Models\RecruitmentCandidate;
 use App\Models\RecruitmentOffer;
 use App\Models\RecruitmentOpening;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -68,6 +69,8 @@ class RecruitmentOfferTest extends TestCase
             'scheduled_at' => '2026-10-07 09:00', 'format' => 'onsite',
             'province_code' => $province->code, 'commune_code' => $commune->code, 'address_detail' => 'Phong hop tang 3',
         ], $this->as('hr'))->assertOk();
+        $interviewId = RecruitmentCandidate::findOrFail($candidateId)->interviews()->value('id');
+        $this->postJson("/api/v1/recruitment/interviews/{$interviewId}/confirmation", ['status' => 'confirmed'], $this->as('hr'))->assertOk();
         $this->travelTo(Carbon::parse('2026-10-07 10:00'));
         $this->postJson("/api/v1/recruitment/candidates/{$candidateId}/result", ['result' => 'passed'], $this->as('hr'))->assertOk();
 
@@ -84,25 +87,23 @@ class RecruitmentOfferTest extends TestCase
 
     private function createOffer(RecruitmentCandidate $candidate, array $overrides = []): TestResponse
     {
+        // Offer chốt phòng ban (mặc định = phòng ban của đợt tuyển).
+        $overrides += ['department_id' => $candidate->opening->department_id];
+
         return $this->postJson("/api/v1/recruitment/candidates/{$candidate->id}/offers", $this->offerPayload($overrides), $this->as('hr'));
     }
 
-    // Admin duyệt -> lấy mã link từ email đã xếp hàng gửi.
-    private function approveAndGetToken(int $offerId): string
+    // Admin duyệt -> email thư mời (không link) đã xếp hàng gửi.
+    private function approve(int $offerId): void
     {
         $this->postJson("/api/v1/recruitment/offers/{$offerId}/review", ['status' => 'approved'], $this->as('admin'))
             ->assertOk()->assertJsonPath('data.status', 'sent');
+        Mail::assertQueued(CandidateOfferMail::class, fn (CandidateOfferMail $mail) => $mail->offer->id === $offerId);
+    }
 
-        $url = null;
-        Mail::assertQueued(CandidateOfferMail::class, function (CandidateOfferMail $mail) use ($offerId, &$url) {
-            if ($mail->offer->id === $offerId) {
-                $url = $mail->responseUrl;
-            }
-
-            return $mail->offer->id === $offerId;
-        });
-
-        return substr($url, strrpos($url, '/') + 1);
+    private function recordResponse(int $offerId, string $decision, ?string $note = null, string $who = 'hr'): TestResponse
+    {
+        return $this->postJson("/api/v1/recruitment/offers/{$offerId}/response", ['decision' => $decision, 'note' => $note], $this->as($who));
     }
 
     public function test_hr_drafts_and_only_admin_approves(): void
@@ -151,32 +152,75 @@ class RecruitmentOfferTest extends TestCase
         $this->createOffer($candidate)->assertStatus(422)->assertJsonValidationErrors('candidate');
     }
 
-    public function test_candidate_accepts_through_public_link_once(): void
+    // Email không có link: ghi người liên hệ + EMAIL HỆ THỐNG CÔNG TY (không nhận email cá nhân HR gửi lên), Reply-To về email đó.
+    public function test_offer_email_has_contact_info_and_no_link(): void
+    {
+        config(['recruitment.offer_contact_email' => 'tuyendung@congty.vn']);
+        $candidate = $this->passedCandidate();
+        $offerId = $this->createOffer($candidate, ['contact_name' => 'Chi Luu', 'contact_phone' => '0977 000 111', 'contact_email' => 'ca.nhan@gmail.com'])
+            ->assertCreated()
+            ->assertJsonPath('data.contact_phone', '0977 000 111')
+            ->assertJsonPath('data.contact_email', 'tuyendung@congty.vn')
+            ->json('data.id');
+        $this->approve($offerId);
+
+        Mail::assertQueued(CandidateOfferMail::class, function (CandidateOfferMail $mail) {
+            $html = $mail->render();
+
+            return $mail->hasReplyTo('tuyendung@congty.vn') && ! $mail->hasReplyTo('ca.nhan@gmail.com')
+                && str_contains($html, 'Chi Luu') && str_contains($html, '0977 000 111') && ! str_contains($html, 'ca.nhan@gmail.com')
+                && ! str_contains($html, '<a ') && ! str_contains($html, 'thu-moi-nhan-viec');
+        });
+
+        // Trang trả lời công khai đã bỏ.
+        $this->getJson('/api/v1/public/offers/'.str_repeat('a', 48))->assertNotFound();
+    }
+
+    public function test_contact_defaults_to_the_hr_drafting_the_offer_with_company_email(): void
+    {
+        config(['recruitment.offer_contact_email' => 'tuyendung@congty.vn']);
+        $hr = User::with('employee')->where('email', 'hr@qlns.local')->firstOrFail();
+
+        $this->getJson('/api/v1/recruitment/offer-defaults', $this->as('hr'))->assertOk()
+            ->assertJsonPath('data.contact_email', 'tuyendung@congty.vn')
+            ->assertJsonPath('data.contact_name', $hr->employee?->full_name ?? $hr->user_name);
+        $this->getJson('/api/v1/recruitment/offer-defaults', $this->as('employee'))->assertForbidden();
+
+        $offer = RecruitmentOffer::findOrFail($this->createOffer($this->passedCandidate())->assertCreated()->json('data.id'));
+        $this->assertSame('tuyendung@congty.vn', $offer->contact_email);
+        $this->assertSame($hr->employee?->full_name ?? $hr->user_name, $offer->contact_name);
+    }
+
+    public function test_hr_records_acceptance_and_admin_is_notified(): void
     {
         $candidate = $this->passedCandidate();
-        $token = $this->approveAndGetToken($this->createOffer($candidate)->json('data.id'));
+        $offerId = $this->createOffer($candidate)->json('data.id');
 
-        $page = $this->getJson("/api/v1/public/offers/{$token}")->assertOk()->json('data');
-        $this->assertTrue($page['can_respond']);
-        $this->assertSame(15000000.0, (float) $page['salary']);
-        $this->assertArrayNotHasKey('review_note', $page);
+        // Chưa duyệt gửi -> chưa ghi nhận được.
+        $this->recordResponse($offerId, 'accept')->assertStatus(422)->assertJsonValidationErrors('decision');
+        $this->approve($offerId);
 
-        $this->postJson("/api/v1/public/offers/{$token}/respond", ['decision' => 'accept'])
-            ->assertOk()->assertJsonPath('data.status', 'accepted');
-        $this->postJson("/api/v1/public/offers/{$token}/respond", ['decision' => 'decline'])
-            ->assertStatus(422)->assertJsonValidationErrors('decision');
+        $this->recordResponse($offerId, 'accept', null, 'employee')->assertForbidden();
+        $this->recordResponse($offerId, 'maybe')->assertStatus(422)->assertJsonValidationErrors('decision');
+        $this->recordResponse($offerId, 'accept', 'Goi dien 10h, xac nhan di lam dung ngay')->assertOk()
+            ->assertJsonPath('data.status', 'accepted')
+            ->assertJsonPath('data.response_recorded_by', 'Nhân sự');
+        $this->recordResponse($offerId, 'decline')->assertStatus(422)->assertJsonValidationErrors('decision');
 
         $this->assertSame('passed', $candidate->fresh()->status);
-        $this->assertTrue(Notification::where('type', 'recruitment.offer_responded')->exists());
+        $admin = User::where('email', 'admin@qlns.local')->firstOrFail();
+        $notice = Notification::where('type', 'recruitment.offer_responded')->where('user_id', $admin->id)->firstOrFail();
+        $this->assertStringContainsString('đã chấp nhận', $notice->message);
     }
 
     public function test_decline_frees_the_slot(): void
     {
         $candidate = $this->passedCandidate(headcount: 1);
         $this->assertSame(RecruitmentOpening::STATUS_FULL, $candidate->opening->fresh()->status);
-        $token = $this->approveAndGetToken($this->createOffer($candidate)->json('data.id'));
+        $offerId = $this->createOffer($candidate)->json('data.id');
+        $this->approve($offerId);
 
-        $this->postJson("/api/v1/public/offers/{$token}/respond", ['decision' => 'decline', 'note' => 'Da nhan noi khac'])->assertOk();
+        $this->recordResponse($offerId, 'decline', 'Da nhan noi khac')->assertOk()->assertJsonPath('data.status', 'declined');
 
         $this->assertSame(RecruitmentCandidate::STATUS_OFFER_DECLINED, $candidate->fresh()->status);
         $this->assertSame(RecruitmentOpening::STATUS_OPEN, $candidate->opening->fresh()->status);
@@ -186,30 +230,52 @@ class RecruitmentOfferTest extends TestCase
     public function test_offer_expires_after_deadline(): void
     {
         $candidate = $this->passedCandidate();
-        $token = $this->approveAndGetToken($this->createOffer($candidate)->json('data.id'));
+        $offerId = $this->createOffer($candidate)->json('data.id');
+        $this->approve($offerId);
 
         $this->travelTo(Carbon::parse('2026-10-11 08:00'));
         $this->artisan('recruitment:expire-offers')->assertSuccessful();
 
-        $page = $this->getJson("/api/v1/public/offers/{$token}")->assertOk()->json('data');
-        $this->assertSame('expired', $page['status']);
-        $this->assertFalse($page['can_respond']);
-        $this->postJson("/api/v1/public/offers/{$token}/respond", ['decision' => 'accept'])->assertStatus(422);
+        $this->assertSame('expired', RecruitmentOffer::findOrFail($offerId)->status);
+        $this->recordResponse($offerId, 'accept')->assertStatus(422)->assertJsonValidationErrors('decision');
         $this->assertSame(RecruitmentCandidate::STATUS_OFFER_DECLINED, $candidate->fresh()->status);
     }
 
-    public function test_withdrawn_or_unknown_link_does_not_work(): void
+    public function test_withdrawn_offer_cannot_be_answered(): void
     {
         $candidate = $this->passedCandidate();
         $offerId = $this->createOffer($candidate)->json('data.id');
-        $token = $this->approveAndGetToken($offerId);
+        $this->approve($offerId);
 
         $this->postJson("/api/v1/recruitment/offers/{$offerId}/withdraw", [], $this->as('hr'))->assertOk()->assertJsonPath('data.status', 'withdrawn');
-        $this->getJson("/api/v1/public/offers/{$token}")->assertNotFound();
-        $this->getJson('/api/v1/public/offers/'.str_repeat('a', 48))->assertNotFound();
+        $this->recordResponse($offerId, 'accept')->assertStatus(422)->assertJsonValidationErrors('decision');
 
         // Rút xong ứng viên vẫn "Đạt" -> soạn offer mới được.
         $this->assertSame('passed', $candidate->fresh()->status);
         $this->createOffer($candidate)->assertCreated();
+    }
+
+    // Admin xem offer rồi sửa ngay khi còn chờ duyệt; HR (người soạn) được báo thay đổi.
+    public function test_pending_offer_can_be_edited_before_approval(): void
+    {
+        $candidate = $this->passedCandidate();
+        $offerId = $this->createOffer($candidate)->json('data.id');
+        $payload = $this->offerPayload(['department_id' => $candidate->opening->department_id, 'salary' => 18_000_000, 'message' => 'Moi ban nhan viec']);
+
+        $this->putJson("/api/v1/recruitment/offers/{$offerId}", $payload, $this->as('employee'))->assertForbidden();
+        $this->putJson("/api/v1/recruitment/offers/{$offerId}", ['salary' => -1] + $payload, $this->as('admin'))
+            ->assertStatus(422)->assertJsonValidationErrors('salary');
+        $this->putJson("/api/v1/recruitment/offers/{$offerId}", $payload, $this->as('admin'))->assertOk()
+            ->assertJsonPath('data.salary', 18000000)
+            ->assertJsonPath('data.status', 'pending_approval');
+
+        $hr = User::where('email', 'hr@qlns.local')->firstOrFail();
+        $notice = Notification::where('user_id', $hr->id)->where('title', 'Offer đã được chỉnh sửa')->firstOrFail();
+        $this->assertStringContainsString('Lương: 15.000.000 ₫ → 18.000.000 ₫', $notice->message);
+
+        // Đã duyệt gửi -> không sửa được nữa.
+        $this->approve($offerId);
+        $this->putJson("/api/v1/recruitment/offers/{$offerId}", $payload, $this->as('admin'))
+            ->assertStatus(422)->assertJsonValidationErrors('status');
     }
 }

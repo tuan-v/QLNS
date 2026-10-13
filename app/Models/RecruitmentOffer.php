@@ -35,9 +35,9 @@ class RecruitmentOffer extends Model
     protected array $realtimeShared = ['recruitment'];
 
     protected $fillable = [
-        'recruitment_candidate_id', 'contract_type', 'salary', 'start_date', 'response_deadline', 'message',
+        'recruitment_candidate_id', 'department_id', 'position_id', 'contract_type', 'salary', 'start_date', 'response_deadline', 'message', 'contact_name', 'contact_phone', 'contact_email',
         'status', 'created_by', 'reviewed_by', 'reviewed_at', 'review_note', 'token_hash', 'sent_at',
-        'responded_at', 'response_note',
+        'responded_at', 'response_note', 'response_recorded_by',
     ];
 
     protected $hidden = ['token_hash'];
@@ -56,6 +56,17 @@ class RecruitmentOffer extends Model
         return $this->belongsTo(RecruitmentCandidate::class, 'recruitment_candidate_id');
     }
 
+    // Phòng ban / chức vụ chốt cho ứng viên (điền sẵn theo đợt tuyển hoặc vị trí ứng tuyển).
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
+    }
+
+    public function position()
+    {
+        return $this->belongsTo(Position::class);
+    }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -64,6 +75,12 @@ class RecruitmentOffer extends Model
     public function reviewer()
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    // HR ghi nhận phản hồi của ứng viên.
+    public function responseRecorder()
+    {
+        return $this->belongsTo(User::class, 'response_recorded_by');
     }
 
     // Hết hạn trả lời: qua hết ngày response_deadline.

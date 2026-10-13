@@ -25,6 +25,7 @@ const TYPE_ROUTES = {
     "resignation.notice": "resignations",
     "resignation.decided": "my-profile",
     "recruitment.cv_pending": "recruitment-detail",
+    "recruitment.opening_created": "recruitment-detail",
     "recruitment.cv_reviewed": "recruitment-detail",
     "recruitment.interview_assigned": "recruitment-detail",
     "recruitment.offer_pending": "recruitment-detail",
@@ -39,6 +40,7 @@ const TYPE_ROUTES = {
 const recruitmentParams = (item) => ({ id: item.data?.recruitment_opening_id });
 const TYPE_PARAMS = {
     "recruitment.cv_pending": recruitmentParams,
+    "recruitment.opening_created": recruitmentParams,
     "recruitment.cv_reviewed": recruitmentParams,
     "recruitment.interview_assigned": recruitmentParams,
     "recruitment.offer_pending": recruitmentParams,
@@ -53,6 +55,8 @@ const TYPE_QUERY = {
     "resignation.notice": (item) => ({ id: item.data?.resignation_request_id }),
     "recruitment.interview_confirmation": (item) => ({ month: item.data?.month, interview: item.data?.interview_id }),
     "bank_account.pending": () => ({ tab: "bank" }),
+    // Mở thẳng hộp thoại xem/duyệt offer của ứng viên.
+    "recruitment.offer_pending": (item) => ({ offer: item.data?.candidate_id }),
     "bank_account.reviewed": () => ({ tab: "bank" }),
 };
 

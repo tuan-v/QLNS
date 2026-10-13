@@ -849,8 +849,12 @@ watch(
             loadRoles();
             // Lương & Hợp đồng cũng chỉ áp dụng lúc Thêm mới — cùng lý do reset
             // như createAccount ở trên, không giữ số cũ của lần thêm trước.
-            agreedSalary.value = null;
-            contractType.value = null;
+            // Từ Tuyển dụng (offer đã chấp nhận): điền sẵn lương + loại hợp đồng theo offer.
+            agreedSalary.value = props.employee ? null : (props.prefill?.agreed_salary ?? null);
+            contractType.value = props.employee ? null : (props.prefill?.contract_type ?? null);
+            contractEndDate.value = null;
+            // File PDF hợp đồng của lần thêm trước không được tải nhầm lên cho người mới.
+            contractFile.value = null;
             // Nạp lại danh sách Xã/Phường đúng theo Tỉnh đã có sẵn (modal Sửa) —
             // KHÔNG gọi qua onProvinceChange() vì hàm đó xóa luôn commune_code,
             // ở đây form.commune_code vừa được fillForm() gán đúng giá trị cũ.
@@ -902,6 +906,11 @@ async function submit() {
     if (!isEdit.value) {
         payload.agreed_salary = agreedSalary.value;
         payload.contract_type = contractType.value;
+        payload.contract_end_date = contractEndDate.value || null;
+        // Nhận việc từ Tuyển dụng: backend đánh dấu ứng viên "đã nhận việc" (cần offer đã chấp nhận).
+        if (props.prefill?.candidate_id) {
+            payload.candidate_id = props.prefill.candidate_id;
+        }
     }
 
     try {

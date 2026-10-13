@@ -9,7 +9,6 @@ use App\Models\RecruitmentOpening;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 // Thư mời nhận việc (Offer) — ngoài tài liệu gốc, người dùng duyệt mở rộng. Quy tắc:
@@ -17,8 +16,11 @@ use Illuminate\Validation\ValidationException;
 //    (chờ duyệt / đã gửi / đã chấp nhận). HR (recruitment.manage) soạn.
 //  - Admin (recruitment.approve) duyệt -> mới gửi email cho ứng viên; không duyệt thì
 //    HR soạn lại offer mới.
-//  - Ứng viên trả lời bằng link trong email: mã ngẫu nhiên 48 ký tự, DB chỉ lưu SHA-256,
-//    dùng được tới hết ngày hạn trả lời, trả lời 1 lần. Quá hạn -> "hết hạn".
+//  - Email KHÔNG có link trả lời (2026-10-13, ứng viên ngại bấm link vì sợ lừa đảo): ghi thông
+//    tin người liên hệ (mặc định HR soạn offer) + EMAIL HỆ THỐNG CÔNG TY (config/recruitment.php,
+//    không dùng email cá nhân), Reply-To về email đó. Ứng viên báo
+//    qua điện thoại/email -> HR "Ghi nhận phản hồi" (recordResponse) -> Admin được thông báo.
+//    Quá hạn trả lời mà HR chưa ghi nhận -> "hết hạn".
 //  - Từ chối / hết hạn -> ứng viên "Từ chối offer" và TRẢ LẠI SUẤT cho đợt tuyển.
 //  - HR rút offer (chờ duyệt / đã gửi) -> ứng viên vẫn "Đạt", soạn offer mới được.
 //  - Nhận việc (RecruitmentService::markHired) chỉ khi offer đã được chấp nhận.
@@ -44,11 +46,17 @@ class RecruitmentOfferService
             }
 
             return $locked->offers()->create([
+                'department_id' => $data['department_id'],
+                'position_id' => $data['position_id'] ?? null,
                 'contract_type' => $data['contract_type'],
                 'salary' => $data['salary'],
                 'start_date' => $data['start_date'],
                 'response_deadline' => $data['response_deadline'],
                 'message' => $data['message'] ?? null,
+                'contact_name' => $data['contact_name'] ?? ($actor->employee?->full_name ?? $actor->user_name),
+                'contact_phone' => $data['contact_phone'] ?? $actor->employee?->phone,
+                // Email liên hệ LUÔN là email hệ thống công ty (config/recruitment.php), không phải email cá nhân.
+                'contact_email' => self::companyContactEmail(),
                 'status' => RecruitmentOffer::STATUS_PENDING_APPROVAL,
                 'created_by' => $actor->id,
             ]);
@@ -61,9 +69,7 @@ class RecruitmentOfferService
 
     public function review(RecruitmentOffer $offer, bool $approve, ?string $note, User $actor): RecruitmentOffer
     {
-        $plainToken = null;
-
-        $offer = DB::transaction(function () use ($offer, $approve, $note, $actor, &$plainToken) {
+        $offer = DB::transaction(function () use ($offer, $approve, $note, $actor) {
             $locked = RecruitmentOffer::whereKey($offer->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->status !== RecruitmentOffer::STATUS_PENDING_APPROVAL) {
@@ -82,8 +88,6 @@ class RecruitmentOfferService
             ];
 
             if ($approve) {
-                $plainToken = Str::random(48);
-                $attributes['token_hash'] = hash('sha256', $plainToken);
                 $attributes['sent_at'] = now();
             }
 
@@ -94,8 +98,8 @@ class RecruitmentOfferService
 
         $offer->load('candidate.opening');
 
-        if ($plainToken !== null) {
-            Mail::to($offer->candidate->email)->queue(new CandidateOfferMail($offer, $this->responseUrl($plainToken)));
+        if ($approve) {
+            Mail::to($offer->candidate->email)->queue(new CandidateOfferMail($offer));
         }
 
         $this->notifyCreator($offer, $approve
@@ -105,43 +109,111 @@ class RecruitmentOfferService
         return $offer;
     }
 
+    // Sửa offer khi còn CHỜ DUYỆT — Admin sửa ngay trong lúc xem duyệt, hoặc HR sửa offer mình
+    // soạn. Admin sửa offer của HR thì HR được báo các thay đổi.
+    public function update(RecruitmentOffer $offer, array $data, User $actor): RecruitmentOffer
+    {
+        [$offer, $changes] = DB::transaction(function () use ($offer, $data) {
+            $locked = RecruitmentOffer::with('department', 'position')->whereKey($offer->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->status !== RecruitmentOffer::STATUS_PENDING_APPROVAL) {
+                throw ValidationException::withMessages(['status' => 'Chỉ sửa được offer đang chờ duyệt.']);
+            }
+
+            $before = $this->summary($locked);
+            $locked->update([
+                'department_id' => $data['department_id'],
+                'position_id' => $data['position_id'] ?? null,
+                'contract_type' => $data['contract_type'],
+                'salary' => $data['salary'],
+                'start_date' => $data['start_date'],
+                'response_deadline' => $data['response_deadline'],
+                'message' => $data['message'] ?? null,
+                'contact_name' => $data['contact_name'] ?? $locked->contact_name,
+                'contact_phone' => $data['contact_phone'] ?? $locked->contact_phone,
+                'contact_email' => self::companyContactEmail(),
+            ]);
+            $after = $this->summary($locked->fresh(['department', 'position']));
+
+            $changes = [];
+            foreach ($after as $label => $value) {
+                if (($before[$label] ?? null) !== $value) {
+                    $changes[] = "{$label}: ".($before[$label] ?: '—')." → ".($value ?: '—');
+                }
+            }
+
+            return [$locked, $changes];
+        });
+
+        $offer->load('candidate.opening');
+        $creator = $offer->created_by ? User::find($offer->created_by) : null;
+        if ($changes !== [] && $creator && $creator->id !== $actor->id) {
+            $this->notificationService->send(
+                $creator,
+                'recruitment.offer_reviewed',
+                'Offer đã được chỉnh sửa',
+                "{$actor->user_name} đã sửa offer cho {$offer->candidate->full_name}: ".implode('; ', $changes).'.',
+                $this->data($offer) + ['status' => 'approved'],
+            );
+        }
+
+        return $offer;
+    }
+
+    // Các thông tin chính của offer dạng chữ — để so sánh trước/sau khi sửa.
+    private function summary(RecruitmentOffer $offer): array
+    {
+        $contracts = ['thuc_tap' => 'Thực tập', 'thu_viec' => 'Thử việc', 'chinh_thuc' => 'Chính thức'];
+
+        return [
+            'Phòng ban' => $offer->department?->name,
+            'Chức vụ' => $offer->position?->name,
+            'Loại hợp đồng' => $contracts[$offer->contract_type] ?? $offer->contract_type,
+            'Lương' => number_format((float) $offer->salary, 0, ',', '.').' ₫',
+            'Ngày bắt đầu' => $offer->start_date?->format('d/m/Y'),
+            'Hạn trả lời' => $offer->response_deadline?->format('d/m/Y'),
+            'Lời nhắn' => $offer->message,
+            'Người liên hệ' => trim(($offer->contact_name ?? '').' '.($offer->contact_phone ?? '')),
+        ];
+    }
+
     public function withdraw(RecruitmentOffer $offer): RecruitmentOffer
     {
         return DB::transaction(function () use ($offer) {
             $locked = RecruitmentOffer::whereKey($offer->id)->lockForUpdate()->firstOrFail();
 
             if (! in_array($locked->status, [RecruitmentOffer::STATUS_PENDING_APPROVAL, RecruitmentOffer::STATUS_SENT], true)) {
-                throw ValidationException::withMessages(['status' => 'Chỉ rút được offer đang chờ duyệt hoặc đã gửi mà ứng viên chưa trả lời.']);
+                throw ValidationException::withMessages(['status' => 'Chỉ hủy được offer đang chờ duyệt hoặc đã gửi mà ứng viên chưa trả lời.']);
             }
 
-            $locked->update(['status' => RecruitmentOffer::STATUS_WITHDRAWN, 'token_hash' => null]);
+            $locked->update(['status' => RecruitmentOffer::STATUS_WITHDRAWN]);
 
             return $locked;
         });
     }
 
-    // Trang công khai cho ứng viên: tìm offer theo mã trong link (đã gửi hoặc đã trả lời).
-    public function findByToken(string $token): RecruitmentOffer
+    public static function companyContactEmail(): ?string
     {
-        $offer = RecruitmentOffer::with('candidate.opening.department', 'candidate.opening.position')
-            ->where('token_hash', hash('sha256', $token))
-            ->first();
-
-        abort_if(! $offer, 404, 'Link không hợp lệ hoặc thư mời đã bị thu hồi.');
-
-        if ($offer->status === RecruitmentOffer::STATUS_SENT && $offer->isPastDeadline()) {
-            $this->expire($offer);
-            $offer->refresh();
-        }
-
-        return $offer;
+        return config('recruitment.offer_contact_email') ?: null;
     }
 
-    public function respond(string $token, bool $accept, ?string $note): RecruitmentOffer
+    /** Giá trị điền sẵn cho form soạn offer: người liên hệ = HR đang soạn, email = email công ty. */
+    public function defaults(User $actor): array
     {
-        $offer = $this->findByToken($token);
+        $actor->loadMissing('employee');
 
-        $offer = DB::transaction(function () use ($offer, $accept, $note) {
+        return [
+            'contact_name' => $actor->employee?->full_name ?? $actor->user_name,
+            'contact_phone' => $actor->employee?->phone,
+            'contact_email' => self::companyContactEmail(),
+        ];
+    }
+
+    // HR ghi nhận phản hồi ứng viên báo qua điện thoại / email (không còn link tự trả lời).
+    // Chấp nhận -> làm thủ tục Nhận việc; từ chối -> trả lại suất. Admin được thông báo.
+    public function recordResponse(RecruitmentOffer $offer, bool $accept, ?string $note, User $actor): RecruitmentOffer
+    {
+        $offer = DB::transaction(function () use ($offer, $accept, $note, $actor) {
             $locked = RecruitmentOffer::whereKey($offer->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->status !== RecruitmentOffer::STATUS_SENT) {
@@ -151,7 +223,8 @@ class RecruitmentOfferService
             $locked->update([
                 'status' => $accept ? RecruitmentOffer::STATUS_ACCEPTED : RecruitmentOffer::STATUS_DECLINED,
                 'responded_at' => now(),
-                'response_note' => $accept ? null : $note,
+                'response_note' => $note,
+                'response_recorded_by' => $actor->id,
             ]);
 
             if (! $accept) {
@@ -162,9 +235,14 @@ class RecruitmentOfferService
         });
 
         $offer->load('candidate.opening');
-        $this->notifyManagers($offer, $accept
-            ? ['Ứng viên đã chấp nhận offer', "{$offer->candidate->full_name} đã chấp nhận thư mời nhận việc — có thể làm thủ tục Nhận việc."]
-            : ['Ứng viên từ chối offer', "{$offer->candidate->full_name} đã từ chối thư mời nhận việc.".($note ? " Lý do: {$note}" : '')]);
+        $name = $offer->candidate->full_name;
+        $this->notifyUsers(
+            User::withPermission('recruitment.approve')->where('id', '!=', $actor->id)->get(),
+            $offer,
+            $accept
+                ? ['Ứng viên đã chấp nhận offer', "{$actor->user_name} ghi nhận: {$name} đã chấp nhận thư mời nhận việc.".($note ? " Ghi chú: {$note}" : '')]
+                : ['Ứng viên từ chối offer', "{$actor->user_name} ghi nhận: {$name} đã từ chối thư mời nhận việc.".($note ? " Lý do: {$note}" : '')],
+        );
 
         return $offer;
     }
@@ -184,13 +262,14 @@ class RecruitmentOfferService
         return $count;
     }
 
-    public function closedMessage(RecruitmentOffer $offer): string
+    private function closedMessage(RecruitmentOffer $offer): string
     {
         return match ($offer->status) {
-            RecruitmentOffer::STATUS_ACCEPTED => 'Bạn đã chấp nhận thư mời này trước đó.',
-            RecruitmentOffer::STATUS_DECLINED => 'Bạn đã từ chối thư mời này trước đó.',
-            RecruitmentOffer::STATUS_EXPIRED => 'Thư mời đã hết hạn trả lời.',
-            default => 'Thư mời này không còn hiệu lực.',
+            RecruitmentOffer::STATUS_ACCEPTED => 'Ứng viên đã được ghi nhận chấp nhận offer này trước đó.',
+            RecruitmentOffer::STATUS_DECLINED => 'Ứng viên đã được ghi nhận từ chối offer này trước đó.',
+            RecruitmentOffer::STATUS_EXPIRED => 'Offer đã hết hạn trả lời — soạn offer mới nếu ứng viên vẫn muốn nhận việc.',
+            RecruitmentOffer::STATUS_PENDING_APPROVAL => 'Offer chưa được Admin duyệt gửi cho ứng viên.',
+            default => 'Offer này không còn hiệu lực.',
         };
     }
 
@@ -210,7 +289,11 @@ class RecruitmentOfferService
 
         if ($expired) {
             $expired->load('candidate.opening');
-            $this->notifyManagers($expired, ['Offer đã hết hạn', "{$expired->candidate->full_name} không trả lời thư mời nhận việc trước hạn — đã trả lại suất cho đợt tuyển."]);
+            $this->notifyUsers(
+                User::withPermission('recruitment.manage')->get()->merge(User::withPermission('recruitment.approve')->get())->unique('id'),
+                $expired,
+                ['Offer đã hết hạn', "{$expired->candidate->full_name} không phản hồi thư mời nhận việc trước hạn — đã trả lại suất cho đợt tuyển."],
+            );
         }
     }
 
@@ -225,11 +308,6 @@ class RecruitmentOfferService
         }
 
         $this->recruitmentService->syncOpeningStatus($opening);
-    }
-
-    private function responseUrl(string $token): string
-    {
-        return rtrim((string) config('app.url'), '/').'/thu-moi-nhan-viec/'.$token;
     }
 
     private function data(RecruitmentOffer $offer): array
@@ -262,9 +340,9 @@ class RecruitmentOfferService
         }
     }
 
-    private function notifyManagers(RecruitmentOffer $offer, array $text): void
+    private function notifyUsers($users, RecruitmentOffer $offer, array $text): void
     {
-        foreach (User::withPermission('recruitment.manage')->get() as $user) {
+        foreach ($users as $user) {
             $this->notificationService->send($user, 'recruitment.offer_responded', $text[0], $text[1], $this->data($offer) + [
                 'status' => $offer->status === RecruitmentOffer::STATUS_ACCEPTED ? 'approved' : 'rejected',
             ]);

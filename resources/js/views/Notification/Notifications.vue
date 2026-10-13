@@ -164,6 +164,7 @@ const TYPE_LABELS = {
     "holiday.confirm_needed": "Nhắc xác nhận lịch nghỉ",
     "holiday.announcement": "Văn bản thông báo nghỉ lễ",
     "recruitment.cv_pending": "CV cần duyệt",
+    "recruitment.opening_created": "Đợt tuyển dụng mới",
     "recruitment.cv_reviewed": "Kết quả duyệt CV",
     "recruitment.interview_assigned": "Phân công phỏng vấn",
     "recruitment.offer_pending": "Offer cần duyệt",
