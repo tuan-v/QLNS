@@ -36,6 +36,15 @@ class Position extends Model
     {
         return $this->belongsToMany(Role::class, 'role_positions');
     }
+    // Bộ câu hỏi phỏng vấn MẶC ĐỊNH của chức vụ (tỉ trọng %) — đợt tuyển mới của chức vụ này
+    // tự chép sang, Admin vẫn đổi được cho từng đợt.
+    public function questionSets()
+    {
+        return $this->belongsToMany(InterviewQuestionSet::class, 'position_question_sets')
+            ->withPivot('weight', 'sort_order')
+            ->withTimestamps()
+            ->orderByPivot('sort_order');
+    }
     public function scopeActive($query)
     {
         return $query->where('is_active', 1);

@@ -16,6 +16,7 @@ class InterviewQuestionSetResource extends JsonResource
             'pass_percent' => (float) $this->pass_percent,
             'is_active' => $this->is_active,
             'openings_count' => $this->whenCounted('openings'),
+            'positions_count' => $this->whenCounted('positions'),
             'questions' => $this->whenLoaded('questions', fn () => $this->questions->map(fn ($q) => [
                 'id' => $q->id,
                 'content' => $q->content,

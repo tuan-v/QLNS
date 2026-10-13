@@ -4,7 +4,9 @@ namespace Tests\Feature\Recruitment;
 
 use App\Models\Commune;
 use App\Models\Department;
+use App\Models\InterviewQuestionSet;
 use App\Models\InterviewScorecard;
+use App\Models\Position;
 use App\Models\Province;
 use App\Models\RecruitmentCandidate;
 use Carbon\Carbon;
@@ -15,8 +17,9 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
-// Phiếu chấm phỏng vấn: Admin soạn bộ câu hỏi (trọng số + % đạt) và gắn đợt tuyển; chỉ
-// chấm khi ứng viên đã đồng ý PV; % theo trọng số -> tự ra Đạt/Không đạt; phiếu chép câu hỏi.
+// Phiếu chấm phỏng vấn: Admin soạn bộ câu hỏi (trọng số + % đạt) và gắn đợt tuyển (nhiều bộ,
+// có tỉ trọng; mặc định theo chức vụ); chỉ chấm khi ứng viên đã đồng ý PV; % theo trọng số
+// -> tự ra Đạt/Không đạt; phiếu chép câu hỏi.
 class InterviewScorecardTest extends TestCase
 {
     use RefreshDatabase;
@@ -47,20 +50,26 @@ class InterviewScorecardTest extends TestCase
         return ['Authorization' => 'Bearer '.$this->tokens[$who]];
     }
 
-    // Bộ 2 câu: trọng số 3 và 1, đạt từ 70%.
-    private function createSet(): int
+    // Mặc định: bộ 2 câu, trọng số 3 và 1, đạt từ 70%.
+    private function createSet(string $name = 'Backend PHP', int $pass = 70, ?array $questions = null): int
     {
         return $this->postJson('/api/v1/recruitment/question-sets', [
-            'name' => 'Backend PHP', 'pass_percent' => 70,
-            'questions' => [
+            'name' => $name, 'pass_percent' => $pass,
+            'questions' => $questions ?? [
                 ['content' => 'Kien thuc Laravel', 'guidance' => 'Service, Repository', 'weight' => 3],
                 ['content' => 'Giao tiep', 'weight' => 1],
             ],
         ], $this->as('admin'))->assertCreated()->json('data.id');
     }
 
+    private function assignSets(int $openingId, array $sets): TestResponse
+    {
+        return $this->putJson("/api/v1/recruitment/openings/{$openingId}/question-sets", ['question_sets' => $sets], $this->as('admin'));
+    }
+
     // Ứng viên được hẹn PV lúc 15/10 09:00; đợt tuyển 1 suất.
-    private function scheduledCandidate(bool $withSet = true): RecruitmentCandidate
+    // $sets: null = 1 bộ mặc định 100%; [] = không gắn bộ; hoặc [['id'=>, 'weight'=>], ...].
+    private function scheduledCandidate(?array $sets = null): RecruitmentCandidate
     {
         $department = Department::create(['name' => 'Phong '.uniqid(), 'code' => 'PB-'.uniqid()]);
         $this->openingId = $this->postJson('/api/v1/recruitment/openings', [
@@ -68,8 +77,9 @@ class InterviewScorecardTest extends TestCase
             'contract_type' => 'tat_ca', 'headcount' => 1, 'deadline' => '2026-10-31',
         ], $this->as('hr'))->assertCreated()->json('data.id');
 
-        if ($withSet) {
-            $this->putJson("/api/v1/recruitment/openings/{$this->openingId}/question-set", ['interview_question_set_id' => $this->createSet()], $this->as('admin'))->assertOk();
+        $sets ??= [['id' => $this->createSet(), 'weight' => 100]];
+        if ($sets !== []) {
+            $this->assignSets($this->openingId, $sets)->assertOk();
         }
 
         $candidateId = $this->post("/api/v1/recruitment/openings/{$this->openingId}/candidates", [
@@ -192,7 +202,7 @@ class InterviewScorecardTest extends TestCase
         $id = $this->interviewId($candidate);
         $this->confirm($id);
         $scorecard = $this->postJson("/api/v1/recruitment/interviews/{$id}/scorecard", [], $this->as('hr'))->json('data');
-        $setId = $candidate->opening->fresh()->interview_question_set_id;
+        $setId = $candidate->opening->questionSets()->value('interview_question_sets.id');
 
         $this->putJson("/api/v1/recruitment/question-sets/{$setId}", [
             'name' => 'Backend PHP v2', 'pass_percent' => 90, 'questions' => [['content' => 'Cau moi', 'weight' => 10]],
@@ -201,5 +211,87 @@ class InterviewScorecardTest extends TestCase
         $after = $this->getJson("/api/v1/recruitment/interviews/{$id}/scorecard", $this->as('hr'))->json('scorecard');
         $this->assertSame($scorecard['items'], $after['items']);
         $this->assertSame(70, (int) $after['pass_percent']);
+    }
+
+    public function test_multiple_sets_are_weighted_into_sections(): void
+    {
+        // Văn hóa (đạt 60%) tỉ trọng 30% + Chuyên môn (đạt 80%) tỉ trọng 70% -> đạt từ 0.3×60 + 0.7×80 = 74%.
+        $culture = $this->createSet('Van hoa', 60, [['content' => 'Thai do', 'weight' => 1]]);
+        $skill = $this->createSet('Chuyen mon', 80, [['content' => 'Laravel', 'weight' => 1], ['content' => 'SQL', 'weight' => 1]]);
+        $candidate = $this->scheduledCandidate([['id' => $culture, 'weight' => 30], ['id' => $skill, 'weight' => 70]]);
+        $id = $this->interviewId($candidate);
+        $this->confirm($id);
+
+        $show = $this->getJson("/api/v1/recruitment/interviews/{$id}/scorecard", $this->as('hr'))->assertOk();
+        $this->assertSame([30, 70], array_column($show->json('question_sets'), 'weight'));
+
+        $scorecard = $this->postJson("/api/v1/recruitment/interviews/{$id}/scorecard", [], $this->as('hr'))->assertSuccessful()
+            ->assertJsonPath('data.pass_percent', 74)
+            ->assertJsonPath('data.question_set_name', 'Van hoa + Chuyen mon')
+            ->assertJsonCount(2, 'data.sections')
+            ->json('data');
+        $this->assertSame([0, 1, 1], array_column($scorecard['items'], 'section_index'));
+
+        // Văn hóa 5/5 = 100%, Chuyên môn (4+3)/10 = 70% -> 0.3×100 + 0.7×70 = 79% >= 74% -> Đạt.
+        $this->travelTo(Carbon::parse('2026-10-15 10:00'));
+        $result = $this->submit($scorecard['id'], $this->scores($scorecard, [5, 4, 3]))->assertOk()
+            ->assertJsonPath('data.score_percent', 79)
+            ->assertJsonPath('data.result', 'passed')
+            ->json('data.sections');
+        $this->assertSame([100, 70], array_map('intval', array_column($result, 'percent')));
+        $this->assertSame('passed', $candidate->fresh()->status);
+    }
+
+    public function test_weights_must_total_100_and_sets_must_be_active(): void
+    {
+        $a = $this->createSet('A');
+        $b = $this->createSet('B');
+        $candidate = $this->scheduledCandidate([]);
+
+        $this->assignSets($candidate->recruitment_opening_id, [['id' => $a, 'weight' => 50], ['id' => $b, 'weight' => 40]])
+            ->assertStatus(422)->assertJsonValidationErrors('question_sets');
+        $this->assignSets($candidate->recruitment_opening_id, [['id' => $a, 'weight' => 50], ['id' => $a, 'weight' => 50]])
+            ->assertStatus(422)->assertJsonValidationErrors('question_sets.1.id');
+        InterviewQuestionSet::whereKey($b)->update(['is_active' => false]);
+        $this->assignSets($candidate->recruitment_opening_id, [['id' => $a, 'weight' => 50], ['id' => $b, 'weight' => 50]])
+            ->assertStatus(422)->assertJsonValidationErrors('question_sets');
+        $this->putJson("/api/v1/recruitment/openings/{$candidate->recruitment_opening_id}/question-sets", ['question_sets' => [['id' => $a, 'weight' => 100]]], $this->as('hr'))
+            ->assertForbidden();
+
+        // Bỏ hết bộ -> không còn bị chặn ghi kết quả tay.
+        $this->assignSets($candidate->recruitment_opening_id, [['id' => $a, 'weight' => 100]])->assertOk();
+        $this->assignSets($candidate->recruitment_opening_id, [])->assertOk()->assertJsonPath('data.question_sets', []);
+    }
+
+    public function test_position_defaults_are_copied_to_new_openings_and_sets_in_use_cannot_be_deleted(): void
+    {
+        $department = Department::create(['name' => 'Phong Dev', 'code' => 'PB-DEV']);
+        $position = Position::create(['department_id' => $department->id, 'code' => 'CV-DEV', 'name' => 'Lap trinh vien', 'is_active' => 1]);
+        $culture = $this->createSet('Van hoa');
+        $skill = $this->createSet('Chuyen mon');
+
+        $this->putJson("/api/v1/recruitment/positions/{$position->id}/question-sets", ['question_sets' => [['id' => $skill, 'weight' => 70], ['id' => $culture, 'weight' => 30]]], $this->as('hr'))
+            ->assertForbidden();
+        $this->putJson("/api/v1/recruitment/positions/{$position->id}/question-sets", ['question_sets' => [['id' => $skill, 'weight' => 70], ['id' => $culture, 'weight' => 30]]], $this->as('admin'))
+            ->assertOk();
+        $listed = collect($this->getJson('/api/v1/recruitment/position-question-sets', $this->as('hr'))->assertOk()->json('data'))->firstWhere('id', $position->id);
+        $this->assertSame(['Chuyen mon', 'Van hoa'], array_column($listed['question_sets'], 'name'));
+
+        // HR tạo đợt tuyển cho chức vụ -> tự có 2 bộ theo đúng tỉ trọng + thứ tự.
+        $openingId = $this->postJson('/api/v1/recruitment/openings', [
+            'title' => 'Tuyen Dev', 'department_id' => $department->id, 'position_id' => $position->id,
+            'contract_type' => 'tat_ca', 'headcount' => 2, 'deadline' => '2026-10-31',
+        ], $this->as('hr'))->assertCreated()->json('data.id');
+        $sets = $this->getJson("/api/v1/recruitment/openings/{$openingId}", $this->as('hr'))->assertOk()->json('data.question_sets');
+        $this->assertSame([[$skill, 70], [$culture, 30]], array_map(fn ($s) => [$s['id'], $s['weight']], $sets));
+
+        // Admin đổi riêng cho đợt -> chức vụ không đổi.
+        $this->assignSets($openingId, [['id' => $skill, 'weight' => 100]])->assertOk();
+        $this->assertSame(2, $position->questionSets()->count());
+
+        // Bộ đang dùng không xóa được.
+        $this->deleteJson("/api/v1/recruitment/question-sets/{$culture}", [], $this->as('admin'))->assertStatus(422)->assertJsonValidationErrors('set');
+        $unused = $this->createSet('Khong dung');
+        $this->deleteJson("/api/v1/recruitment/question-sets/{$unused}", [], $this->as('admin'))->assertOk();
     }
 }

@@ -38,9 +38,16 @@
                     <div style="opacity: 0.75">{{ data.start_blocker }}</div>
                 </template>
                 <template v-else>
-                    <div class="text-subtitle-1 font-weight-bold mb-1">Bộ câu hỏi: {{ data.question_set?.name }}</div>
+                    <div class="text-subtitle-1 font-weight-bold mb-2">Bộ câu hỏi của đợt tuyển</div>
+                    <div class="d-flex flex-wrap justify-center ga-2 mb-2">
+                        <v-chip v-for="set in data.question_sets" :key="set.id" variant="tonal" color="primary">
+                            {{ set.name
+                            }}<template v-if="data.question_sets.length > 1"> · tỉ trọng {{ set.weight }}%</template> ·
+                            đạt từ {{ set.pass_percent }}%
+                        </v-chip>
+                    </div>
                     <div class="mb-4" style="opacity: 0.75">
-                        Đạt từ {{ data.question_set?.pass_percent }}%. Bấm để mở phiếu chấm cho buổi phỏng vấn này.
+                        Đạt khi điểm tổng từ {{ startPassPercent }}%. Bấm để mở phiếu chấm cho buổi phỏng vấn này.
                     </div>
                     <v-alert v-if="actionError" type="error" variant="tonal" density="compact" class="mb-3 text-left">{{
                         actionError
@@ -61,60 +68,77 @@
             <!-- Phiếu chấm -->
             <div v-else class="score-layout">
                 <div class="d-flex flex-column ga-3">
-                    <v-sheet
-                        v-for="(item, index) in items"
-                        :key="item.id"
-                        :class="[
-                            'border rounded-lg glass-panel pa-4',
-                            { 'question--missing': showMissing && !item.score },
-                        ]"
-                        color="transparent"
-                    >
-                        <div class="d-flex align-start ga-3">
-                            <v-avatar color="primary" variant="tonal" size="32" class="text-caption font-weight-bold">{{
-                                index + 1
-                            }}</v-avatar>
-                            <div class="flex-grow-1 min-width-0">
-                                <div class="text-body-1 font-weight-medium" style="white-space: pre-line">
-                                    {{ item.content }}
-                                </div>
-                                <div v-if="item.guidance" class="text-caption mt-1" style="opacity: 0.7">
-                                    Gợi ý: {{ item.guidance }}
-                                </div>
-                            </div>
-                            <v-chip size="small" variant="tonal"
-                                >Trọng số {{ item.weight }} · {{ share(item) }}%</v-chip
+                    <template v-for="section in sections" :key="section.index">
+                        <!-- Tiêu đề phần — chỉ khi phiếu ghép nhiều bộ câu hỏi -->
+                        <div v-if="sections.length > 1" class="d-flex flex-wrap align-center ga-2 mt-2">
+                            <v-icon icon="mdi-format-list-numbered" color="primary" />
+                            <span class="text-subtitle-1 font-weight-bold"
+                                >Phần {{ section.index + 1 }}: {{ section.name }}</span
                             >
+                            <v-chip size="small" variant="tonal">Tỉ trọng {{ section.weight }}%</v-chip>
+                            <v-chip size="small" variant="tonal" :color="section.scored ? 'primary' : undefined">
+                                {{ section.scored ? `${section.percent}%` : "chưa chấm" }}
+                            </v-chip>
                         </div>
-                        <div class="d-flex flex-wrap align-center ga-3 mt-3 pl-11">
-                            <v-rating
-                                v-model="item.score"
-                                :length="5"
+                        <v-sheet
+                            v-for="item in section.items"
+                            :key="item.id"
+                            :class="[
+                                'border rounded-lg glass-panel pa-4',
+                                { 'question--missing': showMissing && !item.score },
+                            ]"
+                            color="transparent"
+                        >
+                            <div class="d-flex align-start ga-3">
+                                <v-avatar
+                                    color="primary"
+                                    variant="tonal"
+                                    size="32"
+                                    class="text-caption font-weight-bold"
+                                    >{{ items.indexOf(item) + 1 }}</v-avatar
+                                >
+                                <div class="flex-grow-1 min-width-0">
+                                    <div class="text-body-1 font-weight-medium" style="white-space: pre-line">
+                                        {{ item.content }}
+                                    </div>
+                                    <div v-if="item.guidance" class="text-caption mt-1" style="opacity: 0.7">
+                                        Gợi ý: {{ item.guidance }}
+                                    </div>
+                                </div>
+                                <v-chip size="small" variant="tonal"
+                                    >Trọng số {{ item.weight }} · {{ share(item) }}%</v-chip
+                                >
+                            </div>
+                            <div class="d-flex flex-wrap align-center ga-3 mt-3 pl-11">
+                                <v-rating
+                                    v-model="item.score"
+                                    :length="5"
+                                    :readonly="readonly"
+                                    hover
+                                    color="amber"
+                                    active-color="amber"
+                                    density="comfortable"
+                                    :item-labels="readonly ? undefined : ['Rất kém', 'Kém', 'Đạt', 'Tốt', 'Rất tốt']"
+                                    item-label-position="bottom"
+                                />
+                                <span class="text-body-2" style="opacity: 0.75">{{
+                                    item.score ? `${item.score}/5` : "Chưa chấm"
+                                }}</span>
+                            </div>
+                            <v-textarea
+                                v-if="!readonly || item.note"
+                                v-model="item.note"
+                                class="mt-2 pl-11"
+                                label="Ghi chú câu này (tuỳ chọn)"
+                                rows="1"
+                                auto-grow
+                                variant="outlined"
+                                density="compact"
+                                hide-details
                                 :readonly="readonly"
-                                hover
-                                color="amber"
-                                active-color="amber"
-                                density="comfortable"
-                                :item-labels="readonly ? undefined : ['Rất kém', 'Kém', 'Đạt', 'Tốt', 'Rất tốt']"
-                                item-label-position="bottom"
                             />
-                            <span class="text-body-2" style="opacity: 0.75">{{
-                                item.score ? `${item.score}/5` : "Chưa chấm"
-                            }}</span>
-                        </div>
-                        <v-textarea
-                            v-if="!readonly || item.note"
-                            v-model="item.note"
-                            class="mt-2 pl-11"
-                            label="Ghi chú câu này (tuỳ chọn)"
-                            rows="1"
-                            auto-grow
-                            variant="outlined"
-                            density="compact"
-                            hide-details
-                            :readonly="readonly"
-                        />
-                    </v-sheet>
+                        </v-sheet>
+                    </template>
 
                     <v-textarea
                         v-model="overallNote"
@@ -142,6 +166,19 @@
                         rounded
                         class="my-2"
                     />
+                    <div v-if="sections.length > 1" class="d-flex flex-column ga-1 mb-2">
+                        <div
+                            v-for="section in sections"
+                            :key="section.index"
+                            class="d-flex align-center ga-2 text-body-2"
+                        >
+                            <span class="flex-grow-1 min-width-0 text-truncate">{{ section.name }}</span>
+                            <span style="opacity: 0.6">×{{ section.weight }}%</span>
+                            <strong style="min-width: 52px; text-align: right">{{
+                                section.scored ? `${section.percent}%` : "—"
+                            }}</strong>
+                        </div>
+                    </div>
                     <div class="text-body-2">
                         Đạt từ <strong>{{ scorecard.pass_percent }}%</strong> · đã chấm {{ scoredCount }}/{{
                             items.length
@@ -266,20 +303,58 @@ const subtitle = computed(() =>
     interview.value ? `${interview.value.candidate?.full_name} — chấm 1–5 sao từng câu, điểm tính theo trọng số.` : "",
 );
 
-const totalWeight = computed(() => items.value.reduce((sum, item) => sum + item.weight, 0));
 const scoredCount = computed(() => items.value.filter((item) => item.score).length);
+const round2 = (value) => Math.round(value * 100) / 100;
 
-// Khớp InterviewScorecardService::percent(). Khi đang chấm dở: tính trên các câu đã chấm.
-const percent = computed(() => {
-    const scored = readonly.value ? items.value : items.value.filter((item) => item.score);
+// % đạt trước khi mở phiếu = trung bình % đạt các bộ theo tỉ trọng.
+const startPassPercent = computed(() =>
+    round2((data.value?.question_sets ?? []).reduce((sum, s) => sum + s.pass_percent * s.weight, 0) / 100),
+);
+
+// % của 1 nhóm câu (khớp InterviewScorecardService::percent()). Đang chấm dở: chỉ tính câu đã chấm.
+function groupPercent(list) {
+    const scored = readonly.value ? list : list.filter((item) => item.score);
     const max = scored.reduce((sum, item) => sum + item.weight * 5, 0);
-    if (!max) return 0;
-    return Math.round((scored.reduce((sum, item) => sum + item.weight * (item.score || 0), 0) * 10000) / max) / 100;
+    return max ? round2((scored.reduce((sum, item) => sum + item.weight * (item.score || 0), 0) * 100) / max) : null;
+}
+
+// Các phần của phiếu (mỗi bộ câu hỏi 1 phần); phiếu cũ không có sections = 1 phần.
+const sections = computed(() => {
+    const defs = scorecard.value?.sections?.length
+        ? scorecard.value.sections
+        : [
+              {
+                  name: scorecard.value?.question_set_name ?? "",
+                  weight: 100,
+                  pass_percent: scorecard.value?.pass_percent,
+              },
+          ];
+    return defs.map((def, index) => {
+        const list = items.value.filter((item) => (item.section_index ?? 0) === index);
+        const value = groupPercent(list);
+        return {
+            ...def,
+            index,
+            items: list,
+            totalWeight: list.reduce((sum, i) => sum + i.weight, 0),
+            percent: value ?? 0,
+            scored: value !== null,
+        };
+    });
+});
+
+// % tổng = trung bình các phần theo tỉ trọng (khớp breakdown()). Đang chấm dở: chỉ các phần đã có câu chấm.
+const percent = computed(() => {
+    const counted = sections.value.filter((s) => s.scored);
+    const weight = counted.reduce((sum, s) => sum + s.weight, 0);
+    return weight ? round2(counted.reduce((sum, s) => sum + s.percent * s.weight, 0) / weight) : 0;
 });
 const passing = computed(() => percent.value >= (scorecard.value?.pass_percent ?? 100));
 
+// Tỉ lệ câu trong PHẦN của nó.
 function share(item) {
-    return totalWeight.value ? Math.round((item.weight * 100) / totalWeight.value) : 0;
+    const section = sections.value[item.section_index ?? 0];
+    return section?.totalWeight ? Math.round((item.weight * 100) / section.totalWeight) : 0;
 }
 
 function formatDateTime(value) {

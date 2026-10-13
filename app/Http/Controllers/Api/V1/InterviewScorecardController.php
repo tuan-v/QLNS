@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Recruitment\AssignQuestionSetsRequest;
 use App\Http\Requests\Recruitment\SaveQuestionSetRequest;
 use App\Http\Requests\Recruitment\SaveScorecardRequest;
 use App\Http\Resources\InterviewQuestionSetResource;
@@ -10,6 +11,8 @@ use App\Http\Resources\InterviewScorecardResource;
 use App\Http\Resources\RecruitmentInterviewResource;
 use App\Models\InterviewQuestionSet;
 use App\Models\InterviewScorecard;
+use App\Models\Position;
+use App\Models\RecruitmentCandidate;
 use App\Models\RecruitmentInterview;
 use App\Models\RecruitmentOpening;
 use App\Services\InterviewScorecardService;
@@ -48,24 +51,63 @@ class InterviewScorecardController extends Controller
         return response()->json(['message' => 'Đã xóa bộ câu hỏi.']);
     }
 
-    public function assignToOpening(Request $request, RecruitmentOpening $opening): JsonResponse
+    public function assignToOpening(AssignQuestionSetsRequest $request, RecruitmentOpening $opening): JsonResponse
     {
-        $validated = $request->validate(['interview_question_set_id' => ['nullable', 'integer']]);
-        $opening = $this->scorecardService->assignToOpening($opening, $validated['interview_question_set_id'] ?? null);
+        $opening = $this->scorecardService->assignToOpening($opening, $request->validated('question_sets'));
 
-        return response()->json(['data' => ['interview_question_set_id' => $opening->interview_question_set_id]]);
+        return response()->json(['data' => ['question_sets' => $this->presentSets($opening->questionSets)]]);
+    }
+
+    // Bộ câu hỏi riêng cho 1 ứng viên (rỗng = dùng mặc định theo vị trí ứng tuyển / đợt tuyển).
+    public function assignToCandidate(AssignQuestionSetsRequest $request, RecruitmentCandidate $candidate): JsonResponse
+    {
+        $candidate = $this->scorecardService->assignToCandidate($candidate, $request->validated('question_sets'));
+        [$sets, $source] = $candidate->effectiveQuestionSets();
+
+        return response()->json(['data' => ['question_sets' => $this->presentSets($sets), 'question_set_source' => $source]]);
+    }
+
+    // Bộ câu hỏi mặc định theo chức vụ: HR + Admin xem, Admin sửa.
+    public function positionDefaults(): JsonResponse
+    {
+        return response()->json(['data' => $this->scorecardService->positionDefaults()->map(fn (Position $position) => [
+            'id' => $position->id,
+            'name' => $position->name,
+            'department_id' => $position->department_id,
+            'department' => $position->department?->name,
+            'question_sets' => $this->presentSets($position->questionSets),
+        ])->values()]);
+    }
+
+    public function assignToPosition(AssignQuestionSetsRequest $request, Position $position): JsonResponse
+    {
+        $position = $this->scorecardService->assignToPosition($position, $request->validated('question_sets'));
+
+        return response()->json(['data' => ['question_sets' => $this->presentSets($position->questionSets)]]);
+    }
+
+    private function presentSets($sets): array
+    {
+        return $sets->map(fn ($set) => [
+            'id' => $set->id,
+            'name' => $set->name,
+            'pass_percent' => (float) $set->pass_percent,
+            'weight' => (int) $set->pivot->weight,
+        ])->values()->all();
     }
 
     // Trang chấm điểm: thông tin buổi PV + phiếu (nếu đã mở) + lý do chưa mở được.
     public function show(RecruitmentInterview $interview): JsonResponse
     {
-        $interview->load('candidate.opening.department', 'candidate.opening.questionSet:id,name,pass_percent', 'confirmer:id,user_name', 'interviewer');
+        $interview->load('candidate.opening.department', 'confirmer:id,user_name', 'interviewer');
         $scorecard = $this->scorecardService->forInterview($interview);
-        $set = $interview->candidate?->opening?->questionSet;
+        [$sets, $source] = $interview->candidate?->effectiveQuestionSets() ?? [collect(), null];
 
         return response()->json([
             'interview' => new RecruitmentInterviewResource($interview),
-            'question_set' => $set ? ['id' => $set->id, 'name' => $set->name, 'pass_percent' => (float) $set->pass_percent] : null,
+            // Các bộ (tỉ trọng) sẽ dùng khi mở phiếu — phiếu đã mở thì xem sections của phiếu.
+            'question_sets' => $this->presentSets($sets),
+            'question_set_source' => $source,
             'scorecard' => $scorecard ? new InterviewScorecardResource($scorecard) : null,
             'start_blocker' => $scorecard ? null : $this->scorecardService->startBlocker($interview),
         ]);
