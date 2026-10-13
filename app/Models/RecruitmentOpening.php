@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 // Đợt tuyển dụng cho 1 chức vụ. headcount = số người cần tuyển = giới hạn số CV
 // được duyệt (đủ thì tự chuyển "full", ngưng nhận CV) — RecruitmentService::syncOpeningStatus().
+// "Tuyển dụng chung" (2026-10-13): không phòng ban/chức vụ (department_id null), headcount
+// null = không giới hạn; mỗi ứng viên ghi vị trí ứng tuyển, phòng ban/chức vụ chốt trong offer.
 class RecruitmentOpening extends Model
 {
     use Auditable;
@@ -32,7 +34,7 @@ class RecruitmentOpening extends Model
     public const CONTRACT_TYPES = ['thu_viec', 'chinh_thuc', 'thuc_tap', self::CONTRACT_TYPE_ANY];
 
     protected $fillable = [
-        'title', 'department_id', 'position_id', 'interview_question_set_id', 'contract_type', 'headcount',
+        'title', 'department_id', 'position_id', 'contract_type', 'headcount',
         'deadline', 'description', 'status', 'created_by',
     ];
 
@@ -46,10 +48,14 @@ class RecruitmentOpening extends Model
         return $this->belongsTo(Department::class);
     }
 
-    // Bộ câu hỏi phỏng vấn Admin gắn cho đợt tuyển (InterviewScorecardService).
-    public function questionSet()
+    // Các bộ câu hỏi phỏng vấn của đợt tuyển, mỗi bộ 1 tỉ trọng % (tổng 100) — Admin gắn,
+    // mặc định chép từ chức vụ khi tạo đợt (InterviewScorecardService / RecruitmentService).
+    public function questionSets()
     {
-        return $this->belongsTo(InterviewQuestionSet::class, 'interview_question_set_id');
+        return $this->belongsToMany(InterviewQuestionSet::class, 'recruitment_opening_question_sets')
+            ->withPivot('weight', 'sort_order')
+            ->withTimestamps()
+            ->orderByPivot('sort_order');
     }
 
     public function position()
@@ -65,6 +71,17 @@ class RecruitmentOpening extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function isGeneral(): bool
+    {
+        return $this->department_id === null;
+    }
+
+    // Đủ suất? Không giới hạn (headcount null) thì không bao giờ đủ.
+    public function isFullWith(int $countedCandidates): bool
+    {
+        return $this->headcount !== null && $countedCandidates >= $this->headcount;
     }
 
     // Đã hết hạn nộp CV (deadline là ngày cuối còn nhận).

@@ -61,6 +61,40 @@
                     </v-expand-transition>
                 </v-alert>
             </FormField>
+            <!-- Nguồn ứng viên (mọi đợt) — báo cáo tuyển dụng theo kênh -->
+            <FormField label="Nguồn ứng viên">
+                <v-select
+                    v-model="form.source"
+                    :items="CANDIDATE_SOURCE_OPTIONS"
+                    placeholder="TopCV, người giới thiệu…"
+                    clearable
+                    :error-messages="errors.source"
+                />
+            </FormField>
+            <FormField label="Ghi chú nguồn" :hint="form.source === 'referral' ? 'Vd: tên người giới thiệu' : ''">
+                <v-text-field v-model="form.source_note" :error-messages="errors.source_note" />
+            </FormField>
+            <!-- Đợt tuyển chung: ứng viên chọn vị trí (chức vụ có sẵn) + hình thức mong muốn -->
+            <template v-if="isGeneral">
+                <FormField label="Vị trí ứng tuyển" hint="Theo vị trí này: bộ câu hỏi phỏng vấn + phòng ban/chức vụ gợi ý khi gửi offer">
+                    <v-autocomplete
+                        v-model="form.applied_position_id"
+                        :items="positionItems"
+                        placeholder="Chọn chức vụ"
+                        clearable
+                        :error-messages="errors.applied_position_id"
+                    />
+                </FormField>
+                <FormField label="Hình thức mong muốn">
+                    <v-select
+                        v-model="form.desired_contract_type"
+                        :items="DESIRED_CONTRACT_ITEMS"
+                        placeholder="Thực tập / thử việc / chính thức"
+                        clearable
+                        :error-messages="errors.desired_contract_type"
+                    />
+                </FormField>
+            </template>
             <FormField label="CV (PDF)" required span="full">
                 <InputFile
                     v-model="form.cv_file"
@@ -83,13 +117,15 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import recruitmentService from "../../services/recruitmentService";
 import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
 import FormField from "../../components/common/FormField.vue";
 import InputFile from "../../components/common/InputFile.vue";
 import CandidateHistoryList from "./CandidateHistoryList.vue";
+import { useRecruitmentPositions } from "../../composables/useRecruitmentPositions";
+import { CANDIDATE_SOURCE_OPTIONS, CONTRACT_TYPE_LABELS } from "../../composables/recruitmentStatus";
 import { useToastStore } from "../../stores/useToastStore";
 import { isEmail, maxLength, notEmpty, useClearErrorsOnEdit } from "../../composables/validationRules";
 
@@ -111,7 +147,14 @@ const form = reactive({
     phone: "",
     note: "",
     cv_file: null,
+    applied_position_id: null,
+    desired_contract_type: null,
+    source: null,
+    source_note: "",
 });
+const isGeneral = computed(() => !!props.opening && !props.opening.department_id);
+const { positionItems } = useRecruitmentPositions();
+const DESIRED_CONTRACT_ITEMS = Object.entries(CONTRACT_TYPE_LABELS).map(([value, title]) => ({ title, value }));
 
 /* ---- Lịch sử ứng tuyển theo email/SĐT hợp lệ (tra khi rời ô) ---- */
 const history = ref([]);
@@ -211,6 +254,10 @@ watch(
                 phone: "",
                 note: "",
                 cv_file: null,
+                applied_position_id: null,
+                desired_contract_type: null,
+                source: null,
+                source_note: "",
             });
             Object.assign(duplicateErrors, { email: null, phone: null });
             Object.assign(checkedValue, { email: null, phone: null });
@@ -242,6 +289,10 @@ async function submit() {
     data.append("email", form.email);
     if (form.phone) data.append("phone", form.phone);
     if (form.note) data.append("note", form.note);
+    if (form.applied_position_id) data.append("applied_position_id", form.applied_position_id);
+    if (form.desired_contract_type) data.append("desired_contract_type", form.desired_contract_type);
+    if (form.source) data.append("source", form.source);
+    if (form.source_note?.trim()) data.append("source_note", form.source_note.trim());
     if (file) data.append("cv_file", file);
 
     loading.value = true;

@@ -4,7 +4,11 @@
         icon="mdi-briefcase-search-outline"
         size="md"
         :title="isEdit ? 'Sửa đợt tuyển' : 'Mở đợt tuyển dụng'"
-        subtitle="Số người cần tuyển cũng là giới hạn số CV được Admin duyệt — đủ thì tự ngưng nhận CV."
+        :subtitle="
+            isGeneral
+                ? 'Tuyển dụng chung: nhận CV mọi vị trí, không giới hạn số lượng — ứng viên tự chọn vị trí ứng tuyển, phòng ban/chức vụ chốt khi gửi offer.'
+                : 'Số người cần tuyển cũng là giới hạn số CV được Admin duyệt — đủ thì tự ngưng nhận CV.'
+        "
         :error="loadError"
         :loading="loading"
         :submit-label="isEdit ? 'Lưu thay đổi' : 'Mở đợt tuyển'"
@@ -21,7 +25,13 @@
                     :error-messages="errors.title"
                 />
             </FormField>
-            <FormField required>
+            <FormField label="Kiểu đợt tuyển" span="full">
+                <v-btn-toggle v-model="isGeneral" mandatory color="primary" variant="outlined" density="comfortable" divided>
+                    <v-btn :value="false" prepend-icon="mdi-briefcase-outline">Theo phòng ban / chức vụ</v-btn>
+                    <v-btn :value="true" prepend-icon="mdi-account-group-outline">Tuyển dụng chung</v-btn>
+                </v-btn-toggle>
+            </FormField>
+            <FormField v-if="!isGeneral" required>
                 <template #label>
                     Phòng ban
                     <v-btn
@@ -45,7 +55,7 @@
                     @update:model-value="onDepartmentChange"
                 />
             </FormField>
-            <FormField>
+            <FormField v-if="!isGeneral">
                 <template #label>
                     Chức vụ
                     <v-btn
@@ -80,7 +90,7 @@
                     :error-messages="errors.contract_type"
                 />
             </FormField>
-            <FormField label="Số người cần tuyển" required hint="= số CV tối đa được duyệt">
+            <FormField v-if="!isGeneral" label="Số người cần tuyển" required hint="= số CV tối đa được duyệt">
                 <v-text-field
                     v-model.number="form.headcount"
                     type="number"
@@ -164,6 +174,8 @@ const loading = ref(false);
 const errors = ref({});
 const loadError = ref("");
 const allPositions = ref([]);
+// Tuyển dụng chung = không phòng ban/chức vụ, không giới hạn số lượng.
+const isGeneral = ref(false);
 
 const form = reactive({
     title: "",
@@ -235,6 +247,7 @@ watch(
             return;
         }
         const o = props.opening;
+        isGeneral.value = !!o && !o.department_id;
         Object.assign(form, {
             title: o?.title ?? "",
             department_id: o?.department_id ?? null,
@@ -262,6 +275,7 @@ async function submit() {
     loading.value = true;
     const payload = {
         ...form,
+        ...(isGeneral.value ? { department_id: null, position_id: null, headcount: null } : {}),
         deadline: form.deadline || null,
         description: form.description || null,
     };

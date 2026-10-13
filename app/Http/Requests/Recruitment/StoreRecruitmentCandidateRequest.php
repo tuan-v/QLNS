@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Recruitment;
 
+use App\Models\RecruitmentCandidate;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreRecruitmentCandidateRequest extends FormRequest
 {
@@ -20,6 +22,12 @@ class StoreRecruitmentCandidateRequest extends FormRequest
             // khi trúng tuyển, số này dùng được ngay ở form tạo nhân viên.
             'phone' => ['nullable', 'digits:10'],
             'note' => ['nullable', 'string', 'max:2000'],
+            // Đợt tuyển chung: vị trí ứng tuyển (chức vụ có sẵn) + hình thức mong muốn.
+            'applied_position_id' => ['nullable', 'integer', Rule::exists('positions', 'id')->whereNull('deleted_at')],
+            'desired_contract_type' => ['nullable', 'in:thu_viec,chinh_thuc,thuc_tap'],
+            // Kênh nhận CV (báo cáo tuyển dụng theo nguồn) + ghi chú (vd tên người giới thiệu).
+            'source' => ['nullable', Rule::in(array_keys(RecruitmentCandidate::SOURCES))],
+            'source_note' => ['nullable', 'string', 'max:255'],
             'cv_file' => ['required', 'file', 'mimes:pdf', 'max:10240'],
         ];
     }
@@ -33,6 +41,10 @@ class StoreRecruitmentCandidateRequest extends FormRequest
             'email.email' => 'Email không đúng định dạng',
             'phone.digits' => 'Số điện thoại phải gồm đúng 10 chữ số',
             'note.max' => 'Ghi chú không được vượt quá 2000 ký tự',
+            'applied_position_id.exists' => 'Vị trí ứng tuyển không tồn tại',
+            'desired_contract_type.in' => 'Hình thức mong muốn không hợp lệ',
+            'source.in' => 'Nguồn ứng viên không hợp lệ',
+            'source_note.max' => 'Ghi chú nguồn tối đa 255 ký tự',
             'cv_file.required' => 'Vui lòng đính kèm CV',
             'cv_file.file' => 'Tệp CV không hợp lệ',
             'cv_file.mimes' => 'CV phải là tệp PDF',

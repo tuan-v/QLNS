@@ -37,6 +37,47 @@
             />
         </div>
 
+        <!-- Nguồn ứng viên áp cho TẤT CẢ CV trong lần tải này (vd cả loạt từ TopCV) -->
+        <div class="d-flex flex-wrap ga-3 mb-3">
+            <v-select
+                v-model="applied.source"
+                :items="CANDIDATE_SOURCE_OPTIONS"
+                label="Nguồn ứng viên (áp cho cả lần tải)"
+                clearable
+                density="comfortable"
+                hide-details
+                style="min-width: 260px; flex: 1"
+            />
+            <v-text-field
+                v-model="applied.source_note"
+                label="Ghi chú nguồn"
+                density="comfortable"
+                hide-details
+                style="min-width: 200px; flex: 1"
+            />
+        </div>
+        <!-- Đợt tuyển chung: vị trí + hình thức áp cho TẤT CẢ CV trong lần tải này -->
+        <div v-if="isGeneral" class="d-flex flex-wrap ga-3 mb-3">
+            <v-autocomplete
+                v-model="applied.applied_position_id"
+                :items="positionItems"
+                label="Vị trí ứng tuyển (áp cho cả lần tải)"
+                clearable
+                density="comfortable"
+                hide-details
+                style="min-width: 260px; flex: 2"
+            />
+            <v-select
+                v-model="applied.desired_contract_type"
+                :items="DESIRED_CONTRACT_ITEMS"
+                label="Hình thức mong muốn"
+                clearable
+                density="comfortable"
+                hide-details
+                style="min-width: 200px; flex: 1"
+            />
+        </div>
+
         <v-alert
             v-if="skipped.length"
             type="warning"
@@ -132,6 +173,8 @@
 </template>
 
 <script setup>
+import { useRecruitmentPositions } from "../../composables/useRecruitmentPositions";
+import { CANDIDATE_SOURCE_OPTIONS, CONTRACT_TYPE_LABELS } from "../../composables/recruitmentStatus";
 import { computed, ref, watch } from "vue";
 import recruitmentService from "../../services/recruitmentService";
 import FormDialog from "../../components/common/FormDialog.vue";
@@ -157,6 +200,10 @@ const skipped = ref([]);
 let keySeq = 0;
 
 const pendingRows = computed(() => rows.value.filter((r) => !r.done));
+const isGeneral = computed(() => !!props.opening && !props.opening.department_id);
+const applied = ref({ applied_position_id: null, desired_contract_type: null, source: null, source_note: "" });
+const { positionItems } = useRecruitmentPositions();
+const DESIRED_CONTRACT_ITEMS = Object.entries(CONTRACT_TYPE_LABELS).map(([value, title]) => ({ title, value }));
 
 watch(
     () => props.modelValue,
@@ -164,6 +211,7 @@ watch(
         if (isOpen) {
             rows.value = [];
             skipped.value = [];
+            applied.value = { applied_position_id: null, desired_contract_type: null, source: null, source_note: "" };
             loadError.value = "";
         }
     },
@@ -251,6 +299,10 @@ async function submit() {
             data.append("email", row.email.trim());
             if (row.phone) data.append("phone", row.phone);
             data.append("cv_file", row.file);
+            if (applied.value.applied_position_id) data.append("applied_position_id", applied.value.applied_position_id);
+            if (applied.value.desired_contract_type) data.append("desired_contract_type", applied.value.desired_contract_type);
+            if (applied.value.source) data.append("source", applied.value.source);
+            if (applied.value.source_note?.trim()) data.append("source_note", applied.value.source_note.trim());
             try {
                 await recruitmentService.addCandidate(props.opening.id, data);
                 row.done = true;

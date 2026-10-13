@@ -16,12 +16,13 @@ class RecruitmentOpeningResource extends JsonResource
             'position' => $this->whenLoaded('position'),
             'position_id' => $this->position_id,
             'contract_type' => $this->contract_type,
-            'interview_question_set_id' => $this->interview_question_set_id,
-            'question_set' => $this->whenLoaded('questionSet', fn () => $this->questionSet ? [
-                'id' => $this->questionSet->id,
-                'name' => $this->questionSet->name,
-                'pass_percent' => (float) $this->questionSet->pass_percent,
-            ] : null),
+            // Các bộ câu hỏi + tỉ trọng % (InterviewScorecardService).
+            'question_sets' => $this->whenLoaded('questionSets', fn () => $this->questionSets->map(fn ($set) => [
+                'id' => $set->id,
+                'name' => $set->name,
+                'pass_percent' => (float) $set->pass_percent,
+                'weight' => (int) $set->pivot->weight,
+            ])->values()),
             'headcount' => $this->headcount,
             'approved_count' => (int) ($this->approved_count ?? 0),
             'pending_count' => (int) ($this->pending_count ?? 0),

@@ -68,8 +68,9 @@
                     {{ item.title }}
                 </router-link>
                 <div class="text-caption" style="opacity: 0.7">
-                    {{ item.department?.name ?? "—"
-                    }}<template v-if="item.position"> · {{ item.position.name }}</template>
+                    <v-chip v-if="!item.department_id" size="x-small" color="info" variant="tonal" class="mr-1">Tuyển dụng chung</v-chip>
+                    <template v-else>{{ item.department?.name ?? "—" }}</template
+                    ><template v-if="item.position"> · {{ item.position.name }}</template>
                     ·
                     {{ OPENING_CONTRACT_TYPE_LABELS[item.contract_type] ?? item.contract_type }}
                 </div>
@@ -77,10 +78,12 @@
             <template #item.progress="{ item }">
                 <div style="min-width: 160px">
                     <div class="d-flex justify-space-between text-caption mb-1">
-                        <span>{{ item.approved_count }}/{{ item.headcount }} CV đã duyệt</span>
+                        <span v-if="item.headcount">{{ item.approved_count }}/{{ item.headcount }} CV đã duyệt</span>
+                        <span v-else>{{ item.approved_count }} CV đã duyệt · không giới hạn</span>
                         <span v-if="item.pending_count" class="text-warning">{{ item.pending_count }} chờ duyệt</span>
                     </div>
                     <v-progress-linear
+                        v-if="item.headcount"
                         :model-value="(item.approved_count / item.headcount) * 100"
                         :color="item.approved_count >= item.headcount ? 'info' : 'primary'"
                         rounded
