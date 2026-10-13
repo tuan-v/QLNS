@@ -21,6 +21,15 @@ export function useRememberedRef(key, defaultValue) {
 
     const value = ref(read());
 
+    // F5: component có thể dựng TRƯỚC khi tải xong tài khoản (đọc nhầm khóa "anon") —
+    // có người dùng rồi thì đọc lại đúng khóa của họ.
+    watch(
+        () => auth.user?.id,
+        (id, oldId) => {
+            if (id !== oldId) value.value = read();
+        },
+    );
+
     watch(value, (next) => {
         try {
             localStorage.setItem(storageKey(), JSON.stringify(next ?? null));
