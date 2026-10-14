@@ -86,7 +86,7 @@
                 />
             </FormField>
             <!-- Email không có link: ứng viên liên hệ người này để báo chấp nhận / từ chối. -->
-            <FormField label="Người liên hệ (ghi trong email)" required>
+            <FormField label="Người liên hệ" required>
                 <v-text-field
                     v-model="form.contact_name"
                     :rules="[(v) => !!v?.trim() || 'Vui lòng nhập người liên hệ']"
@@ -107,7 +107,7 @@
                     :error-messages="errors.contact_phone"
                 />
             </FormField>
-            <FormField label="Email liên hệ (email hệ thống công ty)" hint="Cố định theo cấu hình hệ thống — ứng viên bấm &quot;Trả lời&quot; email thư mời là gửi về hộp thư này" span="full">
+            <FormField label="Email liên hệ" span="full">
                 <v-text-field
                     :model-value="form.contact_email || 'Chưa cấu hình email công ty'"
                     readonly
@@ -170,7 +170,9 @@ const saving = ref(false);
 const contractOptions = Object.entries(CONTRACT_TYPE_LABELS).map(([value, title]) => ({ title, value }));
 const { positions, positionById } = useRecruitmentPositions();
 const positionOptions = computed(() =>
-    positions.value.filter((p) => p.department_id === form.value.department_id).map((p) => ({ title: p.name, value: p.id })),
+    positions.value
+        .filter((p) => p.department_id === form.value.department_id)
+        .map((p) => ({ title: p.name, value: p.id })),
 );
 
 function onDepartmentChange() {
