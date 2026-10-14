@@ -23,6 +23,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
+use App\Events\NotificationCreated;
 
 // "Trang quản lý tự làm mới realtime" mở rộng ra TOÀN BỘ trang còn lại (mục
 // 34 CODE_MAP, 2026-09-25, theo yêu cầu người dùng "làm toàn bộ trang cũng có
@@ -61,16 +62,16 @@ class ResourceSyncTest extends TestCase
 
     private function makeDepartment(): Department
     {
-        return Department::create(['name' => 'Phong '.uniqid(), 'code' => 'PB-'.uniqid()]);
+        return Department::create(['name' => 'Phong ' . uniqid(), 'code' => 'PB-' . uniqid()]);
     }
 
     private function makeEmployee(array $overrides = []): Employee
     {
         return Employee::create(array_merge([
-            'full_name' => 'Nhan vien '.uniqid(),
-            'company_email' => uniqid().'@qlns.local',
+            'full_name' => 'Nhan vien ' . uniqid(),
+            'company_email' => uniqid() . '@qlns.local',
             'hire_date' => now(),
-            'code' => 'NV-'.uniqid(),
+            'code' => 'NV-' . uniqid(),
             'department_id' => $this->makeDepartment()->id,
         ], $overrides));
     }
@@ -78,8 +79,10 @@ class ResourceSyncTest extends TestCase
     private function makeEmployeeWithLogin(string $roleName = 'Employee'): User
     {
         $user = User::create([
-            'email' => 'sync-'.uniqid().'@qlns.local', 'user_name' => 'Sync User',
-            'password' => bcrypt('Secret@123'), 'status' => 'active',
+            'email' => 'sync-' . uniqid() . '@qlns.local',
+            'user_name' => 'Sync User',
+            'password' => bcrypt('Secret@123'),
+            'status' => 'active',
         ]);
         Role::where('name', $roleName)->first()->users()->attach($user->id);
 
@@ -91,7 +94,7 @@ class ResourceSyncTest extends TestCase
         $response = $this->postJson('/api/v1/broadcasting/auth', [
             'socket_id' => '123.456',
             'channel_name' => "private-resource-sync.{$resource}",
-        ], ['Authorization' => 'Bearer '.$token]);
+        ], ['Authorization' => 'Bearer ' . $token]);
 
         $response->assertStatus(200);
     }
@@ -101,7 +104,7 @@ class ResourceSyncTest extends TestCase
         $response = $this->postJson('/api/v1/broadcasting/auth', [
             'socket_id' => '123.456',
             'channel_name' => "private-resource-sync.{$resource}",
-        ], ['Authorization' => 'Bearer '.$token]);
+        ], ['Authorization' => 'Bearer ' . $token]);
 
         $response->assertStatus(403);
     }
@@ -140,7 +143,7 @@ class ResourceSyncTest extends TestCase
         app(DepartmentService::class)->update($department, ['name' => 'Phong da doi ten']);
         app(DepartmentService::class)->delete($department);
 
-        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'departments');
+        Event::assertDispatched(ResourceChanged::class, fn(ResourceChanged $e) => $e->resource === 'departments');
         Event::assertDispatchedTimes(ResourceChanged::class, 3);
     }
 
@@ -153,14 +156,14 @@ class ResourceSyncTest extends TestCase
         app(PositionService::class)->update($position, ['name' => 'Doi ten']);
         app(PositionService::class)->delete($position);
 
-        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'positions');
+        Event::assertDispatched(ResourceChanged::class, fn(ResourceChanged $e) => $e->resource === 'positions');
         Event::assertDispatchedTimes(ResourceChanged::class, 3);
     }
 
     public function test_role_and_permission_mutations_dispatch_resource_changed_as_roles(): void
     {
         Event::fake([ResourceChanged::class]);
-        $role = app(RoleService::class)->create(['name' => 'Role test '.uniqid()]);
+        $role = app(RoleService::class)->create(['name' => 'Role test ' . uniqid()]);
         app(RoleService::class)->update($role, ['description' => 'Mo ta']);
 
         $permission = app(PermissionService::class)->create(['code' => 'test.action', 'name' => 'Test action']);
@@ -168,7 +171,7 @@ class ResourceSyncTest extends TestCase
         app(PermissionService::class)->delete($permission);
         app(RoleService::class)->delete($role);
 
-        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'roles');
+        Event::assertDispatched(ResourceChanged::class, fn(ResourceChanged $e) => $e->resource === 'roles');
         Event::assertDispatchedTimes(ResourceChanged::class, 6);
     }
 
@@ -176,22 +179,28 @@ class ResourceSyncTest extends TestCase
     {
         Event::fake([ResourceChanged::class]);
         $workShift = app(WorkShiftService::class)->create([
-            'name' => 'Ca test', 'start_time' => '08:00', 'end_time' => '17:00', 'standard_work_minutes' => 480,
+            'name' => 'Ca test',
+            'start_time' => '08:00',
+            'end_time' => '17:00',
+            'standard_work_minutes' => 480,
         ]);
 
         app(WorkShiftService::class)->update($workShift, ['name' => 'Ca da doi ten']);
         app(WorkShiftService::class)->delete($workShift);
 
-        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'work_shifts');
+        Event::assertDispatched(ResourceChanged::class, fn(ResourceChanged $e) => $e->resource === 'work_shifts');
     }
 
     public function test_attendance_adjustment_request_and_decision_dispatch_resource_changed(): void
     {
-        Event::fake([ResourceChanged::class]);
+        Event::fake([ResourceChanged::class, NotificationCreated::class]);
         $employee = $this->makeEmployee();
         $workShift = WorkShift::create([
-            'code' => 'CA-'.uniqid(), 'name' => 'Ca test',
-            'start_time' => '08:00', 'end_time' => '17:00', 'standard_work_minutes' => 480,
+            'code' => 'CA-' . uniqid(),
+            'name' => 'Ca test',
+            'start_time' => '08:00',
+            'end_time' => '17:00',
+            'standard_work_minutes' => 480,
         ]);
         $attendance = Attendance::create([
             'employee_id' => $employee->id,
@@ -210,7 +219,7 @@ class ResourceSyncTest extends TestCase
         ], $employee->user_id ?? $hr->id);
         app(AttendanceAdjustmentService::class)->decide($adjustment, 'approved', null, $hr->id);
 
-        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'attendance_adjustments');
+        Event::assertDispatched(ResourceChanged::class, fn(ResourceChanged $e) => $e->resource === 'attendance_adjustments');
     }
 
     public function test_employee_update_and_delete_dispatch_resource_changed(): void
@@ -221,7 +230,7 @@ class ResourceSyncTest extends TestCase
         app(EmployeeService::class)->update($employee, ['full_name' => 'Ten moi']);
         app(EmployeeService::class)->delete($employee);
 
-        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'employees');
+        Event::assertDispatched(ResourceChanged::class, fn(ResourceChanged $e) => $e->resource === 'employees');
     }
 
     public function test_payroll_close_and_mark_as_paid_dispatch_resource_changed(): void
@@ -229,13 +238,16 @@ class ResourceSyncTest extends TestCase
         Event::fake([ResourceChanged::class]);
         $admin = User::where('email', 'admin@qlns.local')->firstOrFail();
         $payroll = Payroll::create([
-            'period_month' => now()->month, 'period_year' => now()->year,
-            'status' => 'processing', 'currency' => 'VND', 'created_by' => $admin->id,
+            'period_month' => now()->month,
+            'period_year' => now()->year,
+            'status' => 'processing',
+            'currency' => 'VND',
+            'created_by' => $admin->id,
         ]);
 
         app(PayrollService::class)->close($payroll, $admin);
         app(PayrollService::class)->markAsPaid($payroll->fresh());
 
-        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'payrolls');
+        Event::assertDispatched(ResourceChanged::class, fn(ResourceChanged $e) => $e->resource === 'payrolls');
     }
 }

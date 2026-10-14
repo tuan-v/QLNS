@@ -12,6 +12,7 @@ class ExampleTest extends TestCase
      */
     public function test_the_application_entry_page_contains_the_vue_mount_point(): void
     {
+        $this->withoutVite();
         $response = $this->get('/');
 
         $response
