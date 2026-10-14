@@ -143,7 +143,7 @@ class ResourceSyncTest extends TestCase
         app(DepartmentService::class)->update($department, ['name' => 'Phong da doi ten']);
         app(DepartmentService::class)->delete($department);
 
-        Event::assertDispatched(ResourceChanged::class, fn(ResourceChanged $e) => $e->resource === 'departments');
+        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'departments');
         Event::assertDispatchedTimes(ResourceChanged::class, 3);
     }
 
@@ -156,7 +156,7 @@ class ResourceSyncTest extends TestCase
         app(PositionService::class)->update($position, ['name' => 'Doi ten']);
         app(PositionService::class)->delete($position);
 
-        Event::assertDispatched(ResourceChanged::class, fn(ResourceChanged $e) => $e->resource === 'positions');
+        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'positions');
         Event::assertDispatchedTimes(ResourceChanged::class, 3);
     }
 
@@ -171,7 +171,7 @@ class ResourceSyncTest extends TestCase
         app(PermissionService::class)->delete($permission);
         app(RoleService::class)->delete($role);
 
-        Event::assertDispatched(ResourceChanged::class, fn(ResourceChanged $e) => $e->resource === 'roles');
+        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'roles');
         Event::assertDispatchedTimes(ResourceChanged::class, 6);
     }
 
@@ -188,7 +188,7 @@ class ResourceSyncTest extends TestCase
         app(WorkShiftService::class)->update($workShift, ['name' => 'Ca da doi ten']);
         app(WorkShiftService::class)->delete($workShift);
 
-        Event::assertDispatched(ResourceChanged::class, fn(ResourceChanged $e) => $e->resource === 'work_shifts');
+        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'work_shifts');
     }
 
     public function test_attendance_adjustment_request_and_decision_dispatch_resource_changed(): void
@@ -219,7 +219,7 @@ class ResourceSyncTest extends TestCase
         ], $employee->user_id ?? $hr->id);
         app(AttendanceAdjustmentService::class)->decide($adjustment, 'approved', null, $hr->id);
 
-        Event::assertDispatched(ResourceChanged::class, fn(ResourceChanged $e) => $e->resource === 'attendance_adjustments');
+        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'attendance_adjustments');
     }
 
     public function test_employee_update_and_delete_dispatch_resource_changed(): void
@@ -230,7 +230,7 @@ class ResourceSyncTest extends TestCase
         app(EmployeeService::class)->update($employee, ['full_name' => 'Ten moi']);
         app(EmployeeService::class)->delete($employee);
 
-        Event::assertDispatched(ResourceChanged::class, fn(ResourceChanged $e) => $e->resource === 'employees');
+        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'employees');
     }
 
     public function test_payroll_close_and_mark_as_paid_dispatch_resource_changed(): void
@@ -248,6 +248,6 @@ class ResourceSyncTest extends TestCase
         app(PayrollService::class)->close($payroll, $admin);
         app(PayrollService::class)->markAsPaid($payroll->fresh());
 
-        Event::assertDispatched(ResourceChanged::class, fn(ResourceChanged $e) => $e->resource === 'payrolls');
+        Event::assertDispatched(ResourceChanged::class, fn (ResourceChanged $e) => $e->resource === 'payrolls');
     }
 }
