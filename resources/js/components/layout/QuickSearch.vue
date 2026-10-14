@@ -98,6 +98,20 @@ const ALL_ITEMS = [
         keywords: ["bao cao", "tuyen dung", "pheu", "nguon ung vien", "ti le", "funnel"],
     },
     {
+        name: "projects",
+        title: "Dự án",
+        icon: "mdi-folder-multiple-outline",
+        permission: null,
+        keywords: ["du an", "project", "lead", "thanh vien", "giao viec"],
+    },
+    {
+        name: "my-tasks",
+        title: "Công việc của tôi",
+        icon: "mdi-checkbox-marked-circle-outline",
+        permission: null,
+        keywords: ["cong viec", "task", "viec duoc giao", "han", "nop"],
+    },
+    {
         name: "holidays",
         title: "Ngày nghỉ lễ",
         icon: "mdi-calendar-star",

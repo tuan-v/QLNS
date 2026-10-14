@@ -34,10 +34,20 @@ const TYPE_ROUTES = {
     "recruitment.interview_confirmation": "interview-schedule",
     "bank_account.pending": "employee-detail",
     "bank_account.reviewed": "my-profile",
+    // Dự án & công việc — mở trang dự án, kèm ?task= để mở thẳng công việc.
+    "project.lead_assigned": "project-detail",
+    "project.member_added": "project-detail",
+    "task.assigned": "project-detail",
+    "task.submitted": "project-detail",
+    "task.approved": "project-detail",
+    "task.returned": "project-detail",
+    "task.due_soon": "project-detail",
+    "task.overdue": "project-detail",
 };
 
 // Tham số route (trang có :id).
 const recruitmentParams = (item) => ({ id: item.data?.recruitment_opening_id });
+const projectParams = (item) => ({ id: item.data?.project_id });
 const TYPE_PARAMS = {
     "recruitment.cv_pending": recruitmentParams,
     "recruitment.opening_created": recruitmentParams,
@@ -48,6 +58,14 @@ const TYPE_PARAMS = {
     "recruitment.offer_responded": recruitmentParams,
     "bank_account.pending": (item) => ({ id: item.data?.employee_id }),
     "holiday.announcement": (item) => ({ groupCode: item.data?.group_code }),
+    "project.lead_assigned": projectParams,
+    "project.member_added": projectParams,
+    "task.assigned": projectParams,
+    "task.submitted": projectParams,
+    "task.approved": projectParams,
+    "task.returned": projectParams,
+    "task.due_soon": projectParams,
+    "task.overdue": projectParams,
 };
 
 const TYPE_QUERY = {
@@ -58,6 +76,12 @@ const TYPE_QUERY = {
     // Mở thẳng hộp thoại xem/duyệt offer của ứng viên.
     "recruitment.offer_pending": (item) => ({ offer: item.data?.candidate_id }),
     "bank_account.reviewed": () => ({ tab: "bank" }),
+    "task.assigned": (item) => ({ task: item.data?.task_id }),
+    "task.submitted": (item) => ({ task: item.data?.task_id }),
+    "task.approved": (item) => ({ task: item.data?.task_id }),
+    "task.returned": (item) => ({ task: item.data?.task_id }),
+    "task.due_soon": (item) => ({ task: item.data?.task_id }),
+    "task.overdue": (item) => ({ task: item.data?.task_id }),
 };
 
 export function notificationTarget(item) {

@@ -227,6 +227,15 @@ const menu = [
         ],
     },
     {
+        key: "projects",
+        icon: "mdi-folder-multiple-outline",
+        title: "Dự án",
+        children: [
+            { key: "project-list", icon: "mdi-folder-account-outline", title: "Dự án", to: "/du-an" },
+            { key: "my-tasks", icon: "mdi-checkbox-marked-circle-outline", title: "Công việc của tôi", to: "/cong-viec-cua-toi" },
+        ],
+    },
+    {
         key: "attendance",
         icon: "mdi-calendar-check-outline",
         title: "Chấm công",

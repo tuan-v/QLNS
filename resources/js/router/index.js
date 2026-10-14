@@ -224,6 +224,26 @@ const routes = [
         meta: { title: "Báo cáo tuyển dụng", permission: ["recruitment.manage", "recruitment.approve"] },
         component: () => import("../views/Recruitment/RecruitmentReport.vue"),
     },
+    // Dự án & công việc (2026-10-14) — không gắn mã quyền: ai cũng có thể là thành viên/Lead
+    // của dự án nào đó; API tự lọc theo thành viên (ProjectService).
+    {
+        path: "/du-an",
+        name: "projects",
+        meta: { title: "Dự án" },
+        component: () => import("../views/Project/Projects.vue"),
+    },
+    {
+        path: "/du-an/:id",
+        name: "project-detail",
+        meta: { title: "Chi tiết dự án" },
+        component: () => import("../views/Project/ProjectDetail.vue"),
+    },
+    {
+        path: "/cong-viec-cua-toi",
+        name: "my-tasks",
+        meta: { title: "Công việc của tôi" },
+        component: () => import("../views/Project/MyTasks.vue"),
+    },
 ];
 
 const router = createRouter({

@@ -218,6 +218,14 @@ const TYPE_CATEGORY = {
     "recruitment.interview_confirmation": "Lịch phỏng vấn",
     "bank_account.pending": "Tài khoản ngân hàng",
     "bank_account.reviewed": "Tài khoản ngân hàng",
+    "project.lead_assigned": "Dự án",
+    "project.member_added": "Dự án",
+    "task.assigned": "Công việc",
+    "task.submitted": "Công việc",
+    "task.approved": "Công việc",
+    "task.returned": "Công việc",
+    "task.due_soon": "Công việc",
+    "task.overdue": "Công việc",
 };
 
 // Thông báo hệ thống (không có actor) — icon + màu theo loại.
@@ -226,6 +234,15 @@ function systemIcon(item) {
         return item.data?.status === "approved"
             ? { icon: "mdi-check-circle-outline", color: "success" }
             : { icon: "mdi-close-circle-outline", color: "error" };
+    }
+    if (item.type === "task.overdue" || item.type === "task.due_soon") {
+        return { icon: "mdi-clock-alert-outline", color: item.type === "task.overdue" ? "error" : "warning" };
+    }
+    if (item.type === "task.approved") {
+        return { icon: "mdi-check-decagram-outline", color: "success" };
+    }
+    if (item.type === "task.returned") {
+        return { icon: "mdi-undo-variant", color: "warning" };
     }
     if (item.type === "holiday.confirm_needed") {
         return { icon: "mdi-calendar-alert", color: "warning" };
