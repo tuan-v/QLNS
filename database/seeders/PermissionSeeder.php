@@ -51,6 +51,10 @@ class PermissionSeeder extends Seeder
             ['code' => 'recruitment.manage', 'name' => 'Quản lý tuyển dụng (đợt tuyển, CV, phỏng vấn)'],
             ['code' => 'recruitment.approve', 'name' => 'Duyệt CV ứng viên'],
 
+            // Dự án & công việc (2026-10-14) — tạo dự án, chọn Lead, xem mọi dự án.
+            // Quyền của Lead/thành viên đi theo TỪNG dự án (project_members), không qua mã quyền.
+            ['code' => 'project.manage', 'name' => 'Quản lý dự án (tạo dự án, chọn Lead, xem mọi dự án)'],
+
             // Payroll
             ['code' => 'payroll.view_own', 'name' => 'Xem phiếu lương của bản thân'],
             ['code' => 'payroll.view_all', 'name' => 'Xem bảng lương toàn công ty'],

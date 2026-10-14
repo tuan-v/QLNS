@@ -38,3 +38,5 @@ Schedule::command('attendance:remind-checkout')->everyMinute();
 // đầu tháng (sang năm mới luôn có sẵn lịch), và gửi thông báo trước mỗi dịp nghỉ.
 Schedule::command('holidays:generate')->monthlyOn(1, '00:30');
 Schedule::command('holidays:notify')->dailyAt('08:00');
+// Dự án: nhắc công việc sắp tới hạn / quá hạn (đầu giờ làm).
+Schedule::command('projects:remind-tasks')->dailyAt('08:05');

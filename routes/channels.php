@@ -80,6 +80,9 @@ Broadcast::channel('resource-sync.{resource}', function (User $user, string $res
         'employee_bank_accounts' => 'employee.update',
         // Lịch nghỉ lễ — trang /ngay-nghi-le ai đăng nhập cũng xem được.
         'holidays' => null,
+        // Dự án (2026-10-14) — ai đăng nhập cũng có thể là thành viên/Lead dự án nào đó;
+        // tín hiệu chỉ báo "có gì vừa đổi", dữ liệu thật do API lọc theo thành viên.
+        'projects' => null,
         default => false,
     };
 
