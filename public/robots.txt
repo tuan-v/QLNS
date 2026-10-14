@@ -1,2 +1,3 @@
+# QLNS là hệ thống nội bộ — không cho bot (tìm kiếm, AI) thu thập trang nào.
 User-agent: *
-Disallow:
+Disallow: /

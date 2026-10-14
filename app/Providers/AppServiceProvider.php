@@ -74,14 +74,30 @@ class AppServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('api', function (Request $request) use ($tooManyAttempts) {
-            return config('rate_limits.enabled')
-                // Throttle chạy TRƯỚC middleware xác thực nên chưa có user — khóa theo
-                // token của phiên (mỗi người 1 bộ đếm riêng, cả văn phòng chung 1 IP
-                // không chặn lẫn nhau); chưa có token thì khóa theo IP.
-                ? Limit::perMinute(config('rate_limits.api_per_minute'))
-                    ->by($request->bearerToken() ? sha1($request->bearerToken()) : $request->ip())
-                    ->response($tooManyAttempts)
-                : Limit::none();
+            if (! config('rate_limits.enabled')) {
+                return Limit::none();
+            }
+
+            // Throttle chạy TRƯỚC middleware xác thực nên chưa có user — khóa theo
+            // token của phiên (mỗi người 1 bộ đếm riêng, cả văn phòng chung 1 IP
+            // không chặn lẫn nhau); chưa có token thì khóa theo IP.
+            $token = $request->bearerToken();
+            $limits = [
+                Limit::perMinute(config('rate_limits.api_per_minute'))
+                    ->by($token ? 'token:'.sha1($token) : 'ip:'.$request->ip())
+                    ->response($tooManyAttempts),
+            ];
+
+            // 2026-10-14: token do client TỰ gửi, chưa kiểm tra thật/giả — gửi mỗi request
+            // 1 token giả là có bộ đếm mới, không bao giờ bị chặn. Thêm trần chung theo IP
+            // (tiền tố "ip-all:" để không trộn bộ đếm với giới hạn phía trên).
+            if ($token) {
+                $limits[] = Limit::perMinute(config('rate_limits.api_per_ip_per_minute'))
+                    ->by('ip-all:'.$request->ip())
+                    ->response($tooManyAttempts);
+            }
+
+            return $limits;
         });
     }
 }

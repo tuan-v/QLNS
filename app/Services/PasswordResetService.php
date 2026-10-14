@@ -20,7 +20,9 @@ class PasswordResetService
         private readonly UserRepository $userRepository,
         private readonly PasswordResetRepository $passwordResetRepository,
         private readonly RefreshTokenRepository $refreshTokenRepository,
-    ) {}
+        private readonly LoginLockoutService $loginLockout,
+    ) {
+    }
 
     // Luôn trả về thành công phía Controller kể cả khi email không tồn tại —
     // nếu báo "email không tồn tại" sẽ lộ ra ai đang có tài khoản trong hệ
@@ -82,5 +84,9 @@ class PasswordResetService
             $this->passwordResetRepository->markUsed($record);
             $this->refreshTokenRepository->revokeAllForUser($user);
         });
+
+        // Chủ tài khoản đã chứng minh sở hữu email -> mở khóa đăng nhập ngay (nếu đang bị
+        // khóa tạm do người khác dò mật khẩu), không bắt chờ hết thời gian khóa.
+        $this->loginLockout->clear($record->user->email);
     }
 }

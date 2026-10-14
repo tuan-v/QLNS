@@ -17,16 +17,26 @@ class AuthService
         private readonly UserRepository $userRepository,
         private readonly RefreshTokenRepository $refreshTokenRepository,
         private readonly JwtService $jwtService,
+        private readonly LoginLockoutService $loginLockout,
     ) {
     }
 
     public function login(string $email, string $password, Request $request): array
     {
+        // 1) Đang bị khóa tạm -> từ chối luôn, chưa xét mật khẩu (xem LoginLockoutService).
+        $this->loginLockout->ensureNotLocked($email);
+
         $user = $this->userRepository->findActiveByEmail($email);
 
         if (! $user || ! Hash::check($password, $user->password)) {
+            // 2) Sai -> đếm 1 lần (cộng dồn mọi IP), đủ ngưỡng thì khóa + email báo.
+            $this->loginLockout->recordFailure($email, $user, $request->ip());
+
             throw new AuthenticationException('Email hoặc mật khẩu không đúng.');
         }
+
+        // 3) Đúng -> xóa số lần sai trước đó.
+        $this->loginLockout->clear($email);
 
         return DB::transaction(function () use ($user, $request) {
             $this->userRepository->touchLastLogin($user);

@@ -107,6 +107,30 @@ class HardeningTest extends TestCase
         $this->getJson('/api/v1/health')->assertStatus(429);
     }
 
+    public function test_rotating_fake_tokens_cannot_bypass_the_per_ip_api_limit(): void
+    {
+        config(['rate_limits.enabled' => true, 'rate_limits.api_per_minute' => 100, 'rate_limits.api_per_ip_per_minute' => 3]);
+
+        // Kiểu tấn công: mỗi request 1 token giả mới -> trước đây mỗi lần 1 bộ đếm mới.
+        for ($i = 0; $i < 3; $i++) {
+            $this->getJson('/api/v1/health', ['Authorization' => 'Bearer fake-'.$i])->assertStatus(200);
+        }
+
+        $this->getJson('/api/v1/health', ['Authorization' => 'Bearer fake-new'])->assertStatus(429);
+    }
+
+    public function test_each_session_still_has_its_own_quota_under_the_shared_ip_ceiling(): void
+    {
+        config(['rate_limits.enabled' => true, 'rate_limits.api_per_minute' => 2, 'rate_limits.api_per_ip_per_minute' => 100]);
+
+        // Cả văn phòng chung 1 IP: người A dùng hết quota thì người B vẫn gọi được.
+        $this->getJson('/api/v1/health', ['Authorization' => 'Bearer user-a'])->assertStatus(200);
+        $this->getJson('/api/v1/health', ['Authorization' => 'Bearer user-a'])->assertStatus(200);
+        $this->getJson('/api/v1/health', ['Authorization' => 'Bearer user-a'])->assertStatus(429);
+
+        $this->getJson('/api/v1/health', ['Authorization' => 'Bearer user-b'])->assertStatus(200);
+    }
+
     // ------------------------------------------------- privilege escalation
 
     public function test_hr_cannot_create_an_account_with_the_admin_role(): void
