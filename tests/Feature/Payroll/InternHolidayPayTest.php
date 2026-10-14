@@ -5,7 +5,6 @@ namespace Tests\Feature\Payroll;
 use App\Models\Attendance;
 use App\Models\Department;
 use App\Models\Employee;
-use App\Models\EmployeeContract;
 use App\Models\Holiday;
 use App\Models\HolidayRule;
 use App\Models\User;
