@@ -98,6 +98,20 @@ const ALL_ITEMS = [
         keywords: ["bao cao", "tuyen dung", "pheu", "nguon ung vien", "ti le", "funnel"],
     },
     {
+        name: "user-guide",
+        title: "Hướng dẫn sử dụng",
+        icon: "mdi-help-circle-outline",
+        permission: null,
+        keywords: ["huong dan", "help", "tro giup", "cach dung", "su dung"],
+    },
+    {
+        name: "audit-logs",
+        title: "Nhật ký hoạt động",
+        icon: "mdi-history",
+        permission: "system.audit_log",
+        keywords: ["nhat ky", "lich su", "audit", "log", "ai sua", "dang nhap"],
+    },
+    {
         name: "projects",
         title: "Dự án",
         icon: "mdi-folder-multiple-outline",

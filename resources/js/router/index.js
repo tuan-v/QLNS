@@ -226,6 +226,20 @@ const routes = [
     },
     // Dự án & công việc (2026-10-14) — không gắn mã quyền: ai cũng có thể là thành viên/Lead
     // của dự án nào đó; API tự lọc theo thành viên (ProjectService).
+    // Hướng dẫn sử dụng (2026-10-15) — ai đăng nhập cũng xem được, nội dung lọc theo vai trò.
+    {
+        path: "/huong-dan-su-dung",
+        name: "user-guide",
+        meta: { title: "Hướng dẫn sử dụng" },
+        component: () => import("../views/UserGuide.vue"),
+    },
+    // Nhật ký hoạt động (tài liệu yêu cầu mục 9 "Audit Log") — chỉ Admin.
+    {
+        path: "/nhat-ky-hoat-dong",
+        name: "audit-logs",
+        meta: { title: "Nhật ký hoạt động", permission: "system.audit_log" },
+        component: () => import("../views/AuditLogViewer.vue"),
+    },
     {
         path: "/du-an",
         name: "projects",

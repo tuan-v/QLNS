@@ -102,7 +102,12 @@
         <template #append>
             <v-divider class="mb-1" />
             <v-list nav density="compact" class="px-4 pb-2">
-                <v-list-item prepend-icon="mdi-help-circle-outline" title="Hướng dẫn sử dụng" rounded="lg" disabled />
+                <v-list-item
+                    prepend-icon="mdi-help-circle-outline"
+                    :title="showLabels ? 'Hướng dẫn sử dụng' : undefined"
+                    to="/huong-dan-su-dung"
+                    rounded="lg"
+                />
             </v-list>
         </template>
     </v-navigation-drawer>
@@ -327,7 +332,7 @@ const menu = [
                 to: "/vai-tro-va-phan-quyen",
                 show: () => can("rbac.manage"),
             },
-            { key: "activity-log", icon: "mdi-history", title: "Nhật ký hoạt động", disabled: true },
+            { key: "activity-log", icon: "mdi-history", title: "Nhật ký hoạt động", to: "/nhat-ky-hoat-dong", show: () => can("system.audit_log") },
         ],
     },
 ];
