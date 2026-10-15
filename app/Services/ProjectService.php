@@ -23,6 +23,17 @@ use Illuminate\Validation\ValidationException;
 // Kiểm tra quyền nằm ở Service (không chỉ ẩn nút ở Frontend).
 class ProjectService
 {
+    // Còn <= số ngày này tới ngày kết thúc mà còn việc mở thì nhắc Lead.
+    public const ENDING_SOON_DAYS = 3;
+
+    public const STATUS_LABELS = [
+        Project::STATUS_PLANNING => 'Lên kế hoạch',
+        Project::STATUS_ACTIVE => 'Đang thực hiện',
+        Project::STATUS_ON_HOLD => 'Tạm dừng',
+        Project::STATUS_COMPLETED => 'Hoàn thành',
+        Project::STATUS_CANCELLED => 'Đã hủy',
+    ];
+
     public function __construct(private readonly NotificationService $notificationService)
     {
     }
@@ -177,6 +188,9 @@ class ProjectService
         }
 
         $oldLeadId = $project->lead_employee_id;
+        $oldStatus = $project->status;
+        $oldStart = $project->start_date->toDateString();
+        $oldEnd = $project->end_date?->toDateString();
 
         DB::transaction(function () use ($actor, $project, $data, $oldLeadId) {
             $project->update($data);
@@ -194,6 +208,18 @@ class ProjectService
 
         if ($project->lead_employee_id !== $oldLeadId) {
             $this->notifyLead($actor, $project);
+        }
+
+        // Đổi ngày -> nhắc lại theo ngày mới.
+        if ($project->start_date->toDateString() !== $oldStart) {
+            $project->update(['start_reminded_at' => null]);
+        }
+        if ($project->end_date?->toDateString() !== $oldEnd) {
+            $project->update(['end_soon_notified_at' => null, 'overdue_notified_at' => null]);
+        }
+
+        if ($project->status !== $oldStatus) {
+            $this->notifyMembers($project, $actor, 'project.status_changed', 'Dự án đổi trạng thái', "Dự án \"{$project->name}\" chuyển sang \"".self::STATUS_LABELS[$project->status].'".');
         }
 
         return $project->fresh();
@@ -255,6 +281,77 @@ class ProjectService
         }
 
         $member->delete();
+
+        $this->notify($employee, $actor, 'project.member_removed', 'Bạn đã rời khỏi dự án', "Bạn không còn là thành viên dự án \"{$project->name}\".", [
+            'project_id' => $project->id,
+        ]);
+    }
+
+    /**
+     * Nhắc theo ngày của DỰ ÁN (job projects:remind-tasks, mỗi sáng) — mỗi mốc 1 lần:
+     *  - tới ngày bắt đầu mà còn "Lên kế hoạch" -> nhắc Lead đổi trạng thái (không tự đổi);
+     *  - còn <= ENDING_SOON_DAYS ngày tới ngày kết thúc mà còn việc mở -> Lead;
+     *  - quá ngày kết thúc mà chưa hoàn thành -> Lead + người quản lý dự án.
+     *
+     * @return array{start: int, ending_soon: int, overdue: int}
+     */
+    public function sendProjectReminders(): array
+    {
+        $today = now()->toDateString();
+        $open = fn () => Project::query()->whereNotIn('status', Project::CLOSED_STATUSES)->with('lead.user');
+
+        $starting = $open()->where('status', Project::STATUS_PLANNING)->whereDate('start_date', '<=', $today)
+            ->whereNull('start_reminded_at')->get();
+        foreach ($starting as $project) {
+            if ($project->lead) {
+                $this->notify($project->lead, null, 'project.start_due', 'Dự án đã tới ngày bắt đầu', "Dự án \"{$project->name}\" bắt đầu từ ".$project->start_date->format('d/m/Y').' nhưng vẫn ở "Lên kế hoạch" — chuyển sang "Đang thực hiện" khi bắt đầu.', [
+                    'project_id' => $project->id,
+                ]);
+            }
+            $project->update(['start_reminded_at' => now()]);
+        }
+
+        $endingSoon = $open()->whereNotNull('end_date')
+            ->whereDate('end_date', '>=', $today)
+            ->whereDate('end_date', '<=', now()->addDays(self::ENDING_SOON_DAYS)->toDateString())
+            ->whereNull('end_soon_notified_at')
+            ->whereHas('tasks', fn ($q) => $q->whereIn('status', ProjectTask::OPEN_STATUSES))
+            ->withCount(['tasks as open_tasks' => fn ($q) => $q->whereIn('status', ProjectTask::OPEN_STATUSES)])
+            ->get();
+        foreach ($endingSoon as $project) {
+            $days = (int) now()->startOfDay()->diffInDays($project->end_date);
+            $when = $days === 0 ? 'hôm nay' : "sau {$days} ngày";
+            if ($project->lead) {
+                $this->notify($project->lead, null, 'project.ending_soon', 'Dự án sắp tới ngày kết thúc', "Dự án \"{$project->name}\" kết thúc {$when} nhưng còn {$project->open_tasks} việc chưa xong.", [
+                    'project_id' => $project->id,
+                ]);
+            }
+            $project->update(['end_soon_notified_at' => now()]);
+        }
+
+        $overdue = $open()->whereNotNull('end_date')->whereDate('end_date', '<', $today)->whereNull('overdue_notified_at')->get();
+        $managers = User::withPermission('project.manage')->where('status', 'active')->with('employee.user')->get()->pluck('employee')->filter();
+        foreach ($overdue as $project) {
+            $message = "Dự án \"{$project->name}\" đã quá ngày kết thúc (".$project->end_date->format('d/m/Y').') mà chưa hoàn thành — cập nhật trạng thái hoặc gia hạn.';
+            $recipients = collect([$project->lead])->merge($managers)->filter()->unique('id');
+            foreach ($recipients as $employee) {
+                $this->notify($employee, null, 'project.overdue', 'Dự án quá hạn kết thúc', $message, ['project_id' => $project->id]);
+            }
+            $project->update(['overdue_notified_at' => now()]);
+        }
+
+        return ['start' => $starting->count(), 'ending_soon' => $endingSoon->count(), 'overdue' => $overdue->count()];
+    }
+
+    // Báo mọi thành viên dự án (trừ người thao tác).
+    private function notifyMembers(Project $project, ?User $actor, string $type, string $title, string $message): void
+    {
+        // foreach, KHÔNG dùng ->each(): each() dừng vòng lặp khi callback trả về false.
+        foreach ($project->members()->with('employee.user')->get() as $member) {
+            if ($member->employee) {
+                $this->notify($member->employee, $actor, $type, $title, $message, ['project_id' => $project->id]);
+            }
+        }
     }
 
     // Nhân viên đang làm việc, chưa ở trong dự án — ô chọn "Thêm thành viên" của Lead

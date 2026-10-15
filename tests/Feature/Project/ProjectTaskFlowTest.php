@@ -193,8 +193,9 @@ class ProjectTaskFlowTest extends TestCase
         ProjectTask::create(['project_id' => $this->project->id, 'title' => 'Da xong', 'assignee_employee_id' => $this->member->id, 'due_date' => now()->subDay(), 'status' => 'done']);
 
         $service = app(ProjectTaskService::class);
-        $this->assertSame(['due_soon' => 1, 'overdue' => 1], $service->sendReminders());
-        $this->assertSame(['due_soon' => 0, 'overdue' => 0], $service->sendReminders());
+        $first = $service->sendReminders();
+        $this->assertSame([1, 1], [$first['due_soon'], $first['overdue']]);
+        $this->assertSame(0, array_sum($service->sendReminders()));
 
         $this->assertSame(1, Notification::where('user_id', $this->memberUser->id)->where('type', 'task.due_soon')->count());
         $this->assertSame(1, Notification::where('user_id', $this->memberUser->id)->where('type', 'task.overdue')->count());

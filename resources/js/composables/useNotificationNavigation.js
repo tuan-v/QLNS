@@ -14,6 +14,7 @@ import { useNotificationStore } from "../stores/useNotificationStore";
 // điều hướng, chỉ đánh dấu đã đọc).
 const TYPE_ROUTES = {
     "leave.decided": "leave-requests",
+    "leave.balance_adjusted": "leave-requests",
     "holiday.upcoming": "holidays",
     "holiday.confirm_needed": "holidays",
     "holiday.announcement": "holiday-announcement",
@@ -43,6 +44,18 @@ const TYPE_ROUTES = {
     "task.returned": "project-detail",
     "task.due_soon": "project-detail",
     "task.overdue": "project-detail",
+    "task.start_today": "project-detail",
+    "task.due_today": "project-detail",
+    "task.review_pending": "project-detail",
+    "task.unassigned": "project-detail",
+    "task.due_changed": "project-detail",
+    "task.cancelled": "project-detail",
+    "project.start_due": "project-detail",
+    "project.ending_soon": "project-detail",
+    "project.overdue": "project-detail",
+    "project.status_changed": "project-detail",
+    "task.deleted": "project-detail",
+    "project.member_removed": "projects",
 };
 
 // Tham số route (trang có :id).
@@ -66,6 +79,17 @@ const TYPE_PARAMS = {
     "task.returned": projectParams,
     "task.due_soon": projectParams,
     "task.overdue": projectParams,
+    "task.start_today": projectParams,
+    "task.due_today": projectParams,
+    "task.review_pending": projectParams,
+    "task.unassigned": projectParams,
+    "task.due_changed": projectParams,
+    "task.cancelled": projectParams,
+    "project.start_due": projectParams,
+    "project.ending_soon": projectParams,
+    "project.overdue": projectParams,
+    "project.status_changed": projectParams,
+    "task.deleted": projectParams,
 };
 
 const TYPE_QUERY = {
@@ -82,6 +106,12 @@ const TYPE_QUERY = {
     "task.returned": (item) => ({ task: item.data?.task_id }),
     "task.due_soon": (item) => ({ task: item.data?.task_id }),
     "task.overdue": (item) => ({ task: item.data?.task_id }),
+    "task.start_today": (item) => ({ task: item.data?.task_id }),
+    "task.due_today": (item) => ({ task: item.data?.task_id }),
+    "task.review_pending": (item) => ({ task: item.data?.task_id }),
+    "task.unassigned": (item) => ({ task: item.data?.task_id }),
+    "task.due_changed": (item) => ({ task: item.data?.task_id }),
+    "task.cancelled": (item) => ({ task: item.data?.task_id }),
 };
 
 export function notificationTarget(item) {

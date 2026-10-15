@@ -17,6 +17,8 @@ class DashboardService
         private readonly AttendanceService $attendanceService,
         private readonly LeaveRequestService $leaveRequestService,
         private readonly PayrollService $payrollService,
+        private readonly ProjectDashboardService $projectDashboard,
+        private readonly HolidayService $holidayService,
     ) {
     }
 
@@ -54,10 +56,21 @@ class DashboardService
             $result = ['scope' => 'company', 'has_personal_view' => $hasPersonalView]
                 + $this->companyWide($user, $date);
 
-            return $hasPersonalView ? $result + $this->personal($user) : $result;
+            return ($hasPersonalView ? $result + $this->personal($user) : $result) + $this->shared($user);
         }
 
-        return ['scope' => 'personal', 'has_personal_view' => $user->employee !== null] + $this->personal($user);
+        return ['scope' => 'personal', 'has_personal_view' => $user->employee !== null] + $this->personal($user) + $this->shared($user);
+    }
+
+    // Khối dùng chung cho mọi phạm vi (2026-10-15): ngày nghỉ lễ sắp tới, công việc dự án
+    // hôm nay của chính người xem, dự án cần chú ý (người quản lý dự án).
+    private function shared(User $user): array
+    {
+        return [
+            'upcoming_holidays' => $this->holidayService->upcomingForDashboard($user->hasPermission('holiday.manage')),
+            'my_work' => $this->projectDashboard->myWork($user),
+            'projects_attention' => $this->projectDashboard->attention($user),
+        ];
     }
 
     private function companyWide(User $user, string $date): array
@@ -148,6 +161,17 @@ class DashboardService
                     'route' => 'leave-management',
                 ];
             }
+        }
+
+        // Công việc dự án chờ người này duyệt (Lead dự án / người quản lý dự án).
+        $reviewCount = $this->projectDashboard->reviewQueue($user)->count();
+        if ($reviewCount > 0) {
+            $items[] = [
+                'type' => 'project_task_review',
+                'label' => 'Công việc dự án chờ duyệt',
+                'count' => $reviewCount,
+                'route' => 'projects',
+            ];
         }
 
         if ($user->hasPermission('attendance.adjust')) {

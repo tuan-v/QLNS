@@ -199,6 +199,7 @@ const TYPE_CATEGORY = {
     "leave.pending_manager": "Nghỉ phép",
     "leave.pending_hr": "Nghỉ phép",
     "leave.decided": "Nghỉ phép",
+    "leave.balance_adjusted": "Nghỉ phép",
     "holiday.upcoming": "Ngày nghỉ lễ",
     "holiday.confirm_needed": "Ngày nghỉ lễ",
     "holiday.announcement": "Ngày nghỉ lễ",
@@ -226,6 +227,18 @@ const TYPE_CATEGORY = {
     "task.returned": "Công việc",
     "task.due_soon": "Công việc",
     "task.overdue": "Công việc",
+    "task.start_today": "Công việc",
+    "task.due_today": "Công việc",
+    "task.review_pending": "Công việc",
+    "task.unassigned": "Công việc",
+    "task.due_changed": "Công việc",
+    "task.cancelled": "Công việc",
+    "task.deleted": "Công việc",
+    "project.start_due": "Dự án",
+    "project.ending_soon": "Dự án",
+    "project.overdue": "Dự án",
+    "project.status_changed": "Dự án",
+    "project.member_removed": "Dự án",
 };
 
 // Thông báo hệ thống (không có actor) — icon + màu theo loại.
@@ -235,8 +248,14 @@ function systemIcon(item) {
             ? { icon: "mdi-check-circle-outline", color: "success" }
             : { icon: "mdi-close-circle-outline", color: "error" };
     }
-    if (item.type === "task.overdue" || item.type === "task.due_soon") {
-        return { icon: "mdi-clock-alert-outline", color: item.type === "task.overdue" ? "error" : "warning" };
+    if (["task.overdue", "task.due_soon", "task.due_today", "project.overdue", "project.ending_soon", "task.review_pending"].includes(item.type)) {
+        return { icon: "mdi-clock-alert-outline", color: ["task.overdue", "project.overdue"].includes(item.type) ? "error" : "warning" };
+    }
+    if (["task.start_today", "project.start_due"].includes(item.type)) {
+        return { icon: "mdi-play-circle-outline", color: "primary" };
+    }
+    if (["task.cancelled", "task.deleted", "task.unassigned", "project.member_removed"].includes(item.type)) {
+        return { icon: "mdi-minus-circle-outline", color: "grey" };
     }
     if (item.type === "task.approved") {
         return { icon: "mdi-check-decagram-outline", color: "success" };

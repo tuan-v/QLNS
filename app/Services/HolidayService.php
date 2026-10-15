@@ -44,6 +44,36 @@ class HolidayService
 
     /* --------------------------------- Danh sách --------------------------------- */
 
+    /**
+     * Dịp nghỉ sắp tới cho trang Tổng quan (2026-10-15): bắt đầu trong $withinDays ngày tới.
+     * Nhân viên chỉ thấy dịp ĐÃ được HR xác nhận (dịp hệ thống tự tính có thể còn đổi);
+     * người quản lý lịch nghỉ thấy cả dịp chưa xác nhận (kèm cờ để nhắc đi xác nhận).
+     */
+    public function upcomingForDashboard(bool $includeUnconfirmed, int $withinDays = 120, int $limit = 4): array
+    {
+        $today = now()->startOfDay();
+
+        return $this->upcomingGroups($today, $withinDays)
+            ->map(fn (Collection $days) => $this->presentGroup($this->groupKey($days->first()), $days))
+            ->filter(fn (array $group) => $includeUnconfirmed || $group['confirmed'])
+            ->sortBy('start_date')
+            ->take($limit)
+            ->map(fn (array $group) => [
+                'group_code' => $group['group_code'],
+                'name' => $group['name'],
+                'start_date' => $group['start_date'],
+                'end_date' => $group['end_date'],
+                'total_days' => $group['total_days'],
+                'return_date' => $group['return_date'],
+                'is_paid' => $group['is_paid'],
+                'confirmed' => $group['confirmed'],
+                'makeup_days' => $group['makeup_days'],
+                'days_until' => (int) $today->diffInDays(Carbon::parse($group['start_date'])),
+            ])
+            ->values()
+            ->all();
+    }
+
     /** Các dịp nghỉ trong năm, mỗi phần tử là một dịp gồm nhiều ngày. */
     public function listForYear(int $year): array
     {

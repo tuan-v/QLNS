@@ -48,7 +48,8 @@ class ProjectTask extends Model
     protected $fillable = [
         'project_id', 'title', 'description', 'assignee_employee_id', 'priority', 'points',
         'start_date', 'due_date', 'status', 'started_at', 'submitted_at', 'completed_at', 'submission_note', 'quality_score',
-        'review_note', 'return_count', 'reviewed_by', 'due_soon_notified_at', 'overdue_notified_at', 'created_by',
+        'review_note', 'return_count', 'reviewed_by', 'due_soon_notified_at', 'due_today_notified_at', 'start_notified_at',
+        'overdue_notified_at', 'review_reminded_at', 'created_by',
     ];
 
     protected $casts = [
@@ -58,6 +59,9 @@ class ProjectTask extends Model
         'submitted_at' => 'datetime',
         'completed_at' => 'datetime',
         'due_soon_notified_at' => 'datetime',
+        'due_today_notified_at' => 'datetime',
+        'start_notified_at' => 'datetime',
+        'review_reminded_at' => 'datetime',
         'overdue_notified_at' => 'datetime',
         'points' => 'integer',
         'quality_score' => 'integer',

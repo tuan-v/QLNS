@@ -37,11 +37,15 @@ class Project extends Model
     protected $fillable = [
         'code', 'name', 'description', 'department_id', 'lead_employee_id',
         'start_date', 'end_date', 'status', 'created_by',
+        'start_reminded_at', 'end_soon_notified_at', 'overdue_notified_at',
     ];
 
     protected $casts = [
         'start_date' => 'date:Y-m-d',
         'end_date' => 'date:Y-m-d',
+        'start_reminded_at' => 'datetime',
+        'end_soon_notified_at' => 'datetime',
+        'overdue_notified_at' => 'datetime',
     ];
 
     public function isClosed(): bool

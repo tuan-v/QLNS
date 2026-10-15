@@ -65,6 +65,16 @@
                     </v-col>
                 </v-row>
 
+                <!-- 2026-10-15: dự án cần chú ý (người quản lý dự án) + ngày nghỉ lễ sắp tới. -->
+                <v-row class="mt-2" align="stretch">
+                    <v-col v-if="dashboard.projects_attention?.length" cols="12" md="7">
+                        <ProjectsAttentionCard :projects="dashboard.projects_attention" />
+                    </v-col>
+                    <v-col cols="12" :md="dashboard.projects_attention?.length ? 5 : 12">
+                        <UpcomingHolidaysCard :holidays="dashboard.upcoming_holidays ?? []" />
+                    </v-col>
+                </v-row>
+
                 <!-- Bộ lọc ngày (2026-09-25, theo yêu cầu người dùng) — CHỈ ảnh hưởng
                      3 widget bên dưới ("Tỷ lệ đi làm"/"Xu hướng chấm công"/"Phân bổ
                      phòng ban"), KHÔNG ảnh hưởng "Cần bạn xử lý" hay Thông báo (2 cái
@@ -209,6 +219,16 @@
                                 Xem phiếu lương
                             </v-btn>
                         </v-sheet>
+                    </v-col>
+                </v-row>
+
+                <!-- 2026-10-15: công việc dự án hôm nay (+ việc chờ mình duyệt) và ngày nghỉ lễ sắp tới. -->
+                <v-row class="mt-2" align="stretch">
+                    <v-col v-if="dashboard.my_work" cols="12" md="7">
+                        <MyWorkCard :work="dashboard.my_work" />
+                    </v-col>
+                    <v-col cols="12" :md="dashboard.my_work ? 5 : 12">
+                        <UpcomingHolidaysCard :holidays="dashboard.upcoming_holidays ?? []" />
                     </v-col>
                 </v-row>
 
@@ -364,6 +384,9 @@ const GaugeChart = defineAsyncComponent(() => import("../components/dashboard/Ga
 const DonutChart = defineAsyncComponent(() => import("../components/dashboard/DonutChart.vue"));
 const AreaTrendChart = defineAsyncComponent(() => import("../components/dashboard/AreaTrendChart.vue"));
 import PersonalCheckInCard from "../components/dashboard/PersonalCheckInCard.vue";
+import MyWorkCard from "../components/dashboard/MyWorkCard.vue";
+import UpcomingHolidaysCard from "../components/dashboard/UpcomingHolidaysCard.vue";
+import ProjectsAttentionCard from "../components/dashboard/ProjectsAttentionCard.vue";
 import StatusChip from "../components/common/StatusChip.vue";
 import InputDate, { todayIso } from "../components/common/InputDate.vue";
 import { ATTENDANCE_STATUS_MAP } from "../composables/attendanceStatus";
@@ -406,6 +429,7 @@ const ACTION_ICON = {
     attendance_approval: "mdi-clock-check-outline",
     leave_approval: "mdi-calendar-alert-outline",
     attendance_adjustment: "mdi-file-document-edit-outline",
+    project_task_review: "mdi-clipboard-check-outline",
 };
 
 const dashboard = ref(null);
@@ -506,12 +530,17 @@ useRealtimeRefresh(loadDashboard, {
         "shift_assignments",
         "profile",
         "resignations",
+        // Công việc dự án được giao (2026-10-15).
+        "tasks",
     ],
     shared: [
         { resource: "employees", permission: "employee.view" },
         { resource: "attendances", permission: "attendance.view_all" },
         { resource: "leave_requests", permission: ["leave.approve_manager", "leave.approve_hr", "leave.view_all"] },
         "work_shifts_public",
+        // Dự án (việc chờ duyệt, dự án cần chú ý) + lịch nghỉ lễ — ai đăng nhập cũng nghe được.
+        "projects",
+        "holidays",
     ],
 });
 

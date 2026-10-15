@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\ProjectMember;
 use App\Models\ProjectTask;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,9 @@ use Illuminate\Validation\ValidationException;
 // (project.manage) duyệt, Lead không tự duyệt việc của mình.
 class ProjectTaskService
 {
+    // Việc chờ duyệt quá số ngày này thì nhắc người duyệt.
+    public const REVIEW_REMIND_DAYS = 2;
+
     public function __construct(private readonly ProjectService $projectService)
     {
     }
@@ -88,16 +92,32 @@ class ProjectTaskService
         }
         $this->ensureMember($project, $data['assignee_employee_id'] ?? null);
 
-        $oldAssignee = $task->assignee_employee_id;
+        $oldAssignee = $task->assignee;
         $oldDue = $task->due_date->toDateString();
+        $oldStart = $task->start_date?->toDateString();
         $task->update($data);
 
-        // Đổi hạn -> cho phép nhắc lại theo hạn mới.
-        if ($task->due_date->toDateString() !== $oldDue) {
-            $task->update(['due_soon_notified_at' => null, 'overdue_notified_at' => null]);
+        // Đổi ngày -> xóa cờ "đã nhắc" để nhắc lại theo ngày mới.
+        $dueChanged = $task->due_date->toDateString() !== $oldDue;
+        if ($dueChanged) {
+            $task->update(['due_soon_notified_at' => null, 'due_today_notified_at' => null, 'overdue_notified_at' => null]);
         }
-        if ($task->assignee_employee_id && $task->assignee_employee_id !== $oldAssignee) {
-            $this->notifyAssigned($actor, $task);
+        if ($task->start_date?->toDateString() !== $oldStart) {
+            $task->update(['start_notified_at' => null]);
+        }
+
+        $data = ['project_id' => $task->project_id, 'task_id' => $task->id];
+        if ($task->assignee_employee_id !== $oldAssignee?->id) {
+            // Người cũ biết mình không còn phụ trách; người mới nhận thông báo giao việc.
+            if ($oldAssignee) {
+                $this->projectService->notify($oldAssignee, $actor, 'task.unassigned', 'Bạn không còn phụ trách công việc', "\"{$task->title}\" (dự án {$project->name}) đã được giao cho người khác.", $data);
+            }
+            if ($task->assignee_employee_id) {
+                $this->notifyAssigned($actor, $task->unsetRelation('assignee'));
+            }
+        } elseif ($dueChanged && $task->assignee) {
+            $due = $task->due_date->format('d/m/Y');
+            $this->projectService->notify($task->assignee, $actor, 'task.due_changed', 'Công việc đổi hạn hoàn thành', "\"{$task->title}\" đổi hạn từ ".Carbon::parse($oldDue)->format('d/m/Y')." sang {$due}.", $data);
         }
 
         return $task->fresh();
@@ -112,6 +132,13 @@ class ProjectTaskService
 
         $task->update(['status' => ProjectTask::STATUS_CANCELLED]);
 
+        if ($task->assignee) {
+            $this->projectService->notify($task->assignee, $actor, 'task.cancelled', 'Công việc đã bị hủy', "\"{$task->title}\" (dự án {$task->project->name}) đã bị hủy — bạn không cần làm tiếp.", [
+                'project_id' => $task->project_id,
+                'task_id' => $task->id,
+            ]);
+        }
+
         return $task;
     }
 
@@ -123,7 +150,14 @@ class ProjectTaskService
             throw ValidationException::withMessages(['task' => 'Chỉ xóa được công việc chưa bắt đầu — việc đã làm thì dùng "Hủy" để giữ lịch sử.']);
         }
 
+        $assignee = $task->assignee;
         $task->delete();
+
+        if ($assignee) {
+            $this->projectService->notify($assignee, $actor, 'task.deleted', 'Công việc đã bị xóa', "\"{$task->title}\" (dự án {$task->project->name}) đã bị xóa vì tạo nhầm.", [
+                'project_id' => $task->project_id,
+            ]);
+        }
     }
 
     public function start(User $actor, ProjectTask $task): ProjectTask
@@ -151,6 +185,7 @@ class ProjectTaskService
             'status' => ProjectTask::STATUS_IN_REVIEW,
             'submitted_at' => now(),
             'submission_note' => $note,
+            'review_reminded_at' => null,
         ]);
 
         $assigneeName = $task->assignee->full_name;
@@ -222,10 +257,14 @@ class ProjectTaskService
     }
 
     /**
-     * Nhắc hạn (job projects:remind-tasks, hằng ngày): còn 1 ngày tới hạn -> nhắc người làm;
-     * quá hạn -> báo người làm + Lead. Mỗi mốc chỉ nhắc 1 lần (cột *_notified_at).
+     * Nhắc công việc (job projects:remind-tasks, mỗi sáng). Mỗi mốc chỉ nhắc 1 lần (cột *_notified_at):
+     *  - tới ngày bắt đầu mà còn "Cần làm" -> người làm;
+     *  - còn 1 ngày tới hạn / hạn hôm nay -> người làm;
+     *  - quá hạn -> người làm + Lead;
+     *  - chờ duyệt quá REVIEW_REMIND_DAYS ngày -> người duyệt.
+     * Dự án tạm dừng/đã đóng không nhắc.
      *
-     * @return array{due_soon: int, overdue: int}
+     * @return array{start_today: int, due_soon: int, due_today: int, overdue: int, review_pending: int}
      */
     public function sendReminders(): array
     {
@@ -234,8 +273,18 @@ class ProjectTaskService
         $base = fn () => ProjectTask::query()
             ->whereIn('status', ProjectTask::OPEN_STATUSES)
             ->whereNotNull('assignee_employee_id')
-            ->whereHas('project', fn ($q) => $q->whereNotIn('status', Project::CLOSED_STATUSES))
+            ->whereHas('project', fn ($q) => $q->whereNotIn('status', [...Project::CLOSED_STATUSES, Project::STATUS_ON_HOLD]))
             ->with(['assignee.user', 'project.lead.user']);
+
+        $startToday = $base()->where('status', ProjectTask::STATUS_TODO)->whereDate('start_date', '<=', $today)
+            ->whereNull('start_notified_at')->get();
+        foreach ($startToday as $task) {
+            $this->projectService->notify($task->assignee, null, 'task.start_today', 'Tới ngày bắt đầu công việc', "\"{$task->title}\" (dự án {$task->project->name}) bắt đầu từ hôm nay — bấm \"Bắt đầu làm\" khi bắt tay vào việc.", [
+                'project_id' => $task->project_id,
+                'task_id' => $task->id,
+            ]);
+            $task->update(['start_notified_at' => now()]);
+        }
 
         $dueSoon = $base()->whereDate('due_date', $tomorrow)->whereNull('due_soon_notified_at')->get();
         foreach ($dueSoon as $task) {
@@ -246,7 +295,18 @@ class ProjectTaskService
             $task->update(['due_soon_notified_at' => now()]);
         }
 
-        $overdue = $base()->whereDate('due_date', '<', $today)->whereNull('overdue_notified_at')->get();
+        $dueToday = $base()->where('status', '!=', ProjectTask::STATUS_IN_REVIEW)->whereDate('due_date', $today)
+            ->whereNull('due_today_notified_at')->get();
+        foreach ($dueToday as $task) {
+            $this->projectService->notify($task->assignee, null, 'task.due_today', 'Hôm nay là hạn hoàn thành', "\"{$task->title}\" (dự án {$task->project->name}) tới hạn hôm nay — nhớ nộp kết quả.", [
+                'project_id' => $task->project_id,
+                'task_id' => $task->id,
+            ]);
+            $task->update(['due_today_notified_at' => now()]);
+        }
+
+        $overdue = $base()->where('status', '!=', ProjectTask::STATUS_IN_REVIEW)->whereDate('due_date', '<', $today)
+            ->whereNull('overdue_notified_at')->get();
         foreach ($overdue as $task) {
             $data = ['project_id' => $task->project_id, 'task_id' => $task->id];
             $due = $task->due_date->format('d/m/Y');
@@ -257,7 +317,28 @@ class ProjectTaskService
             $task->update(['overdue_notified_at' => now()]);
         }
 
-        return ['due_soon' => $dueSoon->count(), 'overdue' => $overdue->count()];
+        // Chờ duyệt quá lâu -> nhắc người duyệt (nhân viên không phải chờ vô thời hạn).
+        $reviewPending = $base()->where('status', ProjectTask::STATUS_IN_REVIEW)
+            ->where('submitted_at', '<=', now()->subDays(self::REVIEW_REMIND_DAYS))
+            ->whereNull('review_reminded_at')->get();
+        foreach ($reviewPending as $task) {
+            $days = (int) $task->submitted_at->copy()->startOfDay()->diffInDays(now()->startOfDay());
+            foreach ($this->reviewers($task) as $reviewer) {
+                $this->projectService->notify($reviewer, null, 'task.review_pending', 'Công việc chờ duyệt đã lâu', "{$task->assignee->full_name} nộp \"{$task->title}\" {$days} ngày trước, vẫn chờ bạn duyệt.", [
+                    'project_id' => $task->project_id,
+                    'task_id' => $task->id,
+                ]);
+            }
+            $task->update(['review_reminded_at' => now()]);
+        }
+
+        return [
+            'start_today' => $startToday->count(),
+            'due_soon' => $dueSoon->count(),
+            'due_today' => $dueToday->count(),
+            'overdue' => $overdue->count(),
+            'review_pending' => $reviewPending->count(),
+        ];
     }
 
     /** @return Collection<int, Employee> */
