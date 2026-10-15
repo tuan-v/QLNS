@@ -40,3 +40,5 @@ Schedule::command('holidays:generate')->monthlyOn(1, '00:30');
 Schedule::command('holidays:notify')->dailyAt('08:00');
 // Dự án: nhắc công việc sắp tới hạn / quá hạn (đầu giờ làm).
 Schedule::command('projects:remind-tasks')->dailyAt('08:05');
+// Nhật ký hoạt động: xóa log quá hạn lưu trữ (config/audit.php, mặc định 24 tháng).
+Schedule::command('logs:prune')->dailyAt('01:30');

@@ -18,6 +18,7 @@ class AuthService
         private readonly RefreshTokenRepository $refreshTokenRepository,
         private readonly JwtService $jwtService,
         private readonly LoginLockoutService $loginLockout,
+        private readonly LogService $logService,
     ) {
     }
 
@@ -30,6 +31,8 @@ class AuthService
 
         if (! $user || ! Hash::check($password, $user->password)) {
             // 2) Sai -> đếm 1 lần (cộng dồn mọi IP), đủ ngưỡng thì khóa + email báo.
+            // Ghi "sai mật khẩu" TRƯỚC — lần sai thứ N gây khóa thì nhật ký đọc đúng thứ tự.
+            $this->logService->recordAuthEvent('login_failed', $user, $email);
             $this->loginLockout->recordFailure($email, $user, $request->ip());
 
             throw new AuthenticationException('Email hoặc mật khẩu không đúng.');
@@ -37,6 +40,7 @@ class AuthService
 
         // 3) Đúng -> xóa số lần sai trước đó.
         $this->loginLockout->clear($email);
+        $this->logService->recordAuthEvent('login', $user);
 
         return DB::transaction(function () use ($user, $request) {
             $this->userRepository->touchLastLogin($user);
@@ -71,6 +75,7 @@ class AuthService
         }
 
         $this->refreshTokenRepository->revoke($record);
+        $this->logService->recordAuthEvent('logout', $user);
     }
 
     private function issueTokenPair(User $user, Request $request): array

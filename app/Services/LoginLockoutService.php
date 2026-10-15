@@ -18,6 +18,10 @@ use Illuminate\Support\Str;
 // chủ tài khoản được email báo và đặt lại mật khẩu (Quên mật khẩu) là mở khóa ngay.
 class LoginLockoutService
 {
+    public function __construct(private readonly LogService $logService)
+    {
+    }
+
     public function enabled(): bool
     {
         return (bool) config('rate_limits.enabled');
@@ -57,6 +61,7 @@ class LoginLockoutService
         $minutes = (int) config('rate_limits.account_lock_minutes');
         Cache::put($this->lockKey($email), now()->addMinutes($minutes)->timestamp, $minutes * 60);
         RateLimiter::clear($this->failKey($email));
+        $this->logService->recordAuthEvent('login_locked', $user, $email, ['minutes' => $minutes]);
 
         if ($user) {
             Mail::to($user->email)->queue(new AccountLockedMail($user, $minutes, $ip));
