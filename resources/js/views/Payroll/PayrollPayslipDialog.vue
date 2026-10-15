@@ -59,8 +59,8 @@
 
                         <!-- III. Lương làm thêm giờ / Thưởng -->
                         <tr>
-                            <td class="col-roman" rowspan="2">III</td>
-                            <td class="col-section" rowspan="2">Lương thêm giờ - Thưởng</td>
+                            <td class="col-roman" :rowspan="hasLeavePayout ? 3 : 2">III</td>
+                            <td class="col-section" :rowspan="hasLeavePayout ? 3 : 2">Lương thêm giờ - Thưởng</td>
                             <td class="col-label font-italic">
                                 Lương làm thêm giờ - OT
                                 {{ formatMinutesAsHours(detail?.overtime_minutes) }}
@@ -73,6 +73,15 @@
                             <td class="col-label font-italic">{{ bonusLabel }}</td>
                             <td class="col-value font-weight-medium">
                                 {{ formatMoney(detail?.bonus_amount) }}
+                            </td>
+                        </tr>
+                        <!-- Nghỉ việc: thanh toán phép năm chưa nghỉ (BLĐ 2019 Điều 113 khoản 3). -->
+                        <tr v-if="hasLeavePayout">
+                            <td class="col-label font-italic">
+                                {{ leavePayoutLabel }}
+                            </td>
+                            <td class="col-value font-weight-medium">
+                                {{ formatMoney(detail?.leave_payout_amount) }}
                             </td>
                         </tr>
 
@@ -166,6 +175,14 @@ function formatMoney(value) {
 
 // Thưởng lễ (thông báo nghỉ lễ có thưởng) — tên dịp lấy từ thành phần lương nếu có.
 const bonusLabel = computed(() => props.detail?.bonus_label ?? "Thưởng lễ");
+// Có dòng phép khi nghỉ việc: được trả (> 0 ngày) hoặc phép âm (cảnh báo, không trừ lương).
+const hasLeavePayout = computed(() => Number(props.detail?.leave_payout_days ?? 0) !== 0);
+const leavePayoutLabel = computed(() => {
+    const leaveDays = Number(props.detail?.leave_payout_days ?? 0);
+    return leaveDays > 0
+        ? `Thanh toán ${leaveDays} ngày phép chưa nghỉ (nghỉ việc)`
+        : `Đã nghỉ quá ${-leaveDays} ngày phép — không trừ lương, HR tự thỏa thuận`;
+});
 
 const totalDeduction = computed(() => {
     if (!props.detail) return 0;
@@ -239,12 +256,13 @@ async function exportPdf() {
             ["Lương cơ bản", money(d?.base_salary)],
             ["II", "Phụ cấp (P)", "Tổng phụ cấp", money(d?.total_allowance)],
             [
-                { content: "III", rowSpan: 2 },
-                { content: "Lương thêm giờ - Thưởng", rowSpan: 2 },
+                { content: "III", rowSpan: hasLeavePayout.value ? 3 : 2 },
+                { content: "Lương thêm giờ - Thưởng", rowSpan: hasLeavePayout.value ? 3 : 2 },
                 `Lương làm thêm giờ - OT ${formatMinutesAsHours(d?.overtime_minutes)}`,
                 money(d?.overtime_amount),
             ],
             [bonusLabel.value, money(d?.bonus_amount)],
+            ...(hasLeavePayout.value ? [[leavePayoutLabel.value, money(d?.leave_payout_amount)]] : []),
             [
                 { content: "IV", rowSpan: 5 },
                 { content: "Khoản trừ", rowSpan: 5 },

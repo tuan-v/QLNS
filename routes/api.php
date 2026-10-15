@@ -31,4 +31,6 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     require __DIR__ . '/api/v1/holidays.php';
     require __DIR__ . '/api/v1/recruitment.php';
     require __DIR__ . '/api/v1/projects.php';
+    require __DIR__ . '/api/v1/logs.php';
+    require __DIR__ . '/api/v1/leave-balances.php';
 });

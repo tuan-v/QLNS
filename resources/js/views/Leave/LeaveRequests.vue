@@ -29,6 +29,12 @@
 
         <!-- Quỹ phép còn lại -->
         <StatCards v-if="balanceStats.length" :stats="balanceStats" />
+        <div v-if="balanceStats.length" class="d-flex justify-end">
+            <v-btn variant="text" color="primary" size="small" prepend-icon="mdi-information-outline" @click="balanceOpen = true">
+                Cách tính số dư phép & lịch sử thay đổi
+            </v-btn>
+        </div>
+        <LeaveBalanceDialog v-model="balanceOpen" />
 
         <!-- Đơn của tôi -->
         <div class="text-subtitle-1 font-weight-bold mb-3 mt-4">Đơn của tôi</div>
@@ -330,6 +336,7 @@ import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate from "../../components/common/InputDate.vue";
 import InputFile, { UPLOAD_LIMITS } from "../../components/common/InputFile.vue";
 import StatCards from "../../components/dashboard/StatCards.vue";
+import LeaveBalanceDialog from "./LeaveBalanceDialog.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 import { useRememberedRef } from "../../composables/useRememberedRef";
@@ -384,6 +391,7 @@ function formatDate(value) {
 // không phải đã tích lũy được bao nhiêu) để vẫn hiện thẻ ở trạng thái
 // "đang tích lũy" cho nhân viên mới.
 const balances = ref([]);
+const balanceOpen = ref(false);
 
 // Hiện "available_days" (đã trừ cả các đơn đang chờ duyệt) làm số chính —
 // không dùng "remaining_days" thô, vì remaining_days chỉ trừ đơn ĐÃ duyệt,
@@ -409,7 +417,7 @@ const balanceStats = computed(() =>
                     b.pending_days > 0
                         ? `${b.leave_type.name} khả dụng (${b.pending_days} ngày đang chờ duyệt)`
                         : `${b.leave_type.name} còn lại`,
-                value: `${b.available_days}/${b.allocated_days} ngày`,
+                value: `${b.available_days}/${Math.round((b.allocated_days + (b.carried_forward_days ?? 0) + (b.adjusted_days ?? 0)) * 100) / 100} ngày`,
                 color: b.available_days > 0 ? "success" : "error",
                 icon: "mdi-calendar-star-outline",
             };

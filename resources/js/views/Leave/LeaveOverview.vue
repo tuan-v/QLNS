@@ -3,7 +3,19 @@
         <PageHeader
             title="Tổng hợp nghỉ phép"
             subtitle="Quỹ phép và tình hình nghỉ của từng nhân viên — ai còn bao nhiêu ngày phép, ai đang nghỉ, ai có đơn chờ duyệt."
-        />
+        >
+            <template #actions>
+                <v-btn
+                    v-if="canManagePolicy"
+                    variant="flat"
+                    size="large"
+                    prepend-icon="mdi-cog-outline"
+                    @click="policyOpen = true"
+                >
+                    Chính sách chuyển phép
+                </v-btn>
+            </template>
+        </PageHeader>
 
         <v-alert
             v-if="loadError"
@@ -49,6 +61,7 @@
                 :items="rows"
                 :loading="loading"
                 :server-items-length="total"
+                :actions="actions"
                 no-data-text="Không có nhân viên nào khớp bộ lọc."
             >
                 <template #item.employee="{ item }">
@@ -96,6 +109,15 @@
                 </template>
             </DataTable>
         </v-sheet>
+
+        <LeaveBalanceDialog
+            v-model="balanceOpen"
+            :employee="balanceEmployee"
+            :year="year"
+            :can-adjust="canAdjust"
+            @changed="loadData({ silent: true })"
+        />
+        <LeavePolicyDialog v-model="policyOpen" @saved="loadData({ silent: true })" />
     </div>
 </template>
 
@@ -111,10 +133,31 @@ import PageHeader from "../../components/common/PageHeader.vue";
 import DataTable from "../../components/common/DataTable.vue";
 import SearchField from "../../components/common/SearchField.vue";
 import StatCards from "../../components/dashboard/StatCards.vue";
+import LeaveBalanceDialog from "./LeaveBalanceDialog.vue";
+import LeavePolicyDialog from "./LeavePolicyDialog.vue";
+import { useAuthStore } from "../../stores/authStore";
 import { formatDate } from "../../composables/useCheckIn";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 const departmentStore = useDepartmentStore();
+const auth = useAuthStore();
+
+// Quản lý số dư phép (2026-10-15): HR điều chỉnh (leave.balance_adjust), chỉ Admin sửa chính sách (leave.manage).
+const canAdjust = computed(() => auth.permissions.includes("leave.balance_adjust"));
+const canManagePolicy = computed(() => auth.permissions.includes("leave.manage"));
+const balanceOpen = ref(false);
+const balanceEmployee = ref(null);
+const policyOpen = ref(false);
+const actions = computed(() => [
+    {
+        icon: "mdi-calendar-search-outline",
+        tooltip: canAdjust.value ? "Số dư & điều chỉnh" : "Chi tiết số dư",
+        onClick: (item) => {
+            balanceEmployee.value = item.employee;
+            balanceOpen.value = true;
+        },
+    },
+]);
 
 const currentYear = new Date().getFullYear();
 // Chỉ năm hiện tại và các năm trước — năm sau chưa được cấp quỹ phép nên không có gì để tổng hợp.

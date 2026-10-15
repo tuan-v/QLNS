@@ -16,6 +16,7 @@ class LeaveType extends Model
         'allow_intern',
         'allow_carry_forward',
         'max_carry_forward_days',
+        'carry_forward_expiry',
         'is_active',
     ];
     // Cùng lý do ép float ở LeaveRequest::$casts — cột decimal MySQL trả về

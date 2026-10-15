@@ -40,6 +40,7 @@ class PermissionSeeder extends Seeder
             ['code' => 'leave.approve_manager', 'name' => 'Duyệt đơn nghỉ phép - cấp quản lý'],
             ['code' => 'leave.approve_hr', 'name' => 'Duyệt đơn nghỉ phép - cấp HR'],
             ['code' => 'leave.manage', 'name' => 'Quản lý loại nghỉ phép'],
+            ['code' => 'leave.balance_adjust', 'name' => 'Điều chỉnh số dư phép của nhân viên'],
 
             // Resignation — đơn xin nghỉ việc (2026-09-29)
             ['code' => 'resignation.request', 'name' => 'Nộp đơn xin nghỉ việc'],

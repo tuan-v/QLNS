@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Employee;
 use App\Models\LeaveType;
 use App\Services\LeaveAccrualService;
+use App\Services\LeaveBalanceService;
 use Illuminate\Console\Command;
 
 // "Tích lũy phép năm theo tháng + thưởng thâm niên" (2026-09-24, theo yêu
@@ -19,7 +20,7 @@ class SyncLeaveAccrual extends Command
 
     protected $description = 'Đồng bộ số ngày phép năm tích lũy (theo tháng làm + thưởng thâm niên) cho toàn bộ nhân viên active/probation';
 
-    public function handle(LeaveAccrualService $leaveAccrualService): int
+    public function handle(LeaveAccrualService $leaveAccrualService, LeaveBalanceService $leaveBalanceService): int
     {
         // Thực tập sinh không có phép năm (chỉ xin nghỉ ốm/không lương) nên không tích lũy.
         $employees = Employee::whereIn('employment_status', ['active', 'probation'])->get();
@@ -40,6 +41,10 @@ class SyncLeaveAccrual extends Command
         }
 
         $this->info("Đã kiểm tra {$employees->count()} nhân viên x {$leaveTypes->count()} loại phép — tăng quỹ phép cho {$increased} bản ghi.");
+
+        // Phép chuyển từ năm trước + hết hạn phép chuyển (2026-10-15, LeaveBalanceService).
+        $carry = $leaveBalanceService->syncCarryForward();
+        $this->info("Phép chuyển năm: cập nhật {$carry['carried']} số dư, hết hạn {$carry['expired']} số dư.");
 
         return self::SUCCESS;
     }

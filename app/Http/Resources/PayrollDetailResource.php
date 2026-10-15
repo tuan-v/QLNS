@@ -23,6 +23,9 @@ class PayrollDetailResource extends JsonResource
             'overtime_minutes' => $this->overtime_minutes,
             'overtime_amount' => $this->overtime_amount,
             'bonus_amount' => $this->bonus_amount,
+            // Thanh toán phép chưa nghỉ khi nghỉ việc (âm = đã nghỉ quá, không trừ lương).
+            'leave_payout_days' => $this->leave_payout_days,
+            'leave_payout_amount' => $this->leave_payout_amount,
             // Tên dịp thưởng (vd "Thưởng Quốc khánh") — chỉ có khi đã nạp components.
             'bonus_label' => $this->whenLoaded('components', fn () => $this->components->first(fn ($c) => isset($c->calculation_snapshot['holiday_bonuses']))?->component_name_snapshot),
             'total_allowance' => $this->total_allowance,

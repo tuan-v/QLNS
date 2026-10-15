@@ -20,7 +20,7 @@ class LeaveTypeSeeder extends Seeder
     public function run(): void
     {
         $leaveTypes = [
-            ['code' => 'annual', 'name' => 'Nghỉ phép năm', 'annual_entitlement_days' => 12, 'is_paid' => true, 'allow_intern' => false, 'allow_carry_forward' => true, 'max_carry_forward_days' => 5],
+            ['code' => 'annual', 'name' => 'Nghỉ phép năm', 'annual_entitlement_days' => 12, 'is_paid' => true, 'allow_intern' => false, 'allow_carry_forward' => true, 'max_carry_forward_days' => 5, 'carry_forward_expiry' => '03-31'],
             ['code' => 'other', 'name' => 'Nghỉ khác theo chế độ/luật', 'annual_entitlement_days' => 0, 'is_paid' => true, 'allow_intern' => false, 'allow_carry_forward' => false, 'max_carry_forward_days' => null],
             // Nghỉ ốm: công ty không trả lương (BHXH chi trả); thực tập sinh được xin.
             ['code' => 'sick', 'name' => 'Nghỉ ốm', 'annual_entitlement_days' => 0, 'is_paid' => false, 'allow_intern' => true, 'allow_carry_forward' => false, 'max_carry_forward_days' => null],
@@ -37,6 +37,8 @@ class LeaveTypeSeeder extends Seeder
                     'allow_intern' => $leaveType['allow_intern'],
                     'allow_carry_forward' => $leaveType['allow_carry_forward'],
                     'max_carry_forward_days' => $leaveType['max_carry_forward_days'],
+                    // Hạn dùng phép chuyển "MM-DD" năm sau (2026-10-15, người dùng chọn 31/03).
+                    'carry_forward_expiry' => $leaveType['carry_forward_expiry'] ?? null,
                     'is_active' => true,
                     'updated_at' => now(),
                     'created_at' => now(),

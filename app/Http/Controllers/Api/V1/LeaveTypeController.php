@@ -22,7 +22,7 @@ class LeaveTypeController extends Controller
             LeaveType::query()->active()
                 ->when($isIntern, fn ($query) => $query->where('allow_intern', true))
                 ->orderBy('name')
-                ->get(['id', 'code', 'name', 'annual_entitlement_days', 'is_paid', 'allow_intern']),
+                ->get(['id', 'code', 'name', 'annual_entitlement_days', 'is_paid', 'allow_intern', 'allow_carry_forward', 'max_carry_forward_days', 'carry_forward_expiry']),
         );
     }
 }

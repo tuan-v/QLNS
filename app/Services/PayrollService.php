@@ -65,6 +65,7 @@ class PayrollService
         private readonly PersonalIncomeTaxCalculator $taxCalculator,
         private readonly WorkTimeCalculationService $workTimeCalculationService,
         private readonly HolidayBonusCalculator $holidayBonusCalculator,
+        private readonly LeaveBalanceService $leaveBalanceService,
     ) {
     }
 
@@ -120,7 +121,14 @@ class PayrollService
             // hợp đồng đang active của họ, không tự áp % giảm cho thử việc:
             // hợp đồng thử việc thường đã ký sẵn đúng mức lương thỏa thuận
             // (tối thiểu 85% theo luật), Payroll không nên tự đoán lại số đó.
-            $employees = Employee::whereIn('employment_status', Employee::WORKING_STATUSES)->get();
+            // + người NGHỈ VIỆC trong kỳ (2026-10-15 — lỗi thật: nghỉ ngày 20 thì hôm sau đã
+            // "resigned", tính lương đầu tháng sau bị loại khỏi bảng lương, mất lương 20 ngày cuối).
+            $employees = Employee::query()
+                ->where(fn ($q) => $q
+                    ->whereIn('employment_status', Employee::WORKING_STATUSES)
+                    ->orWhereBetween('termination_date', [$start->toDateString(), $end->toDateString()]))
+                ->get();
+            $leavePayoutComponent = SalaryComponent::where('code', 'leave_payout')->first();
 
             foreach ($employees as $employee) {
                 $contract = $this->contractDuringPeriod($employee, $start, $end);
@@ -131,6 +139,13 @@ class PayrollService
 
                 $bonuses = $holidayAnnouncements->isEmpty() ? [] : $this->holidayBonusCalculator->bonusesFor($employee, $holidayAnnouncements);
 
+                // Nghỉ việc trong kỳ -> thanh toán phép năm chưa nghỉ (BLĐ 2019 Điều 113 khoản 3).
+                $terminatedInPeriod = $employee->termination_date
+                    && Carbon::parse($employee->termination_date)->betweenIncluded($start, $end);
+                $leavePayoutDays = $terminatedInPeriod
+                    ? $this->leaveBalanceService->remainingOnTermination($employee, Carbon::parse($employee->termination_date))
+                    : null;
+
                 $detail = $this->buildDetailForEmployee(
                     $employee,
                     $contract,
@@ -138,6 +153,7 @@ class PayrollService
                     $end,
                     $contract->contract_type === 'thuc_tap' ? $internStandardWorkDays : $standardWorkDays,
                     round(array_sum(array_column($bonuses, 'amount')), 2),
+                    $leavePayoutDays,
                 );
                 $payrollDetail = $this->payrollDetailRepository->createForPayroll($payroll, $detail);
 
@@ -148,6 +164,15 @@ class PayrollService
                         'calculation_snapshot' => ['holiday_bonuses' => $bonuses],
                         'quantity' => count($bonuses),
                         'amount' => $detail['bonus_amount'],
+                    ]);
+                }
+                if ($detail['leave_payout_amount'] > 0 && $leavePayoutComponent) {
+                    $payrollDetail->components()->create([
+                        'salary_component_id' => $leavePayoutComponent->id,
+                        'component_name_snapshot' => 'Thanh toán '.$detail['leave_payout_days'].' ngày phép chưa nghỉ',
+                        'calculation_snapshot' => ['leave_payout' => ['days' => $detail['leave_payout_days'], 'termination_date' => $employee->termination_date]],
+                        'quantity' => $detail['leave_payout_days'],
+                        'amount' => $detail['leave_payout_amount'],
                     ]);
                 }
                 $totalNet += $detail['net_salary'];
@@ -162,7 +187,7 @@ class PayrollService
         return $payroll;
     }
 
-    private function buildDetailForEmployee(Employee $employee, $contract, Carbon $start, Carbon $end, int $standardWorkDays, float $bonusAmount = 0.0): array
+    private function buildDetailForEmployee(Employee $employee, $contract, Carbon $start, Carbon $end, int $standardWorkDays, float $bonusAmount = 0.0, ?float $leavePayoutDays = null): array
     {
         $unpaidLeaveDays = $this->leaveDaysFor($employee, $start, $end, isPaid: false);
         $paidLeaveDays = $this->leaveDaysFor($employee, $start, $end, isPaid: true);
@@ -192,9 +217,13 @@ class PayrollService
             ? round((float) $contract->insurance_salary * self::INSURANCE_RATE, 2)
             : 0.0;
 
-        // Thưởng lễ là thu nhập từ tiền lương, tiền công -> tính vào gross và chịu thuế TNCN;
-        // bảo hiểm vẫn theo insurance_salary trên hợp đồng nên không đổi.
-        $grossSalary = round($baseSalary + $overtimeAmount + $bonusAmount, 2);
+        // Thanh toán phép chưa nghỉ khi nghỉ việc = số ngày còn lại × lương ngày. Phép âm (đã nghỉ
+        // quá) KHÔNG trừ lương (người dùng chọn 2026-10-15) — vẫn lưu số ngày âm để HR thấy cảnh báo.
+        $leavePayoutAmount = $leavePayoutDays !== null && $leavePayoutDays > 0 ? round($dailyRate * $leavePayoutDays, 2) : 0.0;
+
+        // Thưởng lễ / tiền phép là thu nhập từ tiền lương, tiền công -> tính vào gross và chịu thuế
+        // TNCN; bảo hiểm vẫn theo insurance_salary trên hợp đồng nên không đổi.
+        $grossSalary = round($baseSalary + $overtimeAmount + $bonusAmount + $leavePayoutAmount, 2);
         // Luật thuế TNCN đổi mốc 2026 (giảm trừ + biểu lũy tiến), nên phải tính
         // theo KỲ của bảng lương chứ không phải năm hiện tại — tính lại bảng
         // lương kỳ cũ vẫn ra đúng số đã chốt. Người phụ thuộc tạm truyền 0:
@@ -214,6 +243,8 @@ class PayrollService
             'overtime_minutes' => $overtimeMinutes,
             'overtime_amount' => $overtimeAmount,
             'bonus_amount' => $bonusAmount,
+            'leave_payout_days' => $leavePayoutDays ?? 0,
+            'leave_payout_amount' => $leavePayoutAmount,
             'total_allowance' => 0,
             'insurance_amount' => $insuranceAmount,
             'unpaid_leave_deduction' => $unpaidLeaveDeduction,

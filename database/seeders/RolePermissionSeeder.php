@@ -29,6 +29,7 @@ class RolePermissionSeeder extends Seeder
                 'attendance.approve',
                 'leave.view_all',
                 'leave.approve_hr',
+                'leave.balance_adjust',
                 'resignation.approve',
                 'resignation.view_all',
                 'holiday.manage',

@@ -23,6 +23,7 @@ class LeaveBalance extends Model
         'carried_forward_days',
         'adjusted_days',
         'used_days',
+        'carry_expired_at',
     ];
     // Cùng lý do ép float ở LeaveRequest::$casts.
     protected $casts = [
@@ -30,6 +31,7 @@ class LeaveBalance extends Model
         'carried_forward_days' => 'float',
         'adjusted_days' => 'float',
         'used_days' => 'float',
+        'carry_expired_at' => 'datetime',
     ];
     public function employee()
     {
@@ -38,5 +40,11 @@ class LeaveBalance extends Model
     public function leaveType()
     {
         return $this->belongsTo(LeaveType::class);
+    }
+
+    // Lịch sử cộng/trừ (HR điều chỉnh, phép chuyển năm, phép chuyển hết hạn).
+    public function adjustments()
+    {
+        return $this->hasMany(LeaveBalanceAdjustment::class)->latest('id');
     }
 }
