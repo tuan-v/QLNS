@@ -12,9 +12,19 @@ export const GUIDE_ROLES = {
     admin: { label: "Admin", color: "warning", icon: "mdi-shield-account-outline" },
 };
 
+// "Việc hay làm" trên trang chủ hướng dẫn — theo vai trò của người xem (id bài).
+export const GUIDE_QUICK_TASKS = {
+    employee: ["cham-cong", "tao-don-phep", "ho-so", "cong-viec-cua-toi"],
+    lead: ["lead-du-an"],
+    hr: ["duyet-cham-cong", "duyet-phep", "them-nhan-vien", "tinh-luong"],
+    admin: ["phan-quyen", "nhat-ky"],
+};
+
 export const GUIDE_CHAPTERS = [
     {
         id: "start",
+        description: "Đăng nhập, giao diện và trang Tổng quan.",
+        color: "primary",
         title: "Bắt đầu",
         icon: "mdi-rocket-launch-outline",
         articles: [
@@ -42,8 +52,8 @@ export const GUIDE_CHAPTERS = [
                 roles: ["employee", "lead", "hr", "admin"],
                 summary: "Các thao tác dùng chung ở mọi trang.",
                 steps: [
-                    "Menu bên trái gom theo nhóm (Nhân sự, Tuyển dụng, Dự án, Chấm công, Nghỉ phép...) — bấm tên nhóm để mở/đóng. Bạn chỉ thấy các mục mình có quyền.",
-                    "Nhấn Ctrl + K (hoặc ô tìm kiếm trên cùng) để tìm nhanh nhân viên hoặc mở nhanh một chức năng — gõ không dấu cũng được.",
+                    "Menu bên trái gom theo nhóm (Nhân sự, Tuyển dụng, Dự án, Chấm công, Nghỉ phép...). Bấm vào tên nhóm để mở hoặc đóng. Bạn chỉ thấy các mục mình có quyền.",
+                    "Nhấn Ctrl + K (hoặc ô tìm kiếm trên cùng) để tìm nhân viên hoặc mở nhanh một chức năng. Gõ không dấu cũng được.",
                     "Biểu tượng chuông hiện số thông báo chưa đọc; bấm vào một thông báo để mở thẳng nội dung liên quan.",
                     "Nút mặt trăng/mặt trời đổi giao diện sáng/tối.",
                 ],
@@ -69,6 +79,8 @@ export const GUIDE_CHAPTERS = [
     },
     {
         id: "attendance",
+        description: "Chấm công vào/ra và xin điều chỉnh công.",
+        color: "success",
         title: "Chấm công",
         icon: "mdi-fingerprint",
         articles: [
@@ -82,7 +94,7 @@ export const GUIDE_CHAPTERS = [
                 summary: "Chấm công theo ca được phân trên trang Chấm công.",
                 steps: [
                     "Mở “Chấm công”, bấm “Chấm công vào” ở ca của hôm nay khi bắt đầu làm.",
-                    "Cho phép trình duyệt lấy vị trí khi được hỏi — hệ thống ghi vị trí, địa chỉ IP và thiết bị của lần chấm.",
+                    "Khi trình duyệt hỏi quyền vị trí, bấm Cho phép. Hệ thống sẽ ghi lại vị trí, địa chỉ IP và thiết bị của lần chấm.",
                     "Hết ca, bấm “Chấm công ra”. Quên chấm ra sẽ được nhắc qua thông báo.",
                     "Bản ghi chấm công cần HR duyệt mới được tính công và lương.",
                 ],
@@ -112,6 +124,8 @@ export const GUIDE_CHAPTERS = [
     },
     {
         id: "leave",
+        description: "Xin nghỉ phép, số dư phép, lịch nghỉ lễ.",
+        color: "info",
         title: "Nghỉ phép",
         icon: "mdi-calendar-blank-outline",
         articles: [
@@ -131,7 +145,7 @@ export const GUIDE_CHAPTERS = [
                 ],
                 notes: [
                     "Thứ 7, Chủ nhật không tính vào số ngày nghỉ.",
-                    "Số ngày khả dụng đã trừ cả các đơn đang chờ duyệt — không gửi được đơn vượt quỹ phép.",
+                    "Số ngày khả dụng đã trừ cả những đơn đang chờ duyệt, nên bạn không gửi được đơn vượt quá số phép còn lại.",
                 ],
                 keywords: ["xin nghi", "don phep", "nghi om", "khong luong"],
             },
@@ -147,7 +161,7 @@ export const GUIDE_CHAPTERS = [
                     "Năm đầu đi làm: cứ đủ 30 ngày làm việc kể từ ngày vào làm được cộng 1 ngày phép.",
                     "Từ năm thứ hai: được cấp đủ 12 ngày ngay đầu năm; cứ đủ 5 năm làm việc được thêm 1 ngày.",
                     "Phép còn dư cuối năm được chuyển sang năm sau theo chính sách công ty (hiện tối đa 5 ngày, dùng trước 31/03); quá hạn thì mất phần chưa dùng. Phép chuyển được trừ trước.",
-                    "HR có thể cộng/trừ tay (luôn kèm lý do) — bạn nhận thông báo và thấy trong lịch sử.",
+                    "HR có thể cộng hoặc trừ ngày phép (luôn kèm lý do). Bạn sẽ nhận thông báo và xem lại được trong lịch sử.",
                 ],
                 notes: ["Khi nghỉ việc, số ngày phép năm chưa nghỉ được thanh toán vào lương tháng cuối."],
                 keywords: ["so du", "quy phep", "chuyen phep", "tich luy", "tham nien"],
@@ -168,6 +182,8 @@ export const GUIDE_CHAPTERS = [
     },
     {
         id: "profile",
+        description: "Hồ sơ cá nhân, phiếu lương, nghỉ việc.",
+        color: "primary",
         title: "Hồ sơ, lương & nghỉ việc",
         icon: "mdi-account-circle-outline",
         articles: [
@@ -180,7 +196,7 @@ export const GUIDE_CHAPTERS = [
                 summary: "Xem thông tin cá nhân, hợp đồng, phiếu lương và khai báo tài khoản ngân hàng.",
                 steps: [
                     "Mở “Hồ sơ của tôi”: thông tin cá nhân, hợp đồng, phiếu lương theo từng tháng (xuất PDF được).",
-                    "Tab tài khoản ngân hàng: thêm tài khoản nhận lương — HR xác nhận trước khi dùng để chuyển lương.",
+                    "Tab tài khoản ngân hàng: thêm tài khoản nhận lương. HR xác nhận xong thì tài khoản mới được dùng để chuyển lương.",
                 ],
                 keywords: ["phieu luong", "payslip", "ngan hang", "hop dong"],
             },
@@ -204,6 +220,8 @@ export const GUIDE_CHAPTERS = [
     },
     {
         id: "projects",
+        description: "Làm việc được giao, vai trò Lead, tạo dự án.",
+        color: "info",
         title: "Dự án & công việc",
         icon: "mdi-folder-multiple-outline",
         articles: [
@@ -215,9 +233,9 @@ export const GUIDE_CHAPTERS = [
                 route: "my-tasks",
                 summary: "Mọi việc được giao ở mọi dự án nằm trong “Công việc của tôi”, xếp theo mức gấp.",
                 steps: [
-                    "Mở “Công việc của tôi” — việc được nhóm: bị trả lại cần sửa, quá hạn, hạn hôm nay, 7 ngày tới, sau đó, đang chờ duyệt.",
+                    "Mở “Công việc của tôi”. Việc được chia thành các nhóm: bị trả lại cần sửa, quá hạn, hạn hôm nay, 7 ngày tới, sau đó và đang chờ duyệt.",
                     "Bấm “Bắt đầu” khi bắt tay vào việc.",
-                    "Làm xong bấm “Nộp” (ghi chú/link kết quả nếu có) — việc chuyển sang “Chờ duyệt”.",
+                    "Làm xong thì bấm “Nộp”, ghi chú hoặc dán link kết quả nếu có. Việc sẽ chuyển sang “Chờ duyệt”.",
                     "Lead duyệt kèm điểm chất lượng 1–5 sao, hoặc trả lại kèm lý do để bạn sửa rồi nộp lại.",
                 ],
                 notes: [
@@ -232,16 +250,17 @@ export const GUIDE_CHAPTERS = [
                 icon: "mdi-account-star-outline",
                 roles: ["lead"],
                 route: "projects",
-                summary: "Lead là người được chọn phụ trách TỪNG dự án — không phải một vai trò cố định.",
+                summary:
+                    "Lead là người được chọn phụ trách một dự án cụ thể, không phải một vai trò cố định trong hệ thống.",
                 steps: [
                     "Mở “Dự án” → dự án bạn làm Lead → tab “Thành viên” → “Thêm thành viên”.",
-                    "“Giao việc”: tên việc, người làm, độ ưu tiên, độ khó (1/2/3/5/8 điểm — trọng số khi tính KPI), hạn hoàn thành.",
+                    "“Giao việc”: tên việc, người làm, độ ưu tiên, độ khó (1, 2, 3, 5 hoặc 8 điểm, dùng làm trọng số khi tính KPI) và hạn hoàn thành.",
                     "Theo dõi trên bảng Kanban hoặc dạng danh sách; thẻ số liệu bấm để lọc nhanh (quá hạn, chờ duyệt...).",
                     "Việc ở cột “Chờ duyệt”: mở ra → “Duyệt” và chấm 1–5 sao, hoặc “Trả lại” kèm lý do.",
                     "Đổi trạng thái dự án (tạm dừng, hoàn thành...) ở chip trạng thái trên đầu trang.",
                 ],
                 notes: [
-                    "Bạn không tự duyệt việc của chính mình — việc của Lead do HR/Admin duyệt.",
+                    "Bạn không tự duyệt được việc của chính mình. Việc giao cho Lead sẽ do HR hoặc Admin duyệt.",
                     "Không xóa được thành viên còn việc đang mở; việc đã làm thì “Hủy” thay vì xóa.",
                 ],
                 keywords: ["lead", "giao viec", "duyet", "thanh vien"],
@@ -256,16 +275,20 @@ export const GUIDE_CHAPTERS = [
                 summary: "HR/Admin tạo dự án, chọn Lead; Lead tự thêm thành viên và giao việc.",
                 steps: [
                     "Mở “Dự án” → “Tạo dự án”: tên, Lead, phòng ban phụ trách (không bắt buộc), thời gian.",
-                    "Lead có thể thuộc phòng khác phòng phụ trách — dự án liên phòng ban vẫn hợp lệ.",
+                    "Lead không nhất thiết thuộc phòng ban phụ trách, dự án liên phòng ban vẫn hợp lệ.",
                     "Đổi Lead: Lead cũ vẫn ở lại dự án với vai trò thành viên.",
                 ],
-                notes: ["Dự án đã có việc hoàn thành (dữ liệu KPI) không xóa được — chuyển sang “Đã hủy”."],
+                notes: [
+                    "Dự án đã có việc hoàn thành thì không xóa được vì còn dữ liệu KPI. Hãy chuyển sang trạng thái “Đã hủy”.",
+                ],
                 keywords: ["du an", "lead"],
             },
         ],
     },
     {
         id: "hr",
+        description: "Nhân viên, duyệt chấm công / phép, nghỉ lễ.",
+        color: "success",
         title: "Nhân sự (HR)",
         icon: "mdi-account-group-outline",
         articles: [
@@ -278,7 +301,7 @@ export const GUIDE_CHAPTERS = [
                 permission: "employee.view",
                 summary: "Hồ sơ nhân viên gồm thông tin cá nhân, hợp đồng, tài liệu, tài khoản ngân hàng.",
                 steps: [
-                    "Mở “Nhân viên” → “Thêm nhân viên”: thông tin cá nhân, phòng ban, chức vụ, loại hợp đồng và lương — hợp đồng đầu tiên được tạo cùng lúc.",
+                    "Mở “Nhân viên” → “Thêm nhân viên”: thông tin cá nhân, phòng ban, chức vụ, loại hợp đồng và lương. Hợp đồng đầu tiên được tạo luôn cùng lúc.",
                     "Trong chi tiết nhân viên: tạo tài khoản đăng nhập và chọn vai trò.",
                     "Đổi lương / loại hợp đồng: ký hợp đồng MỚI ở tab Hợp đồng (ngày bắt đầu trong tương lai thì chờ đến ngày mới có hiệu lực).",
                 ],
@@ -311,8 +334,8 @@ export const GUIDE_CHAPTERS = [
                 summary: "Duyệt đơn ở “Duyệt nghỉ phép”; xem / điều chỉnh số dư ở “Tổng hợp nghỉ phép”.",
                 steps: [
                     "“Duyệt nghỉ phép”: duyệt hoặc từ chối (kèm lý do), làm được hàng loạt.",
-                    "“Tổng hợp nghỉ phép”: mỗi dòng một nhân viên — còn bao nhiêu phép, ai đang nghỉ, đơn chờ duyệt.",
-                    "Bấm biểu tượng lịch ở cột Thao tác để xem cách tính số dư; “Điều chỉnh số dư” để cộng/trừ tay — BẮT BUỘC ghi lý do (vd nhập số dư ban đầu khi chuyển từ Excel).",
+                    "“Tổng hợp nghỉ phép”: mỗi dòng là một nhân viên, cho biết còn bao nhiêu phép, ai đang nghỉ và có đơn nào chờ duyệt.",
+                    "Bấm biểu tượng lịch ở cột Thao tác để xem cách tính số dư, rồi bấm “Điều chỉnh số dư” để cộng hoặc trừ ngày phép. Lần nào cũng phải ghi lý do, ví dụ khi nhập số dư ban đầu từ file Excel cũ.",
                 ],
                 keywords: ["phep", "so du", "dieu chinh"],
             },
@@ -325,7 +348,7 @@ export const GUIDE_CHAPTERS = [
                 permission: "holiday.manage",
                 summary: "Hệ thống tự tính lịch nghỉ lễ; HR xác nhận và phát hành thông báo có chữ ký.",
                 steps: [
-                    "Mở “Ngày nghỉ lễ”: đối chiếu lịch với thông báo chính thức của Nhà nước, chỉnh nếu cần rồi bấm “Xác nhận” — nhân viên chỉ thấy dịp đã xác nhận.",
+                    "Mở “Ngày nghỉ lễ”: đối chiếu lịch với thông báo chính thức của Nhà nước, chỉnh nếu cần rồi bấm “Xác nhận”. Nhân viên chỉ thấy những dịp đã được xác nhận.",
                     "Soạn văn bản thông báo (có thể thêm thưởng lễ) → tải file Word để in và trình ký.",
                     "Tải lên bản đã ký → phát hành: nhân viên nhận thông báo; thưởng lễ tự vào bảng lương kỳ đã chọn.",
                 ],
@@ -349,6 +372,8 @@ export const GUIDE_CHAPTERS = [
     },
     {
         id: "recruitment",
+        description: "Từ CV, phỏng vấn đến offer và nhận việc.",
+        color: "warning",
         title: "Tuyển dụng",
         icon: "mdi-briefcase-search-outline",
         articles: [
@@ -375,6 +400,8 @@ export const GUIDE_CHAPTERS = [
     },
     {
         id: "payroll",
+        description: "Tính, chốt và chi trả lương tháng.",
+        color: "success",
         title: "Bảng lương",
         icon: "mdi-cash-multiple",
         articles: [
@@ -393,7 +420,7 @@ export const GUIDE_CHAPTERS = [
                 ],
                 notes: [
                     "Người nghỉ việc trong tháng vẫn có trong bảng lương tháng đó, kèm dòng thanh toán phép năm chưa nghỉ.",
-                    "Đã nghỉ quá số phép được hưởng thì không tự trừ lương — phiếu lương ghi cảnh báo để HR tự thỏa thuận.",
+                    "Nếu nhân viên đã nghỉ quá số phép được hưởng, hệ thống không tự trừ lương mà chỉ ghi cảnh báo trên phiếu lương để HR trao đổi với nhân viên.",
                 ],
                 keywords: ["luong", "payroll", "thue", "bao hiem", "chot"],
             },
@@ -401,6 +428,8 @@ export const GUIDE_CHAPTERS = [
     },
     {
         id: "admin",
+        description: "Phân quyền, cài đặt, nhật ký hoạt động.",
+        color: "warning",
         title: "Quản trị (Admin)",
         icon: "mdi-shield-account-outline",
         articles: [
@@ -440,7 +469,8 @@ export const GUIDE_CHAPTERS = [
                 roles: ["admin"],
                 route: "audit-logs",
                 permission: "system.audit_log",
-                summary: "Tra cứu ai đã thêm, sửa, xóa dữ liệu gì và lịch sử đăng nhập — lưu 24 tháng.",
+                summary:
+                    "Tra cứu ai đã thêm, sửa, xóa dữ liệu gì và lịch sử đăng nhập. Nhật ký được giữ trong 24 tháng.",
                 steps: [
                     "Lọc theo người thực hiện, loại dữ liệu, thao tác, khoảng ngày hoặc tìm theo nội dung / IP.",
                     "Bấm một dòng để xem bảng “Trước → Sau” và các thay đổi cùng lần thao tác.",
