@@ -224,6 +224,13 @@ const routes = [
         meta: { title: "Báo cáo tuyển dụng", permission: ["recruitment.manage", "recruitment.approve"] },
         component: () => import("../views/Recruitment/RecruitmentReport.vue"),
     },
+    // Báo cáo (Kế hoạch Ngày 51-58) — HR/Admin xem cả công ty, Manager chỉ phòng mình (API tự lọc).
+    {
+        path: "/bao-cao",
+        name: "reports",
+        meta: { title: "Báo cáo", permission: "report.view" },
+        component: () => import("../views/Report/Reports.vue"),
+    },
     // Dự án & công việc (2026-10-14) — không gắn mã quyền: ai cũng có thể là thành viên/Lead
     // của dự án nào đó; API tự lọc theo thành viên (ProjectService).
     // Hướng dẫn sử dụng (2026-10-15) — ai đăng nhập cũng xem được, nội dung lọc theo vai trò.

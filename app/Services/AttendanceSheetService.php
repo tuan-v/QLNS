@@ -65,6 +65,41 @@ class AttendanceSheetService
             ->with('department')
             ->orderBy('code')
             ->get();
+        $rows = $this->rowsFor($employees, $days, $start, $end, $standardWorkDays, $internStandardWorkDays, $today);
+
+        return [
+            'year' => $year,
+            'month' => $month,
+            'standard_work_days' => $standardWorkDays,
+            'days' => $days,
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * Tổng hợp công tháng cho 1 tập nhân viên BẤT KỲ (kể cả người đã nghỉ việc) — dùng cho
+     * Báo cáo (ReportService, 2026-10-16) để tỷ lệ đi làm/nghỉ/vắng khớp ĐÚNG bảng chấm công.
+     *
+     * @param  Collection<int, Employee>  $employees
+     */
+    public function rowsForEmployees(Collection $employees, int $year, int $month): Collection
+    {
+        $start = Carbon::create($year, $month, 1)->startOfDay();
+        $end = $start->copy()->endOfMonth();
+
+        return $this->rowsFor(
+            $employees,
+            $this->calendarDays($start, $end),
+            $start,
+            $end,
+            $this->payrollService->standardWorkDaysFor($start, $end),
+            $this->payrollService->standardWorkDaysFor($start, $end, forIntern: true),
+            now()->toDateString(),
+        );
+    }
+
+    private function rowsFor(Collection $employees, Collection $days, Carbon $start, Carbon $end, int $standardWorkDays, int $internStandardWorkDays, string $today): Collection
+    {
         $employeeIds = $employees->pluck('id');
 
         $attendancesByEmployee = Attendance::whereIn('employee_id', $employeeIds)
@@ -81,22 +116,14 @@ class AttendanceSheetService
             ->get()
             ->groupBy('employee_id');
 
-        $rows = $employees->map(fn (Employee $employee) => $this->buildRow(
+        return $employees->map(fn (Employee $employee) => $this->buildRow(
             $employee,
             $days,
             $attendancesByEmployee->get($employee->id, collect()),
             $leavesByEmployee->get($employee->id, collect()),
             $employee->employment_status === 'intern' ? $internStandardWorkDays : $standardWorkDays,
             $today,
-        ))->values();
-
-        return [
-            'year' => $year,
-            'month' => $month,
-            'standard_work_days' => $standardWorkDays,
-            'days' => $days,
-            'rows' => $rows,
-        ];
+        ) + ['employee_id' => $employee->id, 'department_id' => $employee->department_id])->values();
     }
 
     // Mỗi ngày trong tháng: thứ, loại ngày theo lịch (workday/weekend/holiday/makeup).

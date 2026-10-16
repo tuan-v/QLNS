@@ -11,7 +11,19 @@ const props = defineProps({
     labels: { type: Array, default: () => [] },
     data: { type: Array, default: () => [] },
     totalLabel: { type: String, default: "Tổng" },
+    // "money": giữa vòng hiện gọn (8,5 tr / 1,2 tỷ), tooltip hiện đủ "8.522.727 ₫" — dùng ở trang Báo cáo.
+    format: { type: String, default: "number" },
 });
+
+const short = (value) => {
+    const n = Number(value ?? 0);
+    if (props.format !== "money") return n.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+    if (Math.abs(n) >= 1e9) return `${(n / 1e9).toLocaleString("vi-VN", { maximumFractionDigits: 2 })} tỷ`;
+    if (Math.abs(n) >= 1e6) return `${(n / 1e6).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} tr`;
+    return n.toLocaleString("vi-VN");
+};
+const full = (value) =>
+    props.format === "money" ? `${Math.round(Number(value ?? 0)).toLocaleString("vi-VN")} ₫` : short(value);
 
 const theme = useTheme();
 const isDark = computed(() => theme.global.current.value.dark);
@@ -34,6 +46,7 @@ const options = computed(() => ({
     colors: palette.value,
     legend: { position: "bottom", labels: { colors: legendColor.value } },
     dataLabels: { enabled: false },
+    tooltip: { y: { formatter: full } },
     stroke: { width: 2, colors: [isDark.value ? "#1C1D1F" : "#FFFFFF"] },
     plotOptions: {
         pie: {
@@ -41,7 +54,13 @@ const options = computed(() => ({
                 size: "68%",
                 labels: {
                     show: true,
-                    total: { show: true, label: props.totalLabel, color: isDark.value ? "#fff" : undefined },
+                    value: { formatter: short },
+                    total: {
+                        show: true,
+                        label: props.totalLabel,
+                        color: isDark.value ? "#fff" : undefined,
+                        formatter: (w) => short(w.globals.seriesTotals.reduce((a, b) => a + b, 0)),
+                    },
                 },
             },
         },

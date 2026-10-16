@@ -310,7 +310,7 @@ const menu = [
                 to: "/bang-luong",
                 show: () => can("payroll.view_all"),
             },
-            { key: "reports", icon: "mdi-chart-bar", title: "Báo cáo", disabled: true },
+            { key: "reports", icon: "mdi-chart-bar", title: "Báo cáo", to: "/bao-cao", show: () => can("report.view") },
         ],
     },
     {

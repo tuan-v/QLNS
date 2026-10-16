@@ -91,6 +91,13 @@ const ALL_ITEMS = [
         keywords: ["cau hoi", "phong van", "cham diem", "trong so", "scorecard"],
     },
     {
+        name: "reports",
+        title: "Báo cáo",
+        icon: "mdi-chart-bar",
+        permission: "report.view",
+        keywords: ["bao cao", "thong ke", "bien dong nhan su", "nghi viec", "ty le di lam", "chi phi luong", "xuat excel"],
+    },
+    {
         name: "recruitment-report",
         title: "Báo cáo tuyển dụng",
         icon: "mdi-chart-box-outline",
