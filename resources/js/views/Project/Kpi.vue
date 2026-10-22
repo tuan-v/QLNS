@@ -125,12 +125,11 @@
                                     <v-chip
                                         :color="KPI_GRADE_COLORS[item.grade.key]"
                                         variant="tonal"
-                                        size="x-small"
+                                        size="small"
                                         label
-                                        class="ml-2"
-                                        :title="item.grade.label"
+                                        class="ml-2 font-weight-bold"
                                     >
-                                        {{ item.grade.key }}
+                                        {{ item.grade.key }} · {{ item.grade.label }}
                                     </v-chip>
                                 </td>
                             </tr>

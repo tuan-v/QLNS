@@ -134,9 +134,11 @@
                  lại/tổng được cấp của "Nghỉ phép năm" NĂM NAY. null (bị ẩn vì
                  người xem là cấp dưới — EmployeeResource) hiện "—"; chưa có
                  bản ghi LeaveBalance thì API trả 0 → "0/0 ngày". -->
-            <template #item.leave_remaining_days="{ item }">{{
-                formatLeaveDays(item)
-            }}</template>
+            <template #item.leave_remaining_days="{ item }">
+                <span class="text-no-wrap" :class="{ 'text-caption text-medium-emphasis': !item.leave_allocated_days }">{{
+                    formatLeaveDays(item)
+                }}</span>
+            </template>
             <template #item.employment_status="{ item }">
                 <StatusChip
                     :status="item.employment_status"
@@ -285,7 +287,7 @@ const headers = [
     { title: "Điện thoại", key: "phone" },
     { title: "Lương", key: "agreed_salary" },
     { title: "Ngày vào làm", key: "hire_date" },
-    { title: "Nghỉ phép", key: "leave_remaining_days" },
+    { title: "Phép (còn / tổng)", key: "leave_remaining_days" },
     { title: "Trạng thái", key: "employment_status" },
 ];
 
@@ -319,7 +321,11 @@ function formatLeaveDays(item) {
     ) {
         return "—";
     }
-    return `${item.leave_remaining_days}/${item.leave_allocated_days} ngày`;
+    // 0/0 = chưa có bản ghi quỹ phép năm nay -> nói rõ thay vì "0/0 ngày" khó hiểu.
+    if (Number(item.leave_allocated_days) === 0) {
+        return "Chưa có quỹ phép";
+    }
+    return `${item.leave_remaining_days} / ${item.leave_allocated_days} ngày`;
 }
 
 // Xóa để sau — chưa nằm trong phạm vi Ngày 28 (chỉ Thêm/Sửa).

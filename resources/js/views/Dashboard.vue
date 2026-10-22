@@ -81,7 +81,7 @@
                      đó luôn tính theo hiện tại — xem DashboardService::forUser()). -->
                 <div class="d-flex align-center justify-space-between mt-4 mb-1 flex-wrap ga-3">
                     <div class="text-caption" style="opacity: 0.65">
-                        3 biểu đồ bên dưới theo ngày đã chọn — không ảnh hưởng "Cần bạn xử lý"/thông báo.
+                        Chọn ngày để xem số liệu đi làm và phòng ban của ngày đó.
                     </div>
                     <!-- 170px trước đây quá hẹp — ô nhập kiểu VDateInput cần chỗ cho
                          icon lịch + "dd/mm/yyyy" + nút xóa, bị cắt chữ mất số cuối

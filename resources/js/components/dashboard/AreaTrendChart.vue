@@ -59,7 +59,11 @@ const options = computed(() => ({
         axisBorder: { show: false },
         axisTicks: { show: false },
     },
+    // Cố định 0–100%: để ApexCharts tự co trục thì 1 đường thẳng 60% hiện trục 59–61% trông như dao động mạnh.
     yaxis: {
+        min: 0,
+        max: 100,
+        tickAmount: 4,
         labels: {
             style: { colors: axisColor.value },
             formatter: (v) => `${Math.round(v)}%`,

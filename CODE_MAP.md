@@ -452,7 +452,7 @@ flowchart LR
 | Xem trước PDF / ảnh / Word / Excel | [`FilePreviewDialog.vue`](resources/js/components/common/FilePreviewDialog.vue) |
 | Tiêu đề trang, chip trạng thái, thông báo nhỏ | [`PageHeader.vue`](resources/js/components/common/PageHeader.vue), [`StatusChip.vue`](resources/js/components/common/StatusChip.vue), [`useToastStore.js`](resources/js/stores/useToastStore.js) |
 | Chấm điểm 1–5 bằng mức có chữ | [`ScoreLevelPicker.vue`](resources/js/components/common/ScoreLevelPicker.vue), [`ScoreLevelChip.vue`](resources/js/components/common/ScoreLevelChip.vue), [`scoreLevels.js`](resources/js/composables/scoreLevels.js) |
-| Thẻ số liệu, biểu đồ | [`StatCards.vue`](resources/js/components/dashboard/StatCards.vue), [`DonutChart.vue`](resources/js/components/dashboard/DonutChart.vue), [`ReportChart.vue`](resources/js/components/report/ReportChart.vue) |
+| Thẻ số liệu (gọn: icon trái, 5 thẻ = 5 cột, tối đa 4 cột), biểu đồ | [`StatCards.vue`](resources/js/components/dashboard/StatCards.vue), [`DonutChart.vue`](resources/js/components/dashboard/DonutChart.vue), [`ReportChart.vue`](resources/js/components/report/ReportChart.vue) |
 | Nhớ bộ lọc theo người dùng | [`useRememberedRef.js`](resources/js/composables/useRememberedRef.js) |
 | Bỏ qua khi bấm Lưu mà chưa sửa gì | [`useChangeGuard.js`](resources/js/composables/useChangeGuard.js) |
 

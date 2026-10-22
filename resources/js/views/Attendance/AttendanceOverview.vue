@@ -116,7 +116,7 @@
                 :items="rows"
                 :loading="loading"
                 :actions="actions"
-                :actions-width="230"
+                :actions-width="140"
                 :selectable="canApprove"
                 :item-value="(item) => item.attendance?.id"
                 :item-selectable="itemSelectableForBulk"
@@ -178,7 +178,7 @@
                 </template>
                 <template #item.device="{ item }">
                     <template v-if="firstLog(item)">
-                        <div>{{ firstLog(item).device_name ?? "—" }}</div>
+                        <div class="text-body-2 text-medium-emphasis">{{ firstLog(item).device_name ?? "—" }}</div>
                     </template>
                     <span v-else style="opacity: 0.5">—</span>
                 </template>
@@ -363,10 +363,11 @@ async function loadShiftOptions() {
 }
 
 const headers = [
-    { title: "Nhân viên", key: "employee" },
+    // Tên nhân viên ưu tiên chỗ (trước bị "Trần Minh / Thắng" xuống 2-3 dòng vì cột Thiết bị + Thao tác chiếm hết).
+    { title: "Nhân viên", key: "employee", minWidth: 220 },
     { title: "Ca", key: "work_shift", width: 140 },
     { title: "Giờ vào - ra", key: "times", width: 190 },
-    { title: "Thiết bị", key: "device" },
+    { title: "Thiết bị", key: "device", maxWidth: 170 },
     // Gộp trạng thái ca + duyệt công vào 1 cột (xem AttendanceService::displayStatusFor()).
     { title: "Trạng thái", key: "status", width: 190 },
 ];

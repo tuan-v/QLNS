@@ -1,6 +1,7 @@
 // Nhãn / màu dùng chung cho trang KPI (công thức và ngưỡng xếp loại lấy từ API — KpiService).
 
-export const KPI_GRADE_COLORS = { A: "primary", B: "success", C: "grey", D: "error" };
+// C = Đạt nhưng sát ngưỡng -> vàng cam (trước là xám, trông như bị vô hiệu); D = chưa đạt -> đỏ.
+export const KPI_GRADE_COLORS = { A: "primary", B: "success", C: "warning", D: "error" };
 
 export const KPI_METRICS = [
     {

@@ -417,7 +417,8 @@ const balanceStats = computed(() =>
                     b.pending_days > 0
                         ? `${b.leave_type.name} khả dụng (${b.pending_days} ngày đang chờ duyệt)`
                         : `${b.leave_type.name} còn lại`,
-                value: `${b.available_days}/${Math.round((b.allocated_days + (b.carried_forward_days ?? 0) + (b.adjusted_days ?? 0)) * 100) / 100} ngày`,
+                value: `${b.available_days} / ${Math.round((b.allocated_days + (b.carried_forward_days ?? 0) + (b.adjusted_days ?? 0)) * 100) / 100} ngày`,
+                sub: "còn lại / tổng năm nay",
                 color: b.available_days > 0 ? "success" : "error",
                 icon: "mdi-calendar-star-outline",
             };
