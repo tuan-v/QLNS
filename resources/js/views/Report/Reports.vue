@@ -384,8 +384,13 @@ function params(fresh = false) {
     };
 }
 
+// Đổi tab/bộ lọc nhanh thì phản hồi của lần gọi trước có thể về sau — bỏ qua nó, nếu không
+// tab mới sẽ vẽ biểu đồ bằng dữ liệu sai cấu trúc (ApexCharts lỗi) hoặc hiện số liệu của kỳ cũ.
+let loadSeq = 0;
+
 async function load(fresh = false) {
     if (rangeError.value || noScope.value) return;
+    const seq = ++loadSeq;
     loading.value = true;
     error.value = "";
     try {
@@ -394,12 +399,14 @@ async function load(fresh = false) {
             attendance: reportService.attendance,
             payroll: reportService.payrollCost,
         }[tab.value];
-        data.value = (await call(params(fresh))).data;
+        const result = (await call(params(fresh))).data;
+        if (seq === loadSeq) data.value = result;
     } catch (e) {
+        if (seq !== loadSeq) return;
         data.value = null;
         error.value = e.response?.data?.message ?? "Không tải được báo cáo.";
     } finally {
-        loading.value = false;
+        if (seq === loadSeq) loading.value = false;
     }
 }
 

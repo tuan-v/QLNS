@@ -190,7 +190,7 @@ const routes = [
         path: "/ngay-nghi-le/:groupCode/thong-bao",
         name: "holiday-announcement",
         // Soạn (holiday.manage) hoặc xem bản đã phát hành (mọi người) — trang tự phân nhánh.
-        meta: { title: "Thông báo nghỉ lễ" },
+        meta: { title: "Thông báo nghỉ lễ", parent: "holidays" },
         component: () => import("../views/Holiday/HolidayAnnouncement.vue"),
     },
     {
@@ -202,7 +202,7 @@ const routes = [
     {
         path: "/tuyen-dung/:id",
         name: "recruitment-detail",
-        meta: { title: "Chi tiết đợt tuyển", permission: "recruitment.manage" },
+        meta: { title: "Chi tiết đợt tuyển", parent: "recruitment", permission: "recruitment.manage" },
         component: () => import("../views/Recruitment/RecruitmentOpeningDetail.vue"),
     },
     {
@@ -263,7 +263,7 @@ const routes = [
     {
         path: "/du-an/:id",
         name: "project-detail",
-        meta: { title: "Chi tiết dự án" },
+        meta: { title: "Chi tiết dự án", parent: "projects" },
         component: () => import("../views/Project/ProjectDetail.vue"),
     },
     {

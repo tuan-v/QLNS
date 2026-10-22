@@ -489,7 +489,7 @@ const personalStats = computed(() => {
         {
             label: "Ngày phép còn lại",
             value: d.leave_balance ? `${d.leave_balance.remaining_days}/${d.leave_balance.allocated_days}` : "—",
-            icon: "mdi-beach-outline",
+            icon: "mdi-beach",
             color: "success",
         },
         {

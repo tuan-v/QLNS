@@ -99,6 +99,7 @@
                             type="email"
                             hide-details
                             density="comfortable"
+                            @keyup.enter="handleLogin"
                         >
                             <template #prepend-inner>
                                 <svg
@@ -139,6 +140,7 @@
                             :type="showPassword ? 'text' : 'password'"
                             hide-details
                             density="comfortable"
+                            @keyup.enter="handleLogin"
                         >
                             <template #prepend-inner>
                                 <svg
@@ -211,6 +213,7 @@
                         block
                         size="large"
                         class="mt-3"
+                        :loading="submitting"
                         @click="handleLogin"
                     >
                         Đăng nhập
@@ -245,8 +248,12 @@ const password = ref("");
 const emailError = ref("");
 const passwordError = ref("");
 const showPassword = ref(false);
+const submitting = ref(false);
 
 async function handleLogin() {
+    // Enter ở ô nhập + bấm nút có thể gọi trùng — chỉ gửi 1 lần (API login có giới hạn số lần thử).
+    if (submitting.value) return;
+    submitting.value = true;
     emailError.value = "";
     passwordError.value = "";
     try {
@@ -270,6 +277,8 @@ async function handleLogin() {
         } else {
             passwordError.value = "Có lỗi xảy ra, vui lòng thử lại.";
         }
+    } finally {
+        submitting.value = false;
     }
 }
 </script>

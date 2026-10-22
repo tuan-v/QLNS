@@ -317,7 +317,7 @@ const fileMeta = computed(() => {
         case "xlsx":
             return { icon: "mdi-file-excel-box", color: "success", label: "Bảng tính Excel" };
         case "image":
-            return { icon: "mdi-file-image-box", color: "purple", label: "Hình ảnh" };
+            return { icon: "mdi-file-image", color: "purple", label: "Hình ảnh" };
         default:
             return { icon: "mdi-file-outline", color: "grey", label: "Tệp đính kèm" };
     }
