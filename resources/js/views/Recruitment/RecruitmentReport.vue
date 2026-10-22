@@ -322,9 +322,15 @@ onMounted(load);
     gap: 16px;
     align-items: center;
 }
+/* minmax(0, 1fr) thay cho 1fr: cột "1fr" không co nhỏ hơn nội dung (biểu đồ, bảng chữ không xuống dòng) nên trước
+   đây đẩy cả trang tràn ngang 343px trên điện thoại. Bảng rộng thì cuộn trong khung của nó. */
+.funnel-layout > * {
+    min-width: 0;
+    overflow-x: auto;
+}
 .breakdowns {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
 }
 .table-scroll :deep(td:first-child),
@@ -341,7 +347,7 @@ onMounted(load);
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .funnel-layout {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 @media (max-width: 600px) {

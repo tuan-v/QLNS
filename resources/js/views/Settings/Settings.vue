@@ -25,10 +25,7 @@
                 <p class="text-body-2 mb-4" style="opacity: 0.75">
                     Mọi nhân viên (kể cả người đã có sẵn) tự động làm việc theo đúng giờ giấc và ngày trong tuần cấu
                     hình ở đây, tự động cập nhật ngay khi lưu — không cần HR vào "Gán ca làm việc" cho từng người nữa.
-                    Nhân viên muốn làm thêm/làm bù ngoài các ngày này thì gửi "Xin làm ngoài lịch/OT". Cần khung giờ
-                    RIÊNG cho một số nhân viên (ca đêm, part-time…)? Vào trang
-                    <RouterLink to="/work-shifts">Ca làm việc</RouterLink>
-                    để tạo ca khác và gán riêng cho từng người.
+                    Nhân viên muốn làm thêm/làm bù ngoài các ngày này thì gửi "Xin làm ngoài lịch/OT".
                 </p>
 
                 <v-row dense>

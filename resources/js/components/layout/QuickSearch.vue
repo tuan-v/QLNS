@@ -146,13 +146,6 @@ const ALL_ITEMS = [
         keywords: ["holiday", "ngay le", "nghi le", "tet", "am lich", "lich nghi"],
     },
     {
-        name: "work-shifts",
-        title: "Ca làm việc",
-        icon: "mdi-timetable",
-        permission: "shift.view",
-        keywords: ["shift", "ca lam viec"],
-    },
-    {
         name: "check-in",
         title: "Chấm công",
         icon: "mdi-calendar-check-outline",

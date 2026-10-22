@@ -38,7 +38,9 @@
             />
         </div>
 
-        <v-alert v-if="loadError" type="error" variant="tonal" density="compact" class="mb-4">{{ loadError }}</v-alert>
+        <v-alert v-if="loadError && !noProfile" type="error" variant="tonal" density="compact" class="mb-4">{{
+            loadError
+        }}</v-alert>
         <v-progress-linear v-if="loading && !tasks.length" indeterminate color="primary" class="mb-4" />
 
         <template v-if="tasks.length">
@@ -126,7 +128,18 @@
             </section>
         </template>
 
-        <div v-else-if="!loading" class="empty glass-panel">
+        <!-- Tài khoản chưa gắn hồ sơ nhân viên (vd tài khoản HR/Admin tạo riêng) thì không có việc để giao. -->
+        <div v-else-if="!loading && noProfile" class="empty glass-panel">
+            <v-avatar color="info" variant="tonal" size="64" class="mb-3">
+                <v-icon icon="mdi-account-question-outline" size="32" />
+            </v-avatar>
+            <div class="text-h6 mb-1">Tài khoản chưa gắn với hồ sơ nhân viên</div>
+            <div class="text-body-2 text-medium-emphasis">
+                Chỉ nhân viên có hồ sơ mới được giao việc trong dự án. Liên hệ HR nếu bạn cần tham gia dự án.
+            </div>
+        </div>
+
+        <div v-else-if="!loading && !loadError" class="empty glass-panel">
             <v-avatar color="success" variant="tonal" size="64" class="mb-3">
                 <v-icon :icon="scope === 'open' ? 'mdi-party-popper' : 'mdi-clipboard-text-outline'" size="32" />
             </v-avatar>
@@ -166,6 +179,7 @@ const tasks = ref([]);
 const openTasks = ref([]);
 const loading = ref(false);
 const loadError = ref("");
+const noProfile = ref(false);
 const scope = useRememberedRef("my-tasks.scope", "open");
 const projectFilter = ref(null);
 const taskDialog = ref(false);
@@ -249,6 +263,7 @@ const projectOptions = computed(() => {
 async function loadData() {
     loading.value = true;
     loadError.value = "";
+    noProfile.value = false;
     try {
         const needOpenSeparately = scope.value !== "open" || !!projectFilter.value;
         const [current, open] = await Promise.all([
@@ -259,6 +274,8 @@ async function loadData() {
         openTasks.value = open ? open.data.data : tasks.value;
     } catch (e) {
         tasks.value = [];
+        // 404 = tài khoản chưa liên kết hồ sơ nhân viên (ProjectController) — không phải lỗi, hiện khung giải thích.
+        noProfile.value = e.response?.status === 404;
         loadError.value = e.response?.data?.message ?? "Không tải được công việc.";
     } finally {
         loading.value = false;

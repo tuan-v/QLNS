@@ -343,6 +343,7 @@ flowchart LR
   - HR/Admin xem cả công ty; Manager chỉ phòng mình quản lý (+ phòng con), không xem lương.
   - Chi phí lương = tổng thu nhập + BH công ty đóng 21,5%. Số liệu chấm công dùng lại `AttendanceSheetService` (khớp bảng chấm công).
   - Kết quả lưu cache 10 phút; nút "Làm mới" gửi `fresh=1`. Khoảng thời gian tối đa 24 tháng.
+  - Nhóm theo phòng ban: nhân viên thuộc phòng đã xóa / không có phòng gom chung 1 nhóm "Chưa có phòng ban" (`departmentKey()`; Tổng quan cũng vậy) — trước đây mỗi phòng đã xóa thành 1 miếng trùng tên trên biểu đồ.
 - **Lịch sử:** mục 73.
 
 <a id="m-tuyen-dung"></a>

@@ -264,7 +264,6 @@ class DashboardService
     private function departmentDistribution(string $date): array
     {
         $counts = Employee::query()
-            ->whereNotNull('department_id')
             ->where('hire_date', '<=', $date)
             ->where(fn ($q) => $q->whereNull('termination_date')->orWhere('termination_date', '>=', $date))
             ->select('department_id', DB::raw('count(*) as cnt'))
@@ -272,12 +271,15 @@ class DashboardService
             ->orderByDesc('cnt')
             ->get();
 
-        $names = Department::whereIn('id', $counts->pluck('department_id'))->pluck('name', 'id');
+        $names = Department::whereIn('id', $counts->pluck('department_id')->filter())->pluck('name', 'id');
 
-        return $counts->map(fn ($row) => [
-            'name' => $names[$row->department_id] ?? 'Khác',
-            'count' => (int) $row->cnt,
-        ])->values()->all();
+        // Phòng đã xóa / chưa có phòng gom chung 1 miếng (trước mỗi phòng đã xóa thành 1 miếng "Khác" trùng tên).
+        return $counts
+            ->groupBy(fn ($row) => $row->department_id !== null && $names->has($row->department_id) ? (int) $row->department_id : 0)
+            ->map(fn ($rows, $id) => ['name' => $names[$id] ?? 'Chưa có phòng ban', 'count' => (int) $rows->sum('cnt')])
+            ->sortByDesc('count')
+            ->values()
+            ->all();
     }
 
     // 2026-09-25, theo yêu cầu người dùng (kèm mockup cụ thể) — mở rộng

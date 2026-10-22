@@ -28,6 +28,8 @@ class ReportService
 
     private const CACHE_SECONDS = 600;
 
+    private const NO_DEPARTMENT = 'Chưa có phòng ban';
+
     public function __construct(private readonly AttendanceSheetService $attendanceSheetService)
     {
     }
@@ -144,8 +146,8 @@ class ReportService
                     'leavers' => $totalLeavers,
                     'turnover_rate' => $average > 0 ? round($totalLeavers / $average * 100, 1) : 0.0,
                 ],
-                'by_department' => $current->groupBy('department_id')
-                    ->map(fn ($group, $id) => ['department' => $names[$id] ?? 'Chưa có phòng ban', 'headcount' => $group->count()])
+                'by_department' => $current->groupBy(fn ($employee) => $this->departmentKey($employee->department_id, $names))
+                    ->map(fn ($group, $id) => ['department' => $names[$id] ?? self::NO_DEPARTMENT, 'headcount' => $group->count()])
                     ->sortByDesc('headcount')->values()->all(),
                 'by_status' => $current->groupBy('employment_status')
                     ->map(fn ($group, $status) => ['status' => $status, 'count' => $group->count()])
@@ -200,8 +202,12 @@ class ReportService
 
             $periods = $this->group($months, $params['group'] ?? 'month')
                 ->map(fn (Collection $items, string $key) => ['key' => $key, 'label' => $this->periodLabel($key)] + $this->attendanceRates([
-                    'work' => $items->sum('work'), 'paid' => $items->sum('paid'), 'unpaid' => $items->sum('unpaid'),
-                    'absent' => $items->sum('absent'), 'checkins' => $items->sum('checkins'), 'late' => $items->sum('late'),
+                    'work' => $items->sum('work'),
+                    'paid' => $items->sum('paid'),
+                    'unpaid' => $items->sum('unpaid'),
+                    'absent' => $items->sum('absent'),
+                    'checkins' => $items->sum('checkins'),
+                    'late' => $items->sum('late'),
                 ]))->values();
 
             $names = Department::pluck('name', 'id');
@@ -209,11 +215,18 @@ class ReportService
             return [
                 'periods' => $periods->all(),
                 'totals' => $this->attendanceRates([
-                    'work' => $months->sum('work'), 'paid' => $months->sum('paid'), 'unpaid' => $months->sum('unpaid'),
-                    'absent' => $months->sum('absent'), 'checkins' => $months->sum('checkins'), 'late' => $months->sum('late'),
+                    'work' => $months->sum('work'),
+                    'paid' => $months->sum('paid'),
+                    'unpaid' => $months->sum('unpaid'),
+                    'absent' => $months->sum('absent'),
+                    'checkins' => $months->sum('checkins'),
+                    'late' => $months->sum('late'),
                 ]),
                 'by_department' => collect($byDepartment)
-                    ->map(fn ($sums, $id) => ['department' => $names[$id] ?? 'Chưa có phòng ban'] + $this->attendanceRates($sums))
+                    ->groupBy(fn ($sums, $id) => $this->departmentKey($id, $names), true)
+                    ->map(fn (Collection $group, $id) => ['department' => $names[$id] ?? self::NO_DEPARTMENT] + $this->attendanceRates(
+                        collect(['work', 'paid', 'unpaid', 'absent', 'checkins', 'late'])->mapWithKeys(fn ($field) => [$field => $group->sum($field)])->all()
+                    ))
                     ->sortBy('department')->values()->all(),
             ];
         }, $params['fresh'] ?? false);
@@ -233,8 +246,13 @@ class ReportService
                 ->whereRaw('(payrolls.period_year * 100 + payrolls.period_month) between ? and ?', [$first->year * 100 + $first->month, $last->year * 100 + $last->month])
                 ->when($departmentIds !== null, fn ($q) => $q->whereIn('employees.department_id', $departmentIds))
                 ->get([
-                    'payrolls.period_year', 'payrolls.period_month', 'payrolls.status',
-                    'employees.department_id', 'payroll_details.gross_salary', 'payroll_details.insurance_amount', 'payroll_details.net_salary',
+                    'payrolls.period_year',
+                    'payrolls.period_month',
+                    'payrolls.status',
+                    'employees.department_id',
+                    'payroll_details.gross_salary',
+                    'payroll_details.insurance_amount',
+                    'payroll_details.net_salary',
                 ])
                 ->map(fn ($d) => [
                     'month' => sprintf('%04d-%02d', $d->period_year, $d->period_month),
@@ -269,8 +287,8 @@ class ReportService
             return [
                 'periods' => $periods->all(),
                 'totals' => $sum($details),
-                'by_department' => $details->groupBy('department_id')
-                    ->map(fn ($rows, $id) => ['department' => $names[$id] ?? 'Chưa có phòng ban'] + $sum($rows))
+                'by_department' => $details->groupBy(fn ($row) => $this->departmentKey($row['department_id'], $names))
+                    ->map(fn ($rows, $id) => ['department' => $names[$id] ?? self::NO_DEPARTMENT] + $sum($rows))
                     ->sortByDesc('total_cost')->values()->all(),
                 'employer_insurance_rate' => self::EMPLOYER_INSURANCE_RATE,
             ];
@@ -296,6 +314,15 @@ class ReportService
             'late_count' => (int) $s['late'],
             'late_rate' => $pct($s['late'], $s['checkins']),
         ];
+    }
+
+    /**
+     * Khóa gom nhóm theo phòng ban: phòng đã xóa hoặc không có phòng -> 0 ("Chưa có phòng ban"). Trước đây gom theo
+     * mã phòng nên mỗi phòng đã xóa thành 1 miếng riêng cùng tên "Chưa có phòng ban" trên biểu đồ (2026-10-22).
+     */
+    private function departmentKey($departmentId, Collection $names): int
+    {
+        return $departmentId !== null && $names->has($departmentId) ? (int) $departmentId : 0;
     }
 
     private function employeeQuery(?array $departmentIds)
@@ -334,7 +361,7 @@ class ReportService
     private function group(Collection $months, string $group): Collection
     {
         return $months->groupBy(fn (array $m) => $group === 'quarter'
-            ? $m['start']->year.'-Q'.$m['start']->quarter
+            ? $m['start']->year . '-Q' . $m['start']->quarter
             : $m['key']);
     }
 
@@ -347,7 +374,7 @@ class ReportService
         }
         [$year, $month] = explode('-', $key);
 
-        return 'T'.(int) $month.'/'.$year;
+        return 'T' . (int) $month . '/' . $year;
     }
 
     /** @param array<int, int> $roots */
@@ -358,7 +385,7 @@ class ReportService
 
     private function cached(string $type, array $params, ?array $departmentIds, callable $build, bool $fresh): array
     {
-        $key = 'reports:'.$type.':'.md5(json_encode([
+        $key = 'reports:' . $type . ':' . md5(json_encode([
             // Chỉ các khóa ảnh hưởng kết quả (tham số thừa không làm lệch khóa cache).
             Arr::only($params, ['from', 'to', 'group']),
             $departmentIds === null ? 'all' : collect($departmentIds)->sort()->values()->all(),
