@@ -74,6 +74,13 @@
             @submit="submit"
         />
 
+        <!-- Nơi làm việc — chỉ hiện khi còn ca chưa chấm vào. -->
+        <WorkModeToggle
+            v-if="!loadingToday && todayShifts.some((e) => !e.attendance?.first_check_in_at)"
+            v-model="workMode"
+            class="mb-4"
+        />
+
         <!-- Trạng thái từng ca hôm nay — luôn 1 cột trên mobile (khác desktop
         chia 2 cột md="6"), mỗi ca 1 thẻ riêng để dễ bấm bằng ngón tay. -->
         <div v-if="loadingToday" class="d-flex justify-center py-6">
@@ -1017,6 +1024,7 @@ import {
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
 import QuickCheckInCard from "../../components/attendance/QuickCheckInCard.vue";
+import WorkModeToggle from "../../components/attendance/WorkModeToggle.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import InputDate from "../../components/common/InputDate.vue";
 import { maxLength, notEmpty, validateThen } from "../../composables/validationRules";
@@ -1084,6 +1092,7 @@ const {
     otRequestGeneralError,
     otRequestSubmitting,
     submitOtRequestFromToday,
+    workMode,
 } = useCheckIn();
 
 // Mở thẳng thao tác khi vào trang bằng ?action=... (lệnh Ctrl+K).

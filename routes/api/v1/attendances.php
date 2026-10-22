@@ -41,4 +41,8 @@ Route::middleware('auth:api')->prefix('attendances')->group(function (): void {
     Route::put('/{attendance}/approval', [AttendanceController::class, 'decideApproval'])
         ->whereNumber('attendance')
         ->middleware('permission:attendance.approve');
+    // Sửa "Tại công ty / Làm online" của 1 lượt chấm công (ảnh hưởng phụ cấp ăn trưa).
+    Route::put('/{attendance}/work-mode', [AttendanceController::class, 'updateWorkMode'])
+        ->whereNumber('attendance')
+        ->middleware('permission:attendance.approve');
 });

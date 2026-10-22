@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Attendance;
 
+use App\Models\Attendance;
 use App\Models\AttendanceLog;
 use App\Models\Department;
 use App\Models\Employee;
@@ -146,6 +147,35 @@ class AttendanceTest extends TestCase
         ], ['Authorization' => 'Bearer '.$token]);
 
         $response->assertStatus(422)->assertJsonValidationErrors('work_shift_id');
+    }
+
+    // Nơi làm việc (2026-10-21): mặc định "Tại công ty", nhân viên chọn "Làm online" khi chấm vào; HR sửa
+    // được, nhân viên thì không (ngày online không có phụ cấp ăn trưa).
+    public function test_check_in_records_work_mode_and_hr_can_correct_it(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $first = $this->makeWorkShift('CA001', '08:00', '12:00');
+        $second = $this->makeWorkShift('CA002', '13:00', '17:00');
+        $this->assignShift($employee, $first, [1, 2, 3, 4, 5]);
+        $this->assignShift($employee, $second, [1, 2, 3, 4, 5]);
+        $this->fakeNominatim();
+        $this->travelToMonday('08:00');
+        $headers = ['Authorization' => 'Bearer '.$this->loginAs($user->email, 'Secret@123')];
+
+        $this->postJson('/api/v1/attendances/check-in', ['work_shift_id' => $first->id], $headers)->assertSuccessful();
+        $this->travelToMonday('13:00');
+        $this->postJson('/api/v1/attendances/check-in', ['work_shift_id' => $second->id, 'work_mode' => 'online'], $headers)->assertSuccessful();
+        $this->postJson('/api/v1/attendances/check-in', ['work_shift_id' => $second->id, 'work_mode' => 'home'], $headers)->assertStatus(422);
+
+        $office = Attendance::where('work_shift_id', $first->id)->first();
+        $online = Attendance::where('work_shift_id', $second->id)->first();
+        $this->assertSame('office', $office->work_mode);
+        $this->assertSame('online', $online->work_mode);
+
+        $this->putJson("/api/v1/attendances/{$online->id}/work-mode", ['work_mode' => 'office'], $headers)->assertForbidden();
+        $hr = ['Authorization' => 'Bearer '.$this->loginAs('hr@qlns.local', 'Hr@123456')];
+        $this->putJson("/api/v1/attendances/{$online->id}/work-mode", ['work_mode' => 'office'], $hr)->assertOk();
+        $this->assertSame('office', $online->fresh()->work_mode);
     }
 
     /* ---- 2026-09-21: tự ghi IP + địa chỉ + tên thiết bị của thiết bị chấm công ---- */

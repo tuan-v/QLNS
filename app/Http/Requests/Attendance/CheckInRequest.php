@@ -26,6 +26,8 @@ class CheckInRequest extends FormRequest
             'latitude' => ['nullable', 'numeric', 'between:-90,90', 'required_with:longitude'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180', 'required_with:latitude'],
             'accuracy_meters' => ['nullable', 'numeric', 'min:0'],
+            // Làm tại công ty (mặc định) hay online — ngày online không có phụ cấp ăn trưa.
+            'work_mode' => ['nullable', 'in:office,online'],
         ];
     }
 

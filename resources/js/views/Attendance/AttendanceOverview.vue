@@ -142,6 +142,17 @@
                     </div>
                 </template>
                 <template #item.times="{ item }">
+                    <v-chip
+                        v-if="item.attendance?.work_mode === 'online'"
+                        size="x-small"
+                        color="info"
+                        variant="tonal"
+                        label
+                        prepend-icon="mdi-laptop"
+                        class="mb-1"
+                    >
+                        Làm online
+                    </v-chip>
                     <div class="d-flex align-center ga-1">
                         <span>Vào {{ formatTime(item.attendance?.first_check_in_at) }}</span>
                         <v-chip
@@ -544,6 +555,27 @@ const actions = computed(() => [
     },
     ...partActions("check_in", "giờ vào", "mdi-login"),
     ...partActions("check_out", "giờ ra", "mdi-logout"),
+    {
+        icon: "mdi-swap-horizontal",
+        tooltip: (item) =>
+            item.attendance?.work_mode === "online" ? "Đổi sang Tại công ty" : "Đổi sang Làm online",
+        color: "info",
+        hidden: (item) => !canApprove.value || !item.attendance?.first_check_in_at,
+        confirm: {
+            title: "Đổi nơi làm việc",
+            message: (item) =>
+                item.attendance?.work_mode === "online"
+                    ? `Ghi nhận ${item.employee.full_name} làm TẠI CÔNG TY ngày ${formatDate(date.value)}? Ngày này sẽ được tính phụ cấp ăn trưa.`
+                    : `Ghi nhận ${item.employee.full_name} LÀM ONLINE ngày ${formatDate(date.value)}? Ngày này sẽ không được tính phụ cấp ăn trưa.`,
+            confirmText: "Đổi",
+        },
+        onClick: async (item) => {
+            const next = item.attendance.work_mode === "online" ? "office" : "online";
+            await attendanceService.setWorkMode(item.attendance.id, next);
+            toast.success(next === "online" ? "Đã ghi nhận làm online." : "Đã ghi nhận làm tại công ty.");
+            await loadData();
+        },
+    },
 ]);
 
 // Chọn nhiều dòng chỉ để DUYỆT/TỪ CHỐI hàng loạt (2026-09-25, theo yêu cầu

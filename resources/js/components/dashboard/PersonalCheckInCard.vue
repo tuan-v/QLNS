@@ -18,6 +18,10 @@
         </div>
 
         <div v-else class="d-flex flex-column ga-3">
+            <WorkModeToggle
+                v-if="todayShifts.some((e) => !e.attendance?.first_check_in_at)"
+                v-model="workMode"
+            />
             <div
                 v-for="entry in todayShifts"
                 :key="entry.work_shift.id"
@@ -152,6 +156,7 @@
 // trang Chấm công thật nếu cần).
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { formatTime, useCheckIn } from "../../composables/useCheckIn";
+import WorkModeToggle from "../attendance/WorkModeToggle.vue";
 
 const {
     todayShifts,
@@ -160,6 +165,7 @@ const {
     submittingShiftId,
     submitError,
     submit,
+    workMode,
 } = useCheckIn();
 
 const clock = ref(

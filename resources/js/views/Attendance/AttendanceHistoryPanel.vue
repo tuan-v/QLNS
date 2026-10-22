@@ -112,6 +112,16 @@
                             }}-{{
                                 formatTime(row.attendance?.last_check_out_at)
                             }}
+                            <v-chip
+                                v-if="row.attendance?.work_mode === 'online'"
+                                size="x-small"
+                                color="info"
+                                variant="tonal"
+                                label
+                                class="ml-1"
+                            >
+                                Online
+                            </v-chip>
                         </td>
                         <td class="text-right font-weight-medium">
                             {{

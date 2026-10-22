@@ -41,6 +41,10 @@ export default {
     exportSheet(params) {
         return axios.get(`${API_BASE}/sheet/export`, { params, responseType: "blob" });
     },
+    // HR sửa "Tại công ty / Làm online" của 1 lượt chấm công (ảnh hưởng phụ cấp ăn trưa).
+    setWorkMode(id, workMode) {
+        return axios.put(`${API_BASE}/${id}/work-mode`, { work_mode: workMode });
+    },
     decideApproval(id, payload) {
         return axios.put(`${API_BASE}/${id}/approval`, payload);
     },

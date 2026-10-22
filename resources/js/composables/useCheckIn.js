@@ -198,6 +198,8 @@ export function useCheckIn() {
     // đang dùng. IP và tên thiết bị do backend tự đọc từ request; frontend chỉ
     // phải xin tọa độ từ trình duyệt. Mã QR là ô nhập TÙY CHỌN.
     const submitting = ref(false);
+    // Nơi làm việc khi chấm VÀO (mặc định tại công ty) — ngày online không có phụ cấp ăn trưa.
+    const workMode = ref("office");
     const submittingShiftId = ref(null);
     const submitError = ref("");
 
@@ -226,6 +228,9 @@ export function useCheckIn() {
         submittingShiftId.value = workShiftId;
         try {
             const payload = { work_shift_id: workShiftId };
+            if (!isCheckOut) {
+                payload.work_mode = workMode.value;
+            }
 
             // Lấy vị trí là "cố gắng hết sức", KHÔNG chặn chấm công: nhân viên
             // từ chối quyền / trình duyệt không hỗ trợ / trang chạy http
@@ -245,7 +250,7 @@ export function useCheckIn() {
                 toast.success("Đã chấm công ra.");
             } else {
                 await attendanceService.checkIn(payload);
-                toast.success("Đã chấm công vào.");
+                toast.success(workMode.value === "online" ? "Đã chấm công vào (làm online)." : "Đã chấm công vào.");
             }
             await Promise.all([loadToday(), loadHistory()]);
         } catch (e) {
@@ -730,6 +735,7 @@ export function useCheckIn() {
         submittingShiftId,
         submitError,
         submit,
+        workMode,
         adjustDialog,
         adjustTarget,
         adjustForm,

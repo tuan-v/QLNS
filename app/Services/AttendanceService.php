@@ -463,6 +463,17 @@ class AttendanceService
     // chấm ra mà chưa được quyết đủ cả hai phần.
     public const APPROVAL_PARTS = ['check_in', 'check_out'];
 
+    /**
+     * HR sửa nơi làm việc của 1 lượt chấm công (nhân viên chọn nhầm "Tại công ty" / "Làm online"). Chỉ ảnh
+     * hưởng phụ cấp ăn trưa; giờ công, duyệt công giữ nguyên. Thay đổi được ghi nhật ký (Auditable).
+     */
+    public function setWorkMode(Attendance $attendance, string $mode): Attendance
+    {
+        $attendance->update(['work_mode' => $mode]);
+
+        return $attendance;
+    }
+
     public function decideApproval(Attendance $attendance, string $status, ?string $note, int $decidedBy, string $part = 'both'): Attendance
     {
         if (! $attendance->first_check_in_at) {
@@ -665,6 +676,7 @@ class AttendanceService
 
             $attendance->forceFill([
                 'first_check_in_at' => $now,
+                'work_mode' => $data['work_mode'] ?? Attendance::WORK_MODE_OFFICE,
                 'late_minutes' => $lateMinutes,
                 'status' => 'pending',
                 // Ca OT ngày khác: đơn đã được HR duyệt trước nên OT được duyệt sẵn.

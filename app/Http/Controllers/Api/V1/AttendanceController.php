@@ -82,6 +82,16 @@ class AttendanceController extends Controller
     // HR duyệt / từ chối 1 bản ghi chấm công (quyền attendance.approve, xem
     // route) — chưa duyệt thì không tính công/lương. Tên field khớp
     // DecideAttendanceAdjustmentRequest (status + decision_note).
+    public function updateWorkMode(Request $request, Attendance $attendance): JsonResponse
+    {
+        $data = $request->validate(['work_mode' => ['required', 'in:office,online']], [
+            'work_mode.required' => 'Vui lòng chọn nơi làm việc',
+            'work_mode.in' => 'Nơi làm việc không hợp lệ',
+        ]);
+
+        return response()->json($this->attendanceService->setWorkMode($attendance, $data['work_mode']));
+    }
+
     public function decideApproval(DecideAttendanceApprovalRequest $request, Attendance $attendance): JsonResponse
     {
         $attendance = $this->attendanceService->decideApproval(
