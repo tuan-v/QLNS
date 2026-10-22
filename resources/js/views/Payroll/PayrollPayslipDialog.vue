@@ -47,13 +47,13 @@
                             </td>
                         </tr>
 
-                        <!-- II. Phụ cấp -->
-                        <tr>
-                            <td class="col-roman">II</td>
-                            <td class="col-section">Phụ cấp (P)</td>
-                            <td class="col-label font-italic">Tổng phụ cấp</td>
-                            <td class="col-value font-weight-medium">
-                                {{ formatMoney(detail?.total_allowance) }}
+                        <!-- II. Phụ cấp — xem allowanceRows -->
+                        <tr v-for="(row, index) in allowanceRows" :key="row.label">
+                            <td v-if="index === 0" class="col-roman" :rowspan="allowanceRows.length">II</td>
+                            <td v-if="index === 0" class="col-section" :rowspan="allowanceRows.length">Phụ cấp (P)</td>
+                            <td class="col-label" :class="{ 'font-italic': row.total }">{{ row.label }}</td>
+                            <td class="col-value" :class="{ 'font-weight-medium': row.total }">
+                                {{ formatMoney(row.amount) }}
                             </td>
                         </tr>
 
@@ -87,8 +87,8 @@
 
                         <!-- IV. Khoản trừ -->
                         <tr>
-                            <td class="col-roman" rowspan="5">IV</td>
-                            <td class="col-section" rowspan="5">Khoản trừ</td>
+                            <td class="col-roman" rowspan="4">IV</td>
+                            <td class="col-section" rowspan="4">Khoản trừ</td>
                             <td class="col-label">BHXH, BHYT, BHTN (10,5%)</td>
                             <td class="col-value">
                                 {{ formatMoney(detail?.insurance_amount) }}
@@ -98,12 +98,6 @@
                             <td class="col-label">Thuế TNCN</td>
                             <td class="col-value">
                                 {{ formatMoney(detail?.personal_income_tax) }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td class="col-label">Nghỉ không lương</td>
-                            <td class="col-value">
-                                {{ formatMoney(detail?.unpaid_leave_deduction) }}
                             </td>
                         </tr>
                         <tr>
@@ -176,6 +170,35 @@ function formatMoney(value) {
 // Thưởng lễ (thông báo nghỉ lễ có thưởng) — tên dịp lấy từ thành phần lương nếu có.
 const bonusLabel = computed(() => props.detail?.bonus_label ?? "Thưởng lễ");
 // Có dòng phép khi nghỉ việc: được trả (> 0 ngày) hoặc phép âm (cảnh báo, không trừ lương).
+const allowances = computed(() => props.detail?.allowances ?? []);
+// Mục II luôn ghi rõ là khoản nào; dòng "Tổng phụ cấp" chỉ có khi từ 2 khoản trở lên:
+//   1 khoản  → "Phụ cấp ăn trưa (11 ngày × 30.000 ₫)"
+//   2 khoản+ → "1. Phụ cấp ăn trưa (...)", "2. Phụ cấp khác (Hỗ trợ gửi xe)", "Tổng phụ cấp"
+//   0 khoản  → "Không có phụ cấp" (phiếu tính trước khi có phụ cấp nhưng tổng > 0 thì vẫn hiện tổng)
+const allowanceRows = computed(() => {
+    const items = allowances.value;
+    const total = props.detail?.total_allowance;
+    if (!items.length) {
+        return [{ label: Number(total ?? 0) > 0 ? "Tổng phụ cấp" : "Không có phụ cấp", amount: total ?? 0, total: true }];
+    }
+    const rows = items.map((item, index) => ({
+        label: allowanceLabel(item, items.length > 1 ? index : null),
+        amount: item.amount,
+    }));
+    return items.length > 1 ? [...rows, { label: "Tổng phụ cấp", amount: total, total: true }] : rows;
+});
+function allowanceLabel(item, index) {
+    let detail = "";
+    if (item.unit === "day") {
+        detail = `${Number(item.days ?? 0).toLocaleString("vi-VN")} ngày × ${formatMoney(item.monthly_amount)}`;
+    } else if (item.days !== null && item.days !== undefined) {
+        detail = `${Number(item.days).toLocaleString("vi-VN")}/${item.standard_days} ngày`; // phiếu cũ tính theo tỉ lệ ngày
+    } else if (item.note) {
+        detail = item.note;
+    }
+    // Khoảng trắng không ngắt dòng trước "₫" để ký hiệu tiền không rớt xuống dòng riêng.
+    return `${index === null ? "" : `${index + 1}. `}${item.name}${detail ? ` (${detail.replace(/ ₫/g, "\u00a0₫")})` : ""}`;
+}
 const hasLeavePayout = computed(() => Number(props.detail?.leave_payout_days ?? 0) !== 0);
 const leavePayoutLabel = computed(() => {
     const leaveDays = Number(props.detail?.leave_payout_days ?? 0);
@@ -184,12 +207,13 @@ const leavePayoutLabel = computed(() => {
         : `Đã nghỉ quá ${-leaveDays} ngày phép — không trừ lương, HR tự thỏa thuận`;
 });
 
+// Không cộng "nghỉ không lương": ngày nghỉ không lương đã không được tính công trong lương cơ bản,
+// cộng thêm ở đây làm tổng giảm trừ lớn hơn số tiền thật bị trừ (gross − thực nhận).
 const totalDeduction = computed(() => {
     if (!props.detail) return 0;
     return (
         Number(props.detail.insurance_amount ?? 0) +
         Number(props.detail.personal_income_tax ?? 0) +
-        Number(props.detail.unpaid_leave_deduction ?? 0) +
         Number(props.detail.other_deduction ?? 0)
     );
 });
@@ -254,7 +278,16 @@ async function exportPdf() {
             ["Phòng ban", d?.employee?.department_name ?? "—"],
             ["Ngày công thực tế", `${d?.actual_work_days ?? "—"} / ${d?.standard_work_days ?? "—"}`],
             ["Lương cơ bản", money(d?.base_salary)],
-            ["II", "Phụ cấp (P)", "Tổng phụ cấp", money(d?.total_allowance)],
+            ...allowanceRows.value.map((row, index) => [
+                ...(index === 0
+                    ? [
+                          { content: "II", rowSpan: allowanceRows.value.length },
+                          { content: "Phụ cấp (P)", rowSpan: allowanceRows.value.length },
+                      ]
+                    : []),
+                row.label,
+                money(row.amount),
+            ]),
             [
                 { content: "III", rowSpan: hasLeavePayout.value ? 3 : 2 },
                 { content: "Lương thêm giờ - Thưởng", rowSpan: hasLeavePayout.value ? 3 : 2 },
@@ -264,13 +297,12 @@ async function exportPdf() {
             [bonusLabel.value, money(d?.bonus_amount)],
             ...(hasLeavePayout.value ? [[leavePayoutLabel.value, money(d?.leave_payout_amount)]] : []),
             [
-                { content: "IV", rowSpan: 5 },
-                { content: "Khoản trừ", rowSpan: 5 },
+                { content: "IV", rowSpan: 4 },
+                { content: "Khoản trừ", rowSpan: 4 },
                 "BHXH, BHYT, BHTN (10,5%)",
                 money(d?.insurance_amount),
             ],
             ["Thuế TNCN", money(d?.personal_income_tax)],
-            ["Nghỉ không lương", money(d?.unpaid_leave_deduction)],
             ["Khấu trừ khác", money(d?.other_deduction)],
             [
                 {

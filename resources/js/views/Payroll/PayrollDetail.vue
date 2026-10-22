@@ -154,14 +154,24 @@ const actions = [
 
 async function exportExcel() {
     const XLSX = await import("xlsx");
-    const rows = (payroll.value?.details ?? []).map((d) => ({
+    const details = payroll.value?.details ?? [];
+    // Mỗi khoản phụ cấp 1 cột; cột "Tổng phụ cấp" chỉ có khi từ 2 khoản trở lên (giống phiếu lương).
+    const allowanceNames = [...new Set(details.flatMap((d) => (d.allowances ?? []).map((a) => a.name)))];
+    const allowanceColumns = (d) => {
+        if (!allowanceNames.length) return { "Phụ cấp": d.total_allowance };
+        const columns = Object.fromEntries(
+            allowanceNames.map((name) => [name, (d.allowances ?? []).find((a) => a.name === name)?.amount ?? 0]),
+        );
+        return allowanceNames.length > 1 ? { ...columns, "Tổng phụ cấp": d.total_allowance } : columns;
+    };
+    const rows = details.map((d) => ({
         "Mã NV": d.employee?.code,
         "Họ tên": d.employee?.full_name,
         "Lương cơ bản": d.base_salary,
         "Ngày công chuẩn": d.standard_work_days,
         "Ngày công thực tế": d.actual_work_days,
         "OT (phút)": d.overtime_minutes,
-        "Khấu trừ nghỉ không lương": d.unpaid_leave_deduction,
+        ...allowanceColumns(d),
         "Bảo hiểm": d.insurance_amount,
         "Lương gộp": d.gross_salary,
         "Thuế TNCN": d.personal_income_tax,
