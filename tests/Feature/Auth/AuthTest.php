@@ -128,11 +128,45 @@ class AuthTest extends TestCase
         $refreshed->assertOk()->assertJsonStructure(['access_token', 'refresh_token']);
         $this->assertNotSame($login['refresh_token'], $refreshed->json('refresh_token'));
 
+        // Hết thời gian ân hạn xoay vòng (AuthService::ROTATION_GRACE_SECONDS) thì token cũ vô hiệu.
+        $this->travel(31)->seconds();
         $reused = $this->postJson('/api/v1/auth/refresh', [
             'refresh_token' => $login['refresh_token'],
         ]);
 
         $reused->assertStatus(401);
+    }
+
+    // F5 / đóng tab đúng lúc đang làm mới: server đã cấp token mới nhưng trình duyệt chưa lưu, trang mới gửi
+    // lại token cũ. Trong 30 giây vẫn được cấp cặp mới (không bị đẩy ra đăng nhập); token cấp lần trước —
+    // không ai nhận được — bị thu hồi.
+    public function test_rotated_refresh_token_can_be_reused_within_grace_window(): void
+    {
+        $this->createUser();
+        $login = $this->postJson('/api/v1/auth/login', ['email' => 'user@qlns.local', 'password' => 'Secret@123'])->json();
+
+        $lost = $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $login['refresh_token']])->assertOk()->json();
+        $this->travel(5)->seconds();
+        $retry = $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $login['refresh_token']])->assertOk()->json();
+
+        $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $lost['refresh_token']])->assertStatus(401);
+        $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $retry['refresh_token']])->assertOk();
+    }
+
+    // Thu hồi vì bảo mật (đổi mật khẩu, khóa tài khoản, đăng xuất) thì KHÔNG có ân hạn.
+    public function test_grace_window_does_not_survive_security_revocation(): void
+    {
+        $user = $this->createUser();
+        $login = $this->postJson('/api/v1/auth/login', ['email' => 'user@qlns.local', 'password' => 'Secret@123'])->json();
+        $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $login['refresh_token']])->assertOk();
+
+        app(\App\Repositories\RefreshTokenRepository::class)->revokeAllForUser($user); // như khi đổi mật khẩu
+        $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $login['refresh_token']])->assertStatus(401);
+
+        $second = $this->postJson('/api/v1/auth/login', ['email' => 'user@qlns.local', 'password' => 'Secret@123'])->json();
+        $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $second['refresh_token']])->assertOk();
+        $user->update(['status' => 'inactive']); // tài khoản bị khóa
+        $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $second['refresh_token']])->assertStatus(401);
     }
 
     public function test_logout_revokes_refresh_token(): void

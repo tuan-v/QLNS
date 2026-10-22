@@ -32,9 +32,26 @@ class RefreshTokenRepository
             ->first();
     }
 
+    // Khóa dòng theo hash (kể cả đã thu hồi) — AuthService::refresh() tự xét còn hiệu lực / còn ân hạn.
+    public function findByHashForUpdate(string $tokenHash): ?RefreshToken
+    {
+        return RefreshToken::query()->where('token_hash', $tokenHash)->lockForUpdate()->first();
+    }
+
+    // Thu hồi vì BẢO MẬT (đăng xuất...) — tắt luôn ân hạn xoay vòng của token này.
     public function revoke(RefreshToken $refreshToken): void
     {
-        $refreshToken->forceFill(['revoked_at' => now()])->save();
+        $refreshToken->forceFill(['revoked_at' => now(), 'rotated_at' => null])->save();
+    }
+
+    // Đổi token cũ lấy token mới. Giữ rotated_at của LẦN XOAY ĐẦU để ân hạn không bị kéo dài mãi.
+    public function rotate(RefreshToken $old, RefreshToken $new): void
+    {
+        $old->forceFill([
+            'revoked_at' => $old->revoked_at ?? now(),
+            'rotated_at' => $old->rotated_at ?? now(),
+            'replaced_by_id' => $new->id,
+        ])->save();
     }
 
     // Dùng khi đổi mật khẩu (qua quên mật khẩu) — chặn MỌI phiên đăng nhập cũ
@@ -47,5 +64,10 @@ class RefreshTokenRepository
             ->where('user_id', $user->id)
             ->whereNull('revoked_at')
             ->update(['revoked_at' => now()]);
+        // Token vừa xoay vòng cũng mất ân hạn — không để dùng lại sau khi đổi mật khẩu / khóa tài khoản.
+        RefreshToken::query()
+            ->where('user_id', $user->id)
+            ->whereNotNull('rotated_at')
+            ->update(['rotated_at' => null]);
     }
 }

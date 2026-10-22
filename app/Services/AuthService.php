@@ -13,6 +13,13 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthService
 {
+    /**
+     * Refresh token đã xoay vòng vẫn được dùng lại trong chừng này giây. Lý do: trang đang gửi yêu cầu làm
+     * mới thì người dùng F5 / đóng tab — server đã cấp token mới nhưng trình duyệt chưa kịp lưu, trang mới
+     * gửi lại token cũ và bị đẩy ra đăng nhập (lỗi thật 2026-10-21). Thu hồi vì bảo mật thì không có ân hạn.
+     */
+    public const ROTATION_GRACE_SECONDS = 30;
+
     public function __construct(
         private readonly UserRepository $userRepository,
         private readonly RefreshTokenRepository $refreshTokenRepository,
@@ -45,23 +52,41 @@ class AuthService
         return DB::transaction(function () use ($user, $request) {
             $this->userRepository->touchLastLogin($user);
 
-            return $this->issueTokenPair($user, $request);
+            $pair = $this->issueTokenPair($user, $request);
+            unset($pair['refresh_record']);
+
+            return $pair;
         });
     }
 
     public function refresh(string $refreshToken, Request $request): array
     {
         $tokenHash = $this->jwtService->hashRefreshToken($refreshToken);
-        $record = $this->refreshTokenRepository->findValidByHash($tokenHash);
 
-        if (! $record) {
-            throw new AuthenticationException('Refresh token không hợp lệ hoặc đã hết hạn.');
-        }
+        return DB::transaction(function () use ($tokenHash, $request) {
+            $record = $this->refreshTokenRepository->findByHashForUpdate($tokenHash);
 
-        return DB::transaction(function () use ($record, $request) {
-            $this->refreshTokenRepository->revoke($record);
+            $usable = $record && $record->expires_at->isFuture() && (
+                $record->revoked_at === null
+                || ($record->rotated_at !== null && $record->rotated_at->gte(now()->subSeconds(self::ROTATION_GRACE_SECONDS)))
+            );
+            if (! $usable || $record->user?->status !== 'active') {
+                throw new AuthenticationException('Refresh token không hợp lệ hoặc đã hết hạn.');
+            }
 
-            return $this->issueTokenPair($record->user, $request);
+            // Dùng lại trong ân hạn: token mới cấp lần trước chưa ai nhận được -> thu hồi nó, cấp cặp khác.
+            if ($record->replaced_by_id) {
+                $previous = $record->replacedBy;
+                if ($previous && $previous->revoked_at === null) {
+                    $this->refreshTokenRepository->revoke($previous);
+                }
+            }
+
+            $pair = $this->issueTokenPair($record->user, $request);
+            $this->refreshTokenRepository->rotate($record, $pair['refresh_record']);
+            unset($pair['refresh_record']);
+
+            return $pair;
         });
     }
 
@@ -83,7 +108,7 @@ class AuthService
         $accessToken = $this->jwtService->issueAccessToken($user);
         $refreshTokenPlain = $this->jwtService->generateRefreshTokenPlain();
 
-        $this->refreshTokenRepository->create(
+        $refreshRecord = $this->refreshTokenRepository->create(
             $user,
             $this->jwtService->hashRefreshToken($refreshTokenPlain),
             now()->addDays($this->jwtService->refreshTtlDays()),
@@ -95,6 +120,8 @@ class AuthService
             'access_token' => $accessToken,
             'refresh_token' => $refreshTokenPlain,
             'expires_in' => $this->jwtService->accessTtlSeconds(),
+            // Chỉ dùng nội bộ (refresh() nối token cũ -> mới); login() bỏ đi trước khi trả về.
+            'refresh_record' => $refreshRecord,
         ];
     }
 }
