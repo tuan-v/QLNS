@@ -146,8 +146,9 @@ ref="contactFormRef" validate-on="blur invalid-input lazy" class="v-card-text px
 // bảo trì (giống EmployeeDetail.vue). Nhận `employee` từ component cha (đã
 // tải sẵn ở tab đầu tiên), chỉ tự lo dialog "Sửa thông tin liên hệ" (5 field
 // duy nhất được tự sửa — xem UpdateMyProfileRequest ở backend).
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import employeeService from "../../services/employeeService";
+import allowanceService from "../../services/allowanceService";
 import addressService from "../../services/addressService";
 import SearchSelect from "../../components/common/SearchSelect.vue";
 import { useToastStore } from "../../stores/useToastStore";
@@ -210,7 +211,30 @@ const profileFields = computed(() => {
         { label: "Quản lý trực tiếp", value: e.manager?.full_name },
         { label: "Ngày vào làm", value: formatDate(e.hire_date) },
         { label: "Lương", value: formatCurrency(e.agreed_salary) },
+        {
+            label: "Phụ cấp",
+            // "Phụ cấp ăn trưa 30.000 ₫/ngày làm tại công ty; Phụ cấp khác 500.000 ₫/tháng (Hỗ trợ gửi xe)"
+            value: myAllowances.value.items.length
+                ? myAllowances.value.items
+                      .map(
+                          (item) =>
+                              `${item.name} ${formatCurrency(item.amount)}${item.unit === "day" ? "/ngày làm tại công ty" : "/tháng"}` +
+                              (item.note ? ` (${item.note})` : ""),
+                      )
+                      .join("; ")
+                : null,
+        },
     ];
+});
+
+// Phụ cấp đang hưởng (chỉ đọc) — HR đặt ở Chi tiết nhân viên → tab Phụ cấp.
+const myAllowances = ref({ items: [], total: 0 });
+onMounted(async () => {
+    try {
+        myAllowances.value = (await allowanceService.mine()).data;
+    } catch {
+        // Tài khoản chưa gắn hồ sơ / lỗi mạng: dòng Phụ cấp hiện "—".
+    }
 });
 
 /* ------------------------ Sửa thông tin liên hệ ------------------------ */

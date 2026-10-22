@@ -186,11 +186,13 @@ class PayrollTest extends TestCase
         $this->assertEqualsWithDelta(2_142_857.14, (float) $detail->base_salary, 0.01);
         $this->assertEqualsWithDelta(714_285.71, (float) $detail->unpaid_leave_deduction, 0.01);
         $this->assertEqualsWithDelta(0.0, (float) $detail->insurance_amount, 0.01);
-        $this->assertEqualsWithDelta(2_410_714.28, (float) $detail->gross_salary, 0.01);
+        // + phụ cấp ăn trưa mặc định (2026-10-21): 3 ngày làm tại công ty × 30.000đ = 90.000đ.
+        $this->assertEqualsWithDelta(90_000, (float) $detail->total_allowance, 0.01);
+        $this->assertEqualsWithDelta(2_500_714.28, (float) $detail->gross_salary, 0.01);
         $this->assertEqualsWithDelta(0.0, (float) $detail->taxable_income, 0.01);
         $this->assertEqualsWithDelta(0.0, (float) $detail->personal_income_tax, 0.01);
-        $this->assertEqualsWithDelta(2_410_714.28, (float) $detail->net_salary, 0.01);
-        $this->assertEqualsWithDelta(2_410_714.28, (float) $payroll->total_payroll_amount, 0.01);
+        $this->assertEqualsWithDelta(2_500_714.28, (float) $detail->net_salary, 0.01);
+        $this->assertEqualsWithDelta(2_500_714.28, (float) $payroll->total_payroll_amount, 0.01);
     }
 
     public function test_salary_reflects_actual_attendance_when_no_leave_is_filed(): void

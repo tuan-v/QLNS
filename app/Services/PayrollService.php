@@ -66,6 +66,7 @@ class PayrollService
         private readonly WorkTimeCalculationService $workTimeCalculationService,
         private readonly HolidayBonusCalculator $holidayBonusCalculator,
         private readonly LeaveBalanceService $leaveBalanceService,
+        private readonly AllowanceService $allowanceService,
     ) {
     }
 
@@ -155,7 +156,21 @@ class PayrollService
                     round(array_sum(array_column($bonuses, 'amount')), 2),
                     $leavePayoutDays,
                 );
+                $allowanceItems = $detail['allowance_items'];
+                unset($detail['allowance_items']);
                 $payrollDetail = $this->payrollDetailRepository->createForPayroll($payroll, $detail);
+
+                // Từng khoản phụ cấp / trợ cấp (chụp lại tên + cách tính để phiếu lương cũ không đổi theo danh mục).
+                foreach ($allowanceItems as $item) {
+                    $payrollDetail->components()->create([
+                        'salary_component_id' => $item['component']->id,
+                        'component_name_snapshot' => $item['component']->name,
+                        'calculation_snapshot' => $item['snapshot'],
+                        'quantity' => $item['quantity'],
+                        'rate' => $item['snapshot']['allowance']['monthly_amount'],
+                        'amount' => $item['amount'],
+                    ]);
+                }
 
                 if ($bonuses !== [] && $holidayBonusComponent) {
                     $payrollDetail->components()->create([
@@ -213,8 +228,13 @@ class PayrollService
         // Vẫn tính + hiển thị để tham khảo trên phiếu lương — không còn trực
         // tiếp trừ vào gross nữa (đã tự động không được tính vào $compensatedDays).
         $unpaidLeaveDeduction = round($dailyRate * $unpaidLeaveDays, 2);
+
+        // Phụ cấp / trợ cấp (AllowanceService::forPayroll): cộng vào gross; phần miễn thuế không tính
+        // thuế TNCN; khoản "tính vào lương đóng BH" (vd trách nhiệm) cộng vào mức đóng bảo hiểm.
+        $allowances = $this->allowanceService->forPayroll($employee, $start, $end, $standardWorkDays, $actualWorkDays, $compensatedDays);
+
         $insuranceAmount = $this->insuranceApplies($contract, $compensatedDays, $unpaidLeaveDays)
-            ? round((float) $contract->insurance_salary * self::INSURANCE_RATE, 2)
+            ? round(((float) $contract->insurance_salary + $allowances['insurance_base']) * self::INSURANCE_RATE, 2)
             : 0.0;
 
         // Thanh toán phép chưa nghỉ khi nghỉ việc = số ngày còn lại × lương ngày. Phép âm (đã nghỉ
@@ -223,7 +243,7 @@ class PayrollService
 
         // Thưởng lễ / tiền phép là thu nhập từ tiền lương, tiền công -> tính vào gross và chịu thuế
         // TNCN; bảo hiểm vẫn theo insurance_salary trên hợp đồng nên không đổi.
-        $grossSalary = round($baseSalary + $overtimeAmount + $bonusAmount + $leavePayoutAmount, 2);
+        $grossSalary = round($baseSalary + $overtimeAmount + $bonusAmount + $leavePayoutAmount + $allowances['total'], 2);
         // Luật thuế TNCN đổi mốc 2026 (giảm trừ + biểu lũy tiến), nên phải tính
         // theo KỲ của bảng lương chứ không phải năm hiện tại — tính lại bảng
         // lương kỳ cũ vẫn ra đúng số đã chốt. Người phụ thuộc tạm truyền 0:
@@ -231,7 +251,8 @@ class PayrollService
         // theo NQ 110/2025 vì thế CHƯA được áp dụng) — thêm cột là áp dụng ngay.
         $taxYear = $start->year;
         $incomeAfterInsurance = $grossSalary - $insuranceAmount;
-        $personalIncomeTax = $this->taxCalculator->calculate($incomeAfterInsurance, $taxYear);
+        $taxableBase = $incomeAfterInsurance - $allowances['non_taxable'];
+        $personalIncomeTax = $this->taxCalculator->calculate($taxableBase, $taxYear);
         $netSalary = round($grossSalary - $insuranceAmount - $personalIncomeTax, 2);
 
         return [
@@ -245,14 +266,15 @@ class PayrollService
             'bonus_amount' => $bonusAmount,
             'leave_payout_days' => $leavePayoutDays ?? 0,
             'leave_payout_amount' => $leavePayoutAmount,
-            'total_allowance' => 0,
+            'total_allowance' => $allowances['total'],
             'insurance_amount' => $insuranceAmount,
             'unpaid_leave_deduction' => $unpaidLeaveDeduction,
             'other_deduction' => 0,
             'gross_salary' => $grossSalary,
-            'taxable_income' => $this->taxCalculator->taxableIncome($incomeAfterInsurance, $taxYear),
+            'taxable_income' => $this->taxCalculator->taxableIncome($taxableBase, $taxYear),
             'personal_income_tax' => $personalIncomeTax,
             'net_salary' => $netSalary,
+            'allowance_items' => $allowances['items'],
         ];
     }
 

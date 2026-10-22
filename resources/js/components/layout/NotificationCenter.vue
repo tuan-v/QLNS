@@ -174,17 +174,37 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { useNotificationStore } from "../../stores/useNotificationStore";
 import { usePresenceStore } from "../../stores/usePresenceStore";
+import { useToastStore } from "../../stores/useToastStore";
 import { avatarColor, initials } from "../../composables/avatar";
 import { useNotificationNavigation } from "../../composables/useNotificationNavigation";
 
 const store = useNotificationStore();
 const presence = usePresenceStore();
+const toast = useToastStore();
 const { openNotification } = useNotificationNavigation();
 
 const open = ref(false);
+
+// Loại thông báo cần người nhận biết NGAY -> bật toast kèm nút "Xem" (2026-10-21: HR đề xuất phụ cấp -> Admin;
+// Admin duyệt / từ chối -> HR). Loại khác chỉ tăng số trên chuông như trước.
+const TOAST_TYPES = ["allowance.pending", "allowance.decided"];
+watch(
+    () => store.incoming,
+    (item) => {
+        if (!item || !TOAST_TYPES.includes(item.type)) {
+            return;
+        }
+        const color =
+            item.type === "allowance.decided" ? (item.data?.status === "approved" ? "success" : "warning") : "info";
+        toast.push(`${item.title}: ${item.message}`, color, {
+            duration: 10000,
+            action: { label: "Xem", onClick: () => openNotification(item) },
+        });
+    },
+);
 
 // Chỉ tải lại danh sách khi MỞ dropdown (không cần liên tục poll — thông báo
 // mới đã tự đẩy vào qua kênh realtime, xem useNotificationStore::connect()).
@@ -219,6 +239,8 @@ const TYPE_CATEGORY = {
     "recruitment.interview_confirmation": "Lịch phỏng vấn",
     "bank_account.pending": "Tài khoản ngân hàng",
     "bank_account.reviewed": "Tài khoản ngân hàng",
+    "allowance.pending": "Phụ cấp",
+    "allowance.decided": "Phụ cấp",
     "project.lead_assigned": "Dự án",
     "project.member_added": "Dự án",
     "task.assigned": "Công việc",
@@ -243,7 +265,10 @@ const TYPE_CATEGORY = {
 
 // Thông báo hệ thống (không có actor) — icon + màu theo loại.
 function systemIcon(item) {
-    if (item.type === "leave.decided" || item.type === "resignation.decided" || item.type === "bank_account.reviewed" || item.type === "recruitment.offer_reviewed" || item.type === "recruitment.offer_responded" || item.type === "recruitment.interview_confirmation") {
+    if (item.type === "allowance.pending") {
+        return { icon: "mdi-hand-coin-outline", color: "warning" };
+    }
+    if (item.type === "allowance.decided" || item.type === "leave.decided" || item.type === "resignation.decided" || item.type === "bank_account.reviewed" || item.type === "recruitment.offer_reviewed" || item.type === "recruitment.offer_responded" || item.type === "recruitment.interview_confirmation") {
         return item.data?.status === "approved"
             ? { icon: "mdi-check-circle-outline", color: "success" }
             : { icon: "mdi-close-circle-outline", color: "error" };

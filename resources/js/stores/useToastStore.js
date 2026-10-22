@@ -73,12 +73,19 @@ export const useToastStore = defineStore("toast", () => {
         }, GAP);
     }
 
-    function push(text, color) {
+    // options: { duration, action: { label, onClick } } — action hiện thành nút nhỏ cạnh chữ (vd "Xem" ở toast
+    // thông báo realtime, xem NotificationCenter.vue); bấm thì chạy onClick rồi đóng toast.
+    function push(text, color, options = {}) {
         if (!text) {
             return;
         }
 
-        const item = { text, color, duration: DURATION[color] ?? 4000 };
+        const item = {
+            text,
+            color,
+            duration: options.duration ?? DURATION[color] ?? 4000,
+            action: options.action ?? null,
+        };
 
         // Cờ "đang bận" phải là `current` chứ KHÔNG phải `visible`: `visible`
         // chỉ bật ở nextTick, nên hai lần push liên tiếp trong cùng một lượt

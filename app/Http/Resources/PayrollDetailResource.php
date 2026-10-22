@@ -29,6 +29,19 @@ class PayrollDetailResource extends JsonResource
             // Tên dịp thưởng (vd "Thưởng Quốc khánh") — chỉ có khi đã nạp components.
             'bonus_label' => $this->whenLoaded('components', fn () => $this->components->first(fn ($c) => isset($c->calculation_snapshot['holiday_bonuses']))?->component_name_snapshot),
             'total_allowance' => $this->total_allowance,
+            // Từng khoản phụ cấp / trợ cấp (bản chụp lúc tính lương) — mục II của phiếu lương.
+            'allowances' => $this->whenLoaded('components', fn () => $this->components
+                ->filter(fn ($c) => isset($c->calculation_snapshot['allowance']))
+                ->map(fn ($c) => [
+                    'name' => $c->component_name_snapshot,
+                    'amount' => (float) $c->amount,
+                    'monthly_amount' => $c->calculation_snapshot['allowance']['monthly_amount'] ?? null,
+                    'unit' => $c->calculation_snapshot['allowance']['unit'] ?? 'month',
+                    'note' => $c->calculation_snapshot['allowance']['note'] ?? null,
+                    'days' => $c->calculation_snapshot['allowance']['days'] ?? null,
+                    'standard_days' => $c->calculation_snapshot['allowance']['standard_days'] ?? null,
+                ])
+                ->values()),
             'unpaid_leave_deduction' => $this->unpaid_leave_deduction,
             'other_deduction' => $this->other_deduction,
             'insurance_amount' => $this->insurance_amount,

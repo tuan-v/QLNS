@@ -20,6 +20,12 @@ const ICONS = {
     warning: "mdi-alert-outline",
     info: "mdi-information-outline",
 };
+
+function runAction() {
+    const action = toast.current?.action;
+    toast.hide();
+    action?.onClick();
+}
 </script>
 
 <template>
@@ -45,6 +51,17 @@ const ICONS = {
             </span>
 
             <span class="app-toast__text">{{ toast.current.text }}</span>
+
+            <v-btn
+                v-if="toast.current.action"
+                variant="tonal"
+                size="small"
+                :color="toast.current.color"
+                class="app-toast__action text-none"
+                @click="runAction"
+            >
+                {{ toast.current.action.label }}
+            </v-btn>
 
             <v-btn
                 icon="mdi-close"

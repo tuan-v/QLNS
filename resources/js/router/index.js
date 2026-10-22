@@ -80,6 +80,13 @@ const routes = [
         },
         component: () => import("../views/Payroll/PayrollDetail.vue"),
     },
+    // Phụ cấp & trợ cấp (Kế hoạch Ngày 48) — danh mục; mức từng người ở tab Phụ cấp của Chi tiết nhân viên.
+    {
+        path: "/phu-cap",
+        name: "allowances",
+        meta: { title: "Phụ cấp & trợ cấp", permission: "payroll.view_all" },
+        component: () => import("../views/Payroll/Allowances.vue"),
+    },
 
     {
         path: "/nhan-vien",

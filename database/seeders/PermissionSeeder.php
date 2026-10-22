@@ -62,6 +62,8 @@ class PermissionSeeder extends Seeder
             ['code' => 'payroll.view_own', 'name' => 'Xem phiếu lương của bản thân'],
             ['code' => 'payroll.view_all', 'name' => 'Xem bảng lương toàn công ty'],
             ['code' => 'payroll.manage', 'name' => 'Cấu hình & chốt bảng lương'],
+            // Thay đổi phụ cấp của HR thành đề xuất, người có quyền này duyệt mới áp dụng (2026-10-21) — chỉ Admin.
+            ['code' => 'allowance.approve', 'name' => 'Duyệt thay đổi phụ cấp của nhân viên'],
 
             // Report
             ['code' => 'report.view', 'name' => 'Xem báo cáo / thống kê'],

@@ -35,6 +35,9 @@ const TYPE_ROUTES = {
     "recruitment.interview_confirmation": "interview-schedule",
     "bank_account.pending": "employee-detail",
     "bank_account.reviewed": "my-profile",
+    // Đề xuất phụ cấp (HR -> Admin duyệt) — tab "Đề xuất" của trang Phụ cấp.
+    "allowance.pending": "allowances",
+    "allowance.decided": "allowances",
     // Dự án & công việc — mở trang dự án, kèm ?task= để mở thẳng công việc.
     "project.lead_assigned": "project-detail",
     "project.member_added": "project-detail",
@@ -100,6 +103,8 @@ const TYPE_QUERY = {
     // Mở thẳng hộp thoại xem/duyệt offer của ứng viên.
     "recruitment.offer_pending": (item) => ({ offer: item.data?.candidate_id }),
     "bank_account.reviewed": () => ({ tab: "bank" }),
+    "allowance.pending": () => ({ tab: "requests", status: "pending" }),
+    "allowance.decided": (item) => ({ tab: "requests", status: item.data?.status ?? "all" }),
     "task.assigned": (item) => ({ task: item.data?.task_id }),
     "task.submitted": (item) => ({ task: item.data?.task_id }),
     "task.approved": (item) => ({ task: item.data?.task_id }),

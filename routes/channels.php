@@ -83,6 +83,10 @@ Broadcast::channel('resource-sync.{resource}', function (User $user, string $res
         // Dự án (2026-10-14) — ai đăng nhập cũng có thể là thành viên/Lead dự án nào đó;
         // tín hiệu chỉ báo "có gì vừa đổi", dữ liệu thật do API lọc theo thành viên.
         'projects' => null,
+        // Phụ cấp & trợ cấp (2026-10-20) — danh mục và tab Phụ cấp của nhân viên.
+        'employee_allowances' => 'payroll.view_all',
+        // Đề xuất thay đổi phụ cấp chờ Admin duyệt (2026-10-21).
+        'allowance_requests' => 'payroll.view_all',
         default => false,
     };
 

@@ -209,6 +209,13 @@ const ALL_ITEMS = [
         keywords: ["payroll", "luong", "bang luong", "tinh luong"],
     },
     {
+        name: "allowances",
+        title: "Phụ cấp & trợ cấp",
+        icon: "mdi-hand-coin-outline",
+        permission: "payroll.view_all",
+        keywords: ["phu cap", "tro cap", "an trua", "xang xe", "dien thoai", "trach nhiem", "allowance"],
+    },
+    {
         name: "settings",
         title: "Cài đặt hệ thống",
         icon: "mdi-cog-outline",

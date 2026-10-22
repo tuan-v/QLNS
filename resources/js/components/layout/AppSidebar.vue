@@ -311,6 +311,13 @@ const menu = [
                 to: "/bang-luong",
                 show: () => can("payroll.view_all"),
             },
+            {
+                key: "allowances",
+                icon: "mdi-hand-coin-outline",
+                title: "Phụ cấp & trợ cấp",
+                to: "/phu-cap",
+                show: () => can("payroll.view_all"),
+            },
             { key: "reports", icon: "mdi-chart-bar", title: "Báo cáo", to: "/bao-cao", show: () => can("report.view") },
         ],
     },

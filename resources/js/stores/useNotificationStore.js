@@ -12,6 +12,9 @@ import notificationService from "../services/notificationService";
 export const useNotificationStore = defineStore("notification", () => {
     const notifications = ref([]);
     const unreadCount = ref(0);
+    // Thông báo vừa đẩy tới qua realtime (không phải tải lại danh sách) — NotificationCenter theo dõi để bật
+    // toast cho loại cần xử lý ngay. Không tự toast ở đây vì điều hướng cần router (dễ vòng import qua authStore).
+    const incoming = ref(null);
     let connected = false;
     let joinedUserId = null;
 
@@ -74,6 +77,7 @@ export const useNotificationStore = defineStore("notification", () => {
                 if (!payload.read_at) {
                     unreadCount.value += 1;
                 }
+                incoming.value = payload;
             })
             .error((error) => {
                 console.error("Không thể kết nối thông báo realtime:", error);
@@ -93,5 +97,5 @@ export const useNotificationStore = defineStore("notification", () => {
         unreadCount.value = 0;
     }
 
-    return { notifications, unreadCount, fetchList, markRead, markAllRead, connect, disconnect };
+    return { notifications, unreadCount, incoming, fetchList, markRead, markAllRead, connect, disconnect };
 });

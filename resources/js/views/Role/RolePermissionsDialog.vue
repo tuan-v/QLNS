@@ -212,6 +212,7 @@ const GROUP_LABELS = {
     attendance: "Chấm công",
     leave: "Nghỉ phép",
     payroll: "Lương",
+    allowance: "Phụ cấp",
     report: "Báo cáo",
     rbac: "Phân quyền",
     holiday: "Ngày nghỉ lễ",

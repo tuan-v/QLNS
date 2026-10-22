@@ -29,6 +29,7 @@
                     <v-tab value="shift_assignments" prepend-icon="mdi-calendar-clock-outline">Ca làm việc</v-tab>
                     <v-tab value="attendance" prepend-icon="mdi-calendar-check-outline">Chấm công</v-tab>
                     <v-tab value="payroll" prepend-icon="mdi-cash-multiple">Lương / Phép</v-tab>
+                    <v-tab v-if="canViewPayroll" value="allowances" prepend-icon="mdi-hand-coin-outline">Phụ cấp</v-tab>
                     <v-tab v-if="canUpdate" value="bank" prepend-icon="mdi-bank-outline">Tài khoản ngân hàng</v-tab>
                     <v-tab v-if="canViewJourney" value="journey" prepend-icon="mdi-chart-timeline-variant">Hành trình</v-tab>
                 </v-tabs>
@@ -79,6 +80,10 @@
                     <EmployeeSalaryLeaveTab v-if="tabsOpened.payroll" :employee-id="props.id" />
                 </v-window-item>
 
+                <v-window-item v-if="canViewPayroll" value="allowances">
+                    <EmployeeAllowancesTab v-if="tabsOpened.allowances" :employee-id="props.id" />
+                </v-window-item>
+
                 <v-window-item v-if="canViewJourney" value="journey">
                     <EmployeeJourneyTab v-if="tabsOpened.journey" :employee-id="props.id" />
                 </v-window-item>
@@ -119,6 +124,7 @@ import EmployeeShiftAssignmentsTab from "./EmployeeShiftAssignmentsTab.vue";
 import BankAccountsPanel from "../../components/employee/BankAccountsPanel.vue";
 import EmployeeJourneyTab from "./EmployeeJourneyTab.vue";
 import EmployeeSalaryLeaveTab from "./EmployeeSalaryLeaveTab.vue";
+import EmployeeAllowancesTab from "./EmployeeAllowancesTab.vue";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 const props = defineProps({
@@ -135,6 +141,7 @@ const auth = useAuthStore();
 const canUpdate = computed(() => auth.permissions.includes("employee.update"));
 // Hành trình (có lương qua từng giai đoạn) — Admin + HR (employee.journey).
 const canViewJourney = computed(() => auth.permissions.includes("employee.journey"));
+const canViewPayroll = computed(() => auth.permissions.includes("payroll.view_all"));
 
 const employee = ref(null);
 const loadError = ref("");
@@ -147,6 +154,7 @@ const VALID_TABS = [
     "shift_assignments",
     "attendance",
     "payroll",
+    "allowances",
     "bank",
     "journey",
 ];
@@ -176,6 +184,7 @@ const tabsOpened = reactive({
     shift_assignments: false,
     attendance: false,
     payroll: false,
+    allowances: false,
     bank: false,
     journey: false,
 });

@@ -21,6 +21,7 @@ class Attendance extends Model
     protected $fillable = [
         'employee_id',
         'work_shift_id',
+        'work_mode',
         'attendance_date',
         'first_check_in_at',
         'last_check_out_at',
@@ -51,6 +52,14 @@ class Attendance extends Model
     // 3 giá trị của cột approval_status — bước HR duyệt chấm công (tách khỏi
     // `status` là trạng thái ca làm việc). Chỉ bản ghi 'approved' mới được
     // tính công/lương (PayrollService, AttendanceService::summarizeHistory()).
+    // Nơi làm việc của lượt chấm công (nhân viên chọn khi chấm vào, HR sửa được). Ngày online không có
+    // phụ cấp ăn trưa (AllowanceService::officeDays()).
+    public const WORK_MODE_OFFICE = 'office';
+
+    public const WORK_MODE_ONLINE = 'online';
+
+    public const WORK_MODES = [self::WORK_MODE_OFFICE, self::WORK_MODE_ONLINE];
+
     public const APPROVAL_PENDING = 'pending';
 
     public const APPROVAL_APPROVED = 'approved';
