@@ -71,11 +71,11 @@ class AllowanceService
     {
         return DB::transaction(function () use ($data) {
             $component = SalaryComponent::create($this->componentAttributes($data) + [
-                'code' => 'allowance_tmp_'.uniqid(),
+                'code' => 'allowance_tmp_' . uniqid(),
                 'is_active' => true,
                 'sort_order' => (int) SalaryComponent::whereIn('component_type', array_keys(self::TYPES))->max('sort_order') + 1,
             ]);
-            $component->update(['code' => 'allowance_'.$component->id]);
+            $component->update(['code' => 'allowance_' . $component->id]);
 
             return $component;
         });
@@ -142,13 +142,13 @@ class AllowanceService
             ? in_array($employee->id, $headIds, true)
             : Department::where('manager_id', $employee->id)->exists();
 
-        $label = 'Hợp đồng '.mb_strtolower(self::SUGGESTION_KEYS[$contractType] ?? $contractType);
+        $label = 'Hợp đồng ' . mb_strtolower(self::SUGGESTION_KEYS[$contractType] ?? $contractType);
 
         return [
             'key' => $contractType,
             'contract_type' => $contractType,
             'is_head' => $isHead,
-            'label' => $isHead ? $label.' · Trưởng phòng' : $label,
+            'label' => $isHead ? $label . ' · Trưởng phòng' : $label,
         ];
     }
 
@@ -205,19 +205,29 @@ class AllowanceService
         return [
             'profile' => $profile,
             'items' => $items,
-            // Tổng chỉ cộng khoản tính theo THÁNG; khoản theo ngày (ăn trưa) phụ thuộc số ngày làm nên hiện riêng.
-            'total_current' => $items->where('component.unit', 'month')->sum('effective_amount'),
-            'total_suggested' => $items->where('component.is_active', true)->where('component.unit', 'month')->sum('suggested_amount'),
+            // Ước tính tháng này — cùng cách tính cột "Ước tính tháng này" của bảng phụ cấp (monthEstimate()). Thay 2 ô
+            // "Khoản cố định mỗi tháng" / "Theo mức gợi ý" cũ (2026-10-22): chỉ còn Phụ cấp khác theo tháng (gợi ý 0đ)
+            // nên 2 ô đó trùng bảng bên dưới hoặc luôn "—".
+            'estimate' => $this->monthEstimate(
+                $items->map(fn ($item) => [
+                    'state' => $item['effective_amount'] > 0 ? 'on' : 'off',
+                    'amount' => $item['effective_amount'],
+                    'unit' => $item['component']['unit'],
+                ])->all(),
+                $this->officeDayCounts([$employee->id], now()->startOfMonth(), now())[$employee->id] ?? ['approved' => 0, 'pending' => 0],
+            ),
         ];
     }
 
     /** Mức phụ cấp đang áp dụng hôm nay của chính nhân viên (trang Hồ sơ của tôi). */
     public function currentForEmployee(Employee $employee): array
     {
-        $items = collect($this->forEmployee($employee)['items'])
+        $data = $this->forEmployee($employee);
+        $items = collect($data['items'])
             ->filter(fn ($item) => $item['effective_amount'] > 0)
             ->map(fn ($item) => [
                 'name' => $item['component']['name'],
+                'description' => $item['component']['description'],
                 'type_label' => $item['component']['type_label'],
                 'method_label' => $item['component']['method_label'],
                 'unit' => $item['component']['unit'],
@@ -227,7 +237,13 @@ class AllowanceService
             ])
             ->values();
 
-        return ['items' => $items, 'total' => $items->where('unit', 'month')->sum('amount')];
+        // Chỉ khoản đang hưởng + ước tính tháng này (tab "Phụ cấp" ở Hồ sơ của tôi, 2026-10-22). KHÔNG trả đề xuất
+        // đang chờ duyệt, khoản bị tắt / lý do tắt, mức gợi ý, lịch sử ai đề xuất / duyệt — đó là việc nội bộ HR/Admin.
+        return [
+            'items' => $items,
+            'total' => $items->where('unit', 'month')->sum('amount'),
+            'estimate' => $data['estimate'],
+        ];
     }
 
     /**
@@ -245,7 +261,7 @@ class AllowanceService
         $note = trim((string) $note) ?: null;
         if (round($amount) !== round($suggested) && $note === null) {
             throw ValidationException::withMessages([
-                'note' => 'Mức khác mức gợi ý ('.number_format($suggested, 0, ',', '.').'đ) — vui lòng ghi lý do.',
+                'note' => 'Mức khác mức gợi ý (' . number_format($suggested, 0, ',', '.') . 'đ) — vui lòng ghi lý do.',
             ]);
         }
 
@@ -332,8 +348,8 @@ class AllowanceService
                 Department::withDescendantIds([(int) $filters['department_id']])
             ))
             ->when(! empty($filters['search']), fn ($q) => $q->where(fn ($q) => $q
-                ->where('full_name', 'like', '%'.$filters['search'].'%')
-                ->orWhere('code', 'like', '%'.$filters['search'].'%')))
+                ->where('full_name', 'like', '%' . $filters['search'] . '%')
+                ->orWhere('code', 'like', '%' . $filters['search'] . '%')))
             ->orderBy('full_name')
             ->get();
 

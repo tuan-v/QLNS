@@ -210,6 +210,12 @@ class AllowanceTest extends TestCase
         $this->assertSame('off', $rows[$b->id]['cells'][$meal]['state']);
         $this->assertSame('unset', $rows[$b->id]['cells'][$other]['state']);
         $this->assertEquals(0, $rows[$b->id]['estimate']['amount']);
+
+        // Tab Phụ cấp của nhân viên dùng cùng số ước tính với bảng.
+        $this->getJson("/api/v1/employees/{$a->id}/allowances", $this->admin())->assertOk()
+            ->assertJsonPath('estimate.amount', 390000)
+            ->assertJsonPath('estimate.office_days', 3)
+            ->assertJsonPath('estimate.pending_days', 1);
     }
 
     public function test_catalog_management_and_permissions(): void
@@ -235,7 +241,13 @@ class AllowanceTest extends TestCase
         $this->getJson('/api/v1/employees/me/allowances', $this->as($user))->assertOk()
             ->assertJsonPath('total', 200000)
             ->assertJsonPath('items.0.name', 'Phụ cấp ăn trưa')->assertJsonPath('items.0.unit', 'day')
-            ->assertJsonPath('items.1.note', 'Hỗ trợ gửi xe');
+            ->assertJsonPath('items.1.note', 'Hỗ trợ gửi xe')
+            // Ước tính tháng này cho tab "Phụ cấp" ở Hồ sơ của tôi: chưa có ngày tại công ty -> chỉ Phụ cấp khác.
+            ->assertJsonPath('estimate.amount', 200000)
+            ->assertJsonPath('estimate.office_days', 0)
+            // Không lộ việc nội bộ HR/Admin (đề xuất chờ duyệt, mức gợi ý).
+            ->assertJsonMissingPath('items.0.pending')
+            ->assertJsonMissingPath('items.0.suggested_amount');
         $managerToken = $this->postJson('/api/v1/auth/login', ['email' => 'manager@qlns.local', 'password' => 'Manager@123'])->json('access_token');
         $this->getJson('/api/v1/allowances', ['Authorization' => 'Bearer '.$managerToken])->assertForbidden();
         $this->getJson('/api/v1/allowances/employees', ['Authorization' => 'Bearer '.$managerToken])->assertForbidden();

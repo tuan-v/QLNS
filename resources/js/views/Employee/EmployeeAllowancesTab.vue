@@ -5,13 +5,23 @@
 
         <template v-if="data">
             <div class="summary">
-                <div>
-                    <div class="text-caption text-medium-emphasis">Khoản cố định mỗi tháng</div>
-                    <div class="summary__value">{{ money(data.total_current) }}</div>
-                </div>
-                <div>
-                    <div class="text-caption text-medium-emphasis">Theo mức gợi ý</div>
-                    <div class="summary__value text-medium-emphasis">{{ money(data.total_suggested) }}</div>
+                <!-- Ước tính tháng này (2026-10-22) — cùng cách tính cột cùng tên ở trang Phụ cấp. -->
+                <div class="summary__estimate">
+                    <div class="text-caption text-medium-emphasis">
+                        Ước tính tháng này · {{ monthLabel }}, tới hôm nay
+                    </div>
+                    <div class="summary__value">{{ Number(data.estimate.amount).toLocaleString("vi-VN") }}đ</div>
+                    <div class="text-caption text-medium-emphasis">
+                        <template v-if="hasDaily">{{ data.estimate.office_days }} ngày làm tại công ty</template>
+                        <template v-else>Không hưởng khoản theo ngày</template>
+                        <span
+                            v-if="hasDaily && data.estimate.pending_days"
+                            class="text-warning"
+                            :title="`Nếu HR duyệt thì thêm khoảng ${money(data.estimate.pending_amount)}`"
+                        >
+                            · +{{ data.estimate.pending_days }} ngày chờ duyệt
+                        </span>
+                    </div>
                 </div>
                 <div class="summary__basis">
                     <div class="text-caption text-medium-emphasis">Gợi ý dựa trên</div>
@@ -296,6 +306,11 @@ const firstOfMonth = () => {
 };
 
 const differsCount = computed(() => data.value?.items.filter((i) => i.component.is_active && i.differs).length ?? 0);
+const monthLabel = `Tháng ${new Date().getMonth() + 1}/${new Date().getFullYear()}`;
+// Có khoản theo ngày đang hưởng (ăn trưa) thì mới hiện số ngày tại công ty dưới ô ước tính.
+const hasDaily = computed(
+    () => data.value?.items.some((i) => i.component.unit === "day" && i.effective_amount > 0) ?? false,
+);
 const needsNote = computed(
     () => setItem.value && Math.round(form.amount ?? 0) !== Math.round(setItem.value.suggested_amount),
 );
@@ -377,7 +392,10 @@ useRealtimeRefresh(() => load({ silent: true }), {
     shared: [
         { resource: "employee_allowances", permission: "payroll.view_all" },
         { resource: "allowance_requests", permission: "payroll.view_all" },
+        // Chấm công / duyệt công đổi số ngày tại công ty -> ô "Ước tính tháng này" cập nhật ngay.
+        { resource: "attendances", permission: "attendance.view_all" },
     ],
+    debounceMs: 1000,
 });
 onMounted(load);
 </script>
@@ -397,6 +415,11 @@ onMounted(load);
 }
 .summary__basis {
     font-size: 0.875rem;
+}
+.summary__estimate {
+    padding: 10px 16px;
+    border-radius: 12px;
+    background: rgba(var(--v-theme-primary), 0.06);
 }
 .table-wrap {
     overflow-x: auto;

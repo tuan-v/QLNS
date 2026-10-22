@@ -197,8 +197,9 @@ export const GUIDE_CHAPTERS = [
                 steps: [
                     "Mở “Hồ sơ của tôi”: thông tin cá nhân, hợp đồng, phiếu lương theo từng tháng (xuất PDF được).",
                     "Tab tài khoản ngân hàng: thêm tài khoản nhận lương. HR xác nhận xong thì tài khoản mới được dùng để chuyển lương.",
+                    "Tab “Phụ cấp”: các khoản phụ cấp, trợ cấp bạn đang hưởng và số ước tính tháng này (ăn trưa × số ngày làm tại công ty đã duyệt + phụ cấp khác). Số chính thức ghi trên phiếu lương cuối tháng.",
                 ],
-                keywords: ["phieu luong", "payslip", "ngan hang", "hop dong"],
+                keywords: ["phieu luong", "payslip", "ngan hang", "hop dong", "phu cap", "tro cap", "an trua"],
             },
             {
                 id: "nghi-viec",

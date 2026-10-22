@@ -213,12 +213,13 @@ flowchart LR
 
 ## 7. Hồ sơ của tôi
 
-**Vai trò:** nhân viên tự xem hồ sơ, hợp đồng, phiếu lương, ca, điều chuyển; tự sửa liên hệ, ảnh đại diện, tài liệu, tài khoản ngân hàng; nộp đơn nghỉ việc.
+**Vai trò:** nhân viên tự xem hồ sơ, hợp đồng, phiếu lương, phụ cấp, ca, điều chuyển; tự sửa liên hệ, ảnh đại diện, tài liệu, tài khoản ngân hàng; nộp đơn nghỉ việc.
 
 - **Frontend:** [`MyProfile.vue`](resources/js/views/Me/MyProfile.vue) + các tab `MyProfile*Tab.vue` (nhận `?tab=`).
 - **Backend:** `mine()` ở các Controller hợp đồng / tài liệu / ca / điều chuyển, `EmployeeController::updateMine()`, `uploadMyAvatar()`; validate [`UpdateMyProfileRequest`](app/Http/Requests/Employee/UpdateMyProfileRequest.php) (chỉ 5 ô liên hệ).
 - **Dữ liệu & API:** `/employees/me/*` — chỉ cần đăng nhập, luôn lấy theo người đang đăng nhập.
 - **Ràng buộc khi sửa:** route tải hợp đồng/tài liệu không gắn `permission:`, tự kiểm "chính chủ hoặc có quyền" trong hàm. Route `/me` phải khai **trước** `/{employee}`.
+  - Tab **Phụ cấp** ([`MyProfileAllowancesTab.vue`](resources/js/views/Me/MyProfileAllowancesTab.vue), 2026-10-22): khoản đang hưởng + ước tính tháng này từ `GET /employees/me/allowances` (`AllowanceService::currentForEmployee()`). Chỉ dữ liệu của mình; không trả đề xuất chờ duyệt, khoản bị tắt / lý do, mức gợi ý, lịch sử đề xuất–duyệt. Tự cập nhật qua kênh riêng `allowances`, `attendance`.
 - **Lịch sử:** mục 15, 43, 51.
 
 <a id="m-ca"></a>
@@ -321,7 +322,7 @@ flowchart LR
   - Người nghỉ việc trong kỳ vẫn có trong bảng lương, kèm tiền phép chưa nghỉ.
   - Quy chế công ty hiện tại: chỉ 2 khoản — **Phụ cấp ăn trưa** 30.000đ × số ngày làm tại công ty (`per_office_day`: chấm công đã duyệt, `work_mode = office`, có giờ làm, không phải ca OT; nửa ngày vẫn 1 suất; nhiều ca cùng ngày tính 1) và **Phụ cấp khác** (cố định/tháng, nội dung ghi ở `note`).
   - Khoản `applies_to_all` (ăn trưa): không có dòng `employee_allowances` = tự hưởng mức gợi ý ("mặc định"); HR đặt 0 để tắt riêng. Khoản khác: không có dòng = chưa đặt. Đơn vị tiền: khoản `per_office_day` nhập theo NGÀY, còn lại theo tháng.
-  - Bảng "Theo nhân viên" có cột **"Ước tính tháng này"** (`estimate` từ `monthEstimate()`): từ đầu tháng tới hôm nay, khoản theo ngày × ngày làm tại công ty đã duyệt + khoản theo tháng; ngày còn chờ duyệt hiện riêng ("+n ngày chờ duyệt"). Đếm ngày bằng `officeDayCounts()` (1 truy vấn cho cả bảng, cùng điều kiện với `officeDays()` của bảng lương). Trang nghe thêm kênh `attendances` nên tự cập nhật khi có chấm công/duyệt/đổi nơi làm việc. Chỉ để xem nhanh, số chính thức do bảng lương tính.
+  - Bảng "Theo nhân viên" có cột **"Ước tính tháng này"** (`estimate` từ `monthEstimate()`): từ đầu tháng tới hôm nay, khoản theo ngày × ngày làm tại công ty đã duyệt + khoản theo tháng; ngày còn chờ duyệt hiện riêng ("+n ngày chờ duyệt"). Đếm ngày bằng `officeDayCounts()` (1 truy vấn cho cả bảng, cùng điều kiện với `officeDays()` của bảng lương). Trang nghe thêm kênh `attendances` nên tự cập nhật khi có chấm công/duyệt/đổi nơi làm việc. Chỉ để xem nhanh, số chính thức do bảng lương tính. Tab Phụ cấp ở Chi tiết nhân viên hiện cùng số này (`forEmployee()['estimate']`), thay cho 2 ô cũ "Khoản cố định mỗi tháng" / "Theo mức gợi ý" (đã thừa khi chỉ còn Phụ cấp khác theo tháng, gợi ý 0đ).
   - Phiếu lương mục II luôn ghi rõ tên khoản; dòng "Tổng phụ cấp" chỉ có khi từ 2 khoản trở lên (khi đó đánh số "1. Phụ cấp ăn trưa (n ngày × 30.000 ₫)", "2. Phụ cấp khác (nội dung)"); 1 khoản thì chỉ dòng đó; 0 khoản thì "Không có phụ cấp". Excel xuất bảng lương cũng mỗi khoản 1 cột, cột tổng theo cùng quy tắc; mục IV **không** có "Nghỉ không lương" (ngày nghỉ không lương đã không có công, cộng thêm làm tổng giảm trừ sai).
   - **Đổi phụ cấp của nhân viên phải qua Admin duyệt** (2026-10-21): người không có `allowance.approve` (HR) thêm / sửa / tắt / đặt hàng loạt / áp dụng gợi ý đều chỉ tạo đề xuất `pending`; Admin duyệt mới ghi `employee_allowances`, hiệu lực từ đúng ngày HR chọn. Bảng lương không tự tính lại: duyệt mà ngày áp dụng rơi vào kỳ đã có bảng lương thì `approve()` trả `payroll_warning` để nhắc Admin. Trong lúc chờ, bảng lương dùng mức cũ. Mỗi nhân viên × khoản chỉ 1 đề xuất chờ — gửi lại thì thay. Admin tự đặt thì áp dụng ngay (`approved_by` = chính mình). Danh mục khoản không qua duyệt.
   - Thông báo `allowance.pending` (1 thông báo/lượt gửi, tới mọi người có `allowance.approve` trừ người gửi) và `allowance.decided` (tới người đề xuất, kèm ghi chú/lý do). Hai loại này bật **toast có nút "Xem"** ([`NotificationCenter.vue`](resources/js/components/layout/NotificationCenter.vue) theo dõi `incoming` của store; toast nhận `action` qua [`useToastStore`](resources/js/stores/useToastStore.js)). Không gửi email.
