@@ -67,12 +67,6 @@
                 <span v-if="item.level">{{ item.level }}</span>
                 <span v-else style="opacity: 0.4">—</span>
             </template>
-            <template #item.position_allowance="{ item }">
-                <span v-if="item.position_allowance">
-                    {{ formatMoney(item.position_allowance) }}
-                </span>
-                <span v-else style="opacity: 0.4">—</span>
-            </template>
             <template #item.type="{ item }">
                 <v-chip
                     v-if="item.type"
@@ -143,7 +137,6 @@ const headers = [
     { title: "Tên chức vụ", key: "name" },
     { title: "Phòng ban", key: "department_name" },
     { title: "Cấp bậc", key: "level", width: 100 },
-    { title: "Phụ cấp", key: "position_allowance", width: 140 },
     { title: "Loại", key: "type", width: 170 },
     { title: "Trạng thái", key: "is_active", width: 150 },
 ];
@@ -164,10 +157,6 @@ const departmentOptions = computed(() =>
         title: dept.name,
     })),
 );
-
-function formatMoney(value) {
-    return new Intl.NumberFormat("vi-VN").format(Number(value)) + " ₫";
-}
 
 async function fetchData() {
     loading.value = true;

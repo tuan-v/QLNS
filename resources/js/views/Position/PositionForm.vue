@@ -54,8 +54,8 @@
         </FormSection>
 
         <FormSection
-            title="Cấp bậc & phụ cấp"
-            description="Không bắt buộc — dùng khi tính lương và sắp xếp chức vụ."
+            title="Cấp bậc & trạng thái"
+            description="Cấp bậc không bắt buộc — dùng để sắp xếp chức vụ. Phụ cấp đặt ở trang Phụ cấp."
             :columns="2"
         >
             <FormField label="Cấp bậc">
@@ -67,13 +67,6 @@
                     placeholder="Ví dụ: 1"
                     :rules="[isInteger('Cấp bậc'), minValue(1, 'Cấp bậc')]"
                     :error-messages="errors.level"
-                />
-            </FormField>
-
-            <FormField label="Phụ cấp chức vụ">
-                <InputMoney
-                    v-model="form.position_allowance"
-                    :error-messages="errors.position_allowance"
                 />
             </FormField>
 
@@ -106,7 +99,6 @@ import FormDialog from "../../components/common/FormDialog.vue";
 import FormSection from "../../components/common/FormSection.vue";
 import FormField from "../../components/common/FormField.vue";
 import SearchSelect from "../../components/common/SearchSelect.vue";
-import InputMoney from "../../components/common/InputMoney.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useChangeGuard } from "../../composables/useChangeGuard";
 import {
@@ -158,7 +150,6 @@ const form = reactive({
     name: "",
     department_id: null,
     level: null,
-    position_allowance: null,
     is_active: true,
 });
 
@@ -167,7 +158,6 @@ function fillForm() {
     form.department_id =
         props.position?.department_id ?? props.defaultDepartmentId ?? null;
     form.level = props.position?.level ?? null;
-    form.position_allowance = props.position?.position_allowance ?? null;
     // DB trả về 1/0, ép về boolean cho v-switch
     form.is_active = Boolean(props.position?.is_active ?? true);
 }

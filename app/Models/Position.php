@@ -15,16 +15,11 @@ class Position extends Model
         'code',
         'name',
         'level',
-        'position_allowance',
         'is_active',
         'type',
     ];
-    // Cùng lý do ép float ở WorkShift::$casts. KHÔNG ép is_active thành
-    // boolean — cùng lý do đã ghi ở WorkShift::$casts (Positions.vue map
-    // trạng thái theo khóa 1/0).
-    protected $casts = [
-        'position_allowance' => 'float',
-    ];
+    // KHÔNG ép is_active thành boolean — cùng lý do đã ghi ở WorkShift::$casts
+    // (Positions.vue map trạng thái theo khóa 1/0).
     public function department()
     {
         return $this->belongsTo(Department::class);

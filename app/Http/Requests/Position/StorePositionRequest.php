@@ -18,7 +18,6 @@ class StorePositionRequest extends FormRequest
             // "code" không nhận từ client — PositionService tự sinh mã (CV001...).
             'name' => ['required', 'string', 'max:150'],
             'level' => ['nullable', 'integer', 'min:1'],
-            'position_allowance' => ['nullable', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
         ];
     }
@@ -32,8 +31,6 @@ class StorePositionRequest extends FormRequest
             'name.max' => 'Tên chức vụ không được vượt quá 150 ký tự',
             'level.integer' => 'Cấp bậc phải là số nguyên',
             'level.min' => 'Cấp bậc phải lớn hơn 0',
-            'position_allowance.numeric' => 'Phụ cấp chức vụ phải là số',
-            'position_allowance.min' => 'Phụ cấp chức vụ không được nhỏ hơn 0',
             'is_active.boolean' => 'Trạng thái phải là 1 hoặc 0',
         ];
     }

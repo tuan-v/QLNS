@@ -58,7 +58,6 @@ class PositionTest extends TestCase
             'department_id' => $department->id,
             'name' => 'Truong phong',
             'level' => 1,
-            'position_allowance' => 2000000,
         ], [
             'Authorization' => 'Bearer '.$token,
         ]);
