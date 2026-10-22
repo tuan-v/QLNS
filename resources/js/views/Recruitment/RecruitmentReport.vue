@@ -4,7 +4,7 @@
     <div>
         <PageHeader
             title="Báo cáo tuyển dụng"
-            subtitle="Phễu tuyển dụng, thời gian xử lý và kênh tuyển hiệu quả — tính theo ngày nhận CV."
+            subtitle="Thống kê tuyển dụng, thời gian xử lý và kênh tuyển hiệu quả — tính theo ngày nhận CV."
         />
 
         <!-- Bộ lọc -->
@@ -12,12 +12,35 @@
             <div class="filters">
                 <InputDate v-model="filters.from" label="Từ ngày" hide-details />
                 <InputDate v-model="filters.to" label="Đến ngày" hide-details :error-messages="errors.to" />
-                <v-autocomplete v-model="filters.opening_id" :items="options.openings" label="Đợt tuyển" clearable hide-details density="comfortable" />
-                <v-autocomplete v-model="filters.position_id" :items="options.positions" label="Vị trí" clearable hide-details density="comfortable" />
-                <v-select v-model="filters.source" :items="options.sources" label="Nguồn ứng viên" clearable hide-details density="comfortable" />
+                <v-autocomplete
+                    v-model="filters.opening_id"
+                    :items="options.openings"
+                    label="Đợt tuyển"
+                    clearable
+                    hide-details
+                    density="comfortable"
+                />
+                <v-autocomplete
+                    v-model="filters.position_id"
+                    :items="options.positions"
+                    label="Vị trí"
+                    clearable
+                    hide-details
+                    density="comfortable"
+                />
+                <v-select
+                    v-model="filters.source"
+                    :items="options.sources"
+                    label="Nguồn ứng viên"
+                    clearable
+                    hide-details
+                    density="comfortable"
+                />
             </div>
             <div class="d-flex flex-wrap ga-2 mt-3">
-                <v-chip v-for="p in PRESETS" :key="p.key" size="small" variant="outlined" @click="applyPreset(p.key)">{{ p.label }}</v-chip>
+                <v-chip v-for="p in PRESETS" :key="p.key" size="small" variant="outlined" @click="applyPreset(p.key)">{{
+                    p.label
+                }}</v-chip>
             </div>
         </v-sheet>
 
@@ -27,7 +50,12 @@
         <template v-if="data">
             <!-- Chỉ số chính -->
             <div class="kpis mb-4">
-                <v-sheet v-for="k in kpis" :key="k.label" class="border rounded-lg pa-4 glass-panel" color="transparent">
+                <v-sheet
+                    v-for="k in kpis"
+                    :key="k.label"
+                    class="border rounded-lg pa-4 glass-panel"
+                    color="transparent"
+                >
                     <div class="d-flex align-center ga-2 mb-1">
                         <v-icon :icon="k.icon" :color="k.color" size="20" />
                         <span class="text-caption" style="opacity: 0.7">{{ k.label }}</span>
@@ -39,7 +67,7 @@
 
             <!-- Phễu -->
             <v-sheet class="border rounded-lg pa-4 mb-4 glass-panel" color="transparent">
-                <div class="text-subtitle-1 font-weight-bold mb-2">Phễu tuyển dụng</div>
+                <div class="text-subtitle-1 font-weight-bold mb-2">Thống kê tuyển dụng</div>
                 <div v-if="!data.metrics.cv_total" class="text-body-2 py-6 text-center" style="opacity: 0.6">
                     Không có CV nào trong khoảng thời gian / bộ lọc này.
                 </div>
@@ -70,9 +98,16 @@
 
             <!-- Theo nguồn / theo vị trí -->
             <div class="breakdowns">
-                <v-sheet v-for="b in breakdowns" :key="b.title" class="border rounded-lg pa-4 glass-panel" color="transparent">
+                <v-sheet
+                    v-for="b in breakdowns"
+                    :key="b.title"
+                    class="border rounded-lg pa-4 glass-panel"
+                    color="transparent"
+                >
                     <div class="text-subtitle-1 font-weight-bold mb-2">{{ b.title }}</div>
-                    <div v-if="!b.rows.length" class="text-body-2 py-4 text-center" style="opacity: 0.6">Chưa có dữ liệu.</div>
+                    <div v-if="!b.rows.length" class="text-body-2 py-4 text-center" style="opacity: 0.6">
+                        Chưa có dữ liệu.
+                    </div>
                     <div v-else class="table-scroll">
                         <v-table density="compact">
                             <thead>
@@ -96,7 +131,12 @@
                                     <td class="text-right font-weight-bold">{{ r.hired }}</td>
                                     <td>
                                         <div class="d-flex align-center ga-2">
-                                            <v-progress-linear :model-value="r.hire_rate" color="success" height="6" rounded />
+                                            <v-progress-linear
+                                                :model-value="r.hire_rate"
+                                                color="success"
+                                                height="6"
+                                                rounded
+                                            />
                                             <span class="text-caption" style="min-width: 40px">{{ r.hire_rate }}%</span>
                                         </div>
                                     </td>
@@ -120,7 +160,8 @@ import InputDate from "../../components/common/InputDate.vue";
 import { useRealtimeRefresh } from "../../composables/useRealtimeRefresh";
 
 const theme = useTheme();
-const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const iso = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 const PRESETS = [
     { key: "month", label: "Tháng này" },
@@ -129,7 +170,13 @@ const PRESETS = [
     { key: "last90", label: "90 ngày gần đây" },
 ];
 
-const filters = reactive({ from: iso(new Date(new Date().getFullYear(), 0, 1)), to: iso(new Date()), opening_id: null, position_id: null, source: null });
+const filters = reactive({
+    from: iso(new Date(new Date().getFullYear(), 0, 1)),
+    to: iso(new Date()),
+    opening_id: null,
+    position_id: null,
+    source: null,
+});
 const data = ref(null);
 const options = ref({ openings: [], positions: [], sources: [] });
 const loading = ref(false);
@@ -162,7 +209,8 @@ async function load() {
         options.value = response.options;
     } catch (e) {
         if (mine !== seq) return;
-        if (e.response?.status === 422) errors.value = Object.fromEntries(Object.entries(e.response.data.errors).map(([k, v]) => [k, v[0]]));
+        if (e.response?.status === 422)
+            errors.value = Object.fromEntries(Object.entries(e.response.data.errors).map(([k, v]) => [k, v[0]]));
         else loadError.value = e.response?.data?.message ?? "Không tải được báo cáo.";
     } finally {
         if (mine === seq) loading.value = false;
@@ -173,13 +221,40 @@ const days = (v) => (v === null || v === undefined ? "—" : `${v} ngày`);
 const kpis = computed(() => {
     const m = data.value?.metrics ?? {};
     return [
-        { label: "CV nhận được", value: m.cv_total ?? 0, hint: "trong khoảng đã chọn", icon: "mdi-file-account-outline", color: "primary" },
-        { label: "Nhận việc", value: m.hired ?? 0, hint: `${m.hire_rate ?? 0}% số CV`, icon: "mdi-account-check-outline", color: "success" },
-        { label: "Thời gian duyệt CV TB", value: days(m.avg_review_days), hint: "từ lúc nhận CV tới lúc duyệt", icon: "mdi-timer-sand", color: "info" },
-        { label: "Thời gian tuyển TB", value: days(m.avg_days_to_accept), hint: "từ lúc nhận CV tới chấp nhận offer", icon: "mdi-calendar-clock", color: "warning" },
+        {
+            label: "CV nhận được",
+            value: m.cv_total ?? 0,
+            hint: "trong khoảng đã chọn",
+            icon: "mdi-file-account-outline",
+            color: "primary",
+        },
+        {
+            label: "Nhận việc",
+            value: m.hired ?? 0,
+            hint: `${m.hire_rate ?? 0}% số CV`,
+            icon: "mdi-account-check-outline",
+            color: "success",
+        },
+        {
+            label: "Thời gian duyệt CV TB",
+            value: days(m.avg_review_days),
+            hint: "từ lúc nhận CV tới lúc duyệt",
+            icon: "mdi-timer-sand",
+            color: "info",
+        },
+        {
+            label: "Thời gian tuyển TB",
+            value: days(m.avg_days_to_accept),
+            hint: "từ lúc nhận CV tới chấp nhận offer",
+            icon: "mdi-calendar-clock",
+            color: "warning",
+        },
         {
             label: "Tỉ lệ nhận offer",
-            value: m.offer_acceptance_rate === null || m.offer_acceptance_rate === undefined ? "—" : `${m.offer_acceptance_rate}%`,
+            value:
+                m.offer_acceptance_rate === null || m.offer_acceptance_rate === undefined
+                    ? "—"
+                    : `${m.offer_acceptance_rate}%`,
             hint: `${m.offers_accepted ?? 0} nhận · ${m.offers_declined ?? 0} từ chối · ${m.offers_expired ?? 0} hết hạn · ${m.offers_waiting ?? 0} chờ`,
             icon: "mdi-email-check-outline",
             color: "secondary",
@@ -202,7 +277,10 @@ const funnelOptions = computed(() => {
         colors: ["#6366f1", "#7c6cf2", "#8b75f3", "#9a7ef4", "#22c55e", "#16a34a", "#15803d", "#166534"],
         legend: { show: false },
         dataLabels: { enabled: true, style: { fontSize: "12px" } },
-        xaxis: { categories: (data.value?.funnel ?? []).map((s) => s.label), labels: { formatter: (v) => Math.round(v) } },
+        xaxis: {
+            categories: (data.value?.funnel ?? []).map((s) => s.label),
+            labels: { formatter: (v) => Math.round(v) },
+        },
         tooltip: { y: { formatter: (v) => `${v} CV` } },
         grid: { borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" },
     };

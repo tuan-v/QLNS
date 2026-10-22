@@ -17,9 +17,13 @@ const quickSearch = ref(null);
 defineEmits(["toggle-sidebar"]);
 
 function toggleTheme() {
-    theme.global.name.value = theme.global.current.value.dark
-        ? "qlnsLight"
-        : "qlnsDark";
+    const next = theme.global.current.value.dark ? "qlnsLight" : "qlnsDark";
+    // Vuetify 3.9+ có theme.change(); bản cũ hơn chỉ có cách gán tên trực tiếp.
+    if (typeof theme.change === "function") {
+        theme.change(next);
+    } else {
+        theme.global.name.value = next;
+    }
 }
 
 async function handleLogout() {
