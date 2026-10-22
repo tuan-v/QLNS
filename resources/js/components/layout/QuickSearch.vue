@@ -133,6 +133,13 @@ const ALL_ITEMS = [
         keywords: ["cong viec", "task", "viec duoc giao", "han", "nop"],
     },
     {
+        name: "kpi",
+        title: "KPI công việc",
+        icon: "mdi-chart-box-outline",
+        permission: null,
+        keywords: ["kpi", "danh gia", "hieu suat", "xep loai", "cham diem", "chat luong", "dung han"],
+    },
+    {
         name: "holidays",
         title: "Ngày nghỉ lễ",
         icon: "mdi-calendar-star",

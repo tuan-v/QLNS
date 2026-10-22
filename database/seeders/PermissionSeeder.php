@@ -55,6 +55,8 @@ class PermissionSeeder extends Seeder
             // Dự án & công việc (2026-10-14) — tạo dự án, chọn Lead, xem mọi dự án.
             // Quyền của Lead/thành viên đi theo TỪNG dự án (project_members), không qua mã quyền.
             ['code' => 'project.manage', 'name' => 'Quản lý dự án (tạo dự án, chọn Lead, xem mọi dự án)'],
+            // KPI tháng từ công việc dự án — không có quyền này thì chỉ xem phòng mình quản lý / dự án mình làm Lead / chính mình.
+            ['code' => 'kpi.view_all', 'name' => 'Xem KPI của toàn bộ nhân viên'],
 
             // Payroll
             ['code' => 'payroll.view_own', 'name' => 'Xem phiếu lương của bản thân'],

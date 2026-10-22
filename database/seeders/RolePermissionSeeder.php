@@ -35,6 +35,7 @@ class RolePermissionSeeder extends Seeder
                 'holiday.manage',
                 'recruitment.manage',
                 'project.manage',
+                'kpi.view_all',
                 'payroll.view_all',
                 'payroll.manage',
                 'report.view',

@@ -42,3 +42,5 @@ Schedule::command('holidays:notify')->dailyAt('08:00');
 Schedule::command('projects:remind-tasks')->dailyAt('08:05');
 // Nhật ký hoạt động: xóa log quá hạn lưu trữ (config/audit.php, mặc định 24 tháng).
 Schedule::command('logs:prune')->dailyAt('01:30');
+// KPI dự án: chốt các tháng đã hết + KpiService::LOCK_AFTER_DAYS ngày.
+Schedule::command('kpi:lock-months')->dailyAt('00:15');

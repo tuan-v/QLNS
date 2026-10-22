@@ -238,6 +238,7 @@ const menu = [
         children: [
             { key: "project-list", icon: "mdi-folder-account-outline", title: "Dự án", to: "/du-an" },
             { key: "my-tasks", icon: "mdi-checkbox-marked-circle-outline", title: "Công việc của tôi", to: "/cong-viec-cua-toi" },
+            { key: "kpi", icon: "mdi-chart-box-outline", title: "KPI công việc", to: "/kpi" },
         ],
     },
     {

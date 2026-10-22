@@ -34,4 +34,22 @@ class Department extends Model
     {
         return $query->where('is_active', 1);
     }
+
+    /**
+     * Các phòng ban gốc + mọi phòng con cháu (dùng cho phạm vi xem của Trưởng phòng ở Báo cáo, KPI).
+     *
+     * @param  array<int, int>  $roots
+     * @return array<int, int>
+     */
+    public static function withDescendantIds(array $roots): array
+    {
+        $all = $roots;
+        $frontier = $roots;
+        while ($frontier !== []) {
+            $frontier = static::whereIn('parent_id', $frontier)->whereNotIn('id', $all)->pluck('id')->all();
+            $all = array_merge($all, $frontier);
+        }
+
+        return array_values(array_unique($all));
+    }
 }

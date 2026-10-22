@@ -265,6 +265,13 @@ const routes = [
         meta: { title: "Công việc của tôi" },
         component: () => import("../views/Project/MyTasks.vue"),
     },
+    // KPI tháng từ công việc dự án — ai đăng nhập cũng vào được, phạm vi xem do API lọc (KpiService).
+    {
+        path: "/kpi",
+        name: "kpi",
+        meta: { title: "KPI công việc" },
+        component: () => import("../views/Project/Kpi.vue"),
+    },
 ];
 
 const router = createRouter({

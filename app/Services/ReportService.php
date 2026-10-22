@@ -353,14 +353,7 @@ class ReportService
     /** @param array<int, int> $roots */
     private function withDescendants(array $roots): array
     {
-        $all = $roots;
-        $frontier = $roots;
-        while ($frontier !== []) {
-            $frontier = Department::whereIn('parent_id', $frontier)->whereNotIn('id', $all)->pluck('id')->all();
-            $all = array_merge($all, $frontier);
-        }
-
-        return array_values(array_unique($all));
+        return Department::withDescendantIds($roots);
     }
 
     private function cached(string $type, array $params, ?array $departmentIds, callable $build, bool $fresh): array
