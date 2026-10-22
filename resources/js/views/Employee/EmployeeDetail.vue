@@ -139,8 +139,10 @@ const route = useRoute();
 const auth = useAuthStore();
 
 const canUpdate = computed(() => auth.permissions.includes("employee.update"));
-// Hành trình (có lương qua từng giai đoạn) — Admin + HR (employee.journey).
-const canViewJourney = computed(() => auth.permissions.includes("employee.journey"));
+// Hành trình (tuyển dụng, lương, dự án & KPI, chuyên cần...) — Admin + HR (employee.journey) hoặc Trưởng
+// phòng của nhân viên này (server trả meta.can_view_journey, xem EmployeeJourneyService::canView()).
+const journeyAllowed = ref(false);
+const canViewJourney = computed(() => auth.permissions.includes("employee.journey") || journeyAllowed.value);
 const canViewPayroll = computed(() => auth.permissions.includes("payroll.view_all"));
 
 const employee = ref(null);
@@ -165,6 +167,7 @@ async function loadEmployee() {
     try {
         const response = await employeeService.get(props.id);
         employee.value = response.data.data;
+        journeyAllowed.value = Boolean(response.data.meta?.can_view_journey);
     } catch (e) {
         employee.value = null;
         loadError.value = e.response?.data?.message ?? "Không thể tải thông tin nhân viên.";

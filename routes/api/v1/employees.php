@@ -86,8 +86,9 @@ Route::middleware('auth:api')->prefix('employees')->group(function (): void {
         Route::post('/{employee}/bank-accounts/{bankAccount}/primary', [EmployeeBankAccountController::class, 'setPrimary']);
         Route::delete('/{employee}/bank-accounts/{bankAccount}', [EmployeeBankAccountController::class, 'destroy']);
     });
-    // Hành trình nhân viên: tuyển dụng -> hợp đồng/lương/chức vụ -> lương thực nhận (Admin + HR).
-    Route::get('/{employee}/journey', [EmployeeJourneyController::class, 'show'])->middleware('permission:employee.journey');
+    // Hành trình nhân viên: tuyển dụng -> hợp đồng/lương/chức vụ -> dự án & KPI -> chuyên cần, phụ cấp.
+    // Admin + HR (employee.journey) hoặc Trưởng phòng của nhân viên — kiểm trong controller.
+    Route::get('/{employee}/journey', [EmployeeJourneyController::class, 'show']);
     Route::get('/{employee}/payslips', [PayrollController::class, 'forEmployee'])->middleware('permission:payroll.view_all');
     Route::get('/{employee}/shift-assignments', [EmployeeShiftAssignmentController::class, 'index'])->middleware('permission:shift.view');
     Route::post('/{employee}/shift-assignments', [EmployeeShiftAssignmentController::class, 'store'])->middleware('permission:shift.manage');

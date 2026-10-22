@@ -205,6 +205,68 @@ class KpiService
     }
 
     /**
+     * Lộ trình nhân viên (EmployeeJourneyService): KPI từng tháng có việc tới hạn (tới tháng hiện tại) + gộp theo
+     * từng dự án qua mọi tháng. Dự án là thành viên mà chưa có việc tính KPI vẫn liệt kê (metrics = null).
+     * "Đạt" = xếp loại A/B/C (≥ 60 điểm), "Chưa đạt" = D.
+     *
+     * @return array{overall: ?array<string, mixed>, months: array<int, array<string, mixed>>, projects: array<int, array<string, mixed>>}
+     */
+    public function employeeHistory(Employee $employee): array
+    {
+        $firstDue = ProjectTask::where('assignee_employee_id', $employee->id)
+            ->where('status', '!=', ProjectTask::STATUS_CANCELLED)
+            ->min('due_date');
+
+        $months = [];
+        $rows = collect();
+        if ($firstDue) {
+            $cursor = Carbon::parse($firstDue)->startOfMonth();
+            $last = now()->startOfMonth();
+            while ($cursor->lte($last)) {
+                $monthRows = $this->rows($cursor->year, $cursor->month)->where('employee_id', $employee->id)->values();
+                if ($monthRows->isNotEmpty()) {
+                    $months[] = $this->period($cursor->year, $cursor->month) + $this->metrics($monthRows);
+                    $rows = $rows->merge($monthRows);
+                }
+                $cursor->addMonthNoOverflow();
+            }
+        }
+
+        $memberships = ProjectMember::where('employee_id', $employee->id)->get()->keyBy('project_id');
+        $projectIds = $memberships->keys()->merge($rows->pluck('project_id'))->unique();
+        $projects = Project::withTrashed()->whereIn('id', $projectIds)->get()->keyBy('id');
+        $byProject = $rows->groupBy('project_id');
+
+        return [
+            // KPI gộp mọi việc ở mọi tháng (cộng điểm rồi mới chia — cùng công thức metrics()).
+            'overall' => $rows->isEmpty() ? null : $this->metrics($rows),
+            'months' => $months,
+            'projects' => $projectIds
+                ->map(function ($projectId) use ($projects, $memberships, $byProject) {
+                    $project = $projects->get($projectId);
+                    $projectRows = $byProject->get($projectId);
+
+                    return [
+                        'project' => [
+                            'id' => (int) $projectId,
+                            'code' => $project?->code,
+                            'name' => $project?->name ?? 'Dự án đã xóa',
+                            'status' => $project?->status,
+                            'start_date' => $project?->start_date?->toDateString(),
+                            'end_date' => $project?->end_date?->toDateString(),
+                        ],
+                        'role' => $memberships->get($projectId)?->role,
+                        'joined_at' => $memberships->get($projectId)?->created_at?->toDateString(),
+                        'metrics' => $projectRows ? $this->metrics($projectRows) : null,
+                    ];
+                })
+                ->sortByDesc(fn ($item) => $item['project']['start_date'] ?? '')
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
      * Số liệu thô của tháng — mỗi (nhân viên, dự án) 1 dòng. Tháng đã chốt đọc bản chụp, chưa chốt tính trực tiếp.
      *
      * @return Collection<int, array<string, mixed>>

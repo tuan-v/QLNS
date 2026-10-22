@@ -8,6 +8,7 @@ use App\Http\Requests\Employee\UpdateEmployeeRequest;
 use App\Http\Requests\Employee\UpdateMyProfileRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
+use App\Services\EmployeeJourneyService;
 use App\Services\EmployeeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -83,9 +84,12 @@ class EmployeeController extends Controller
 
         return (new EmployeeResource($employee))->response();
     }
-    public function show(Employee $employee): JsonResponse
+    public function show(Request $request, Employee $employee, EmployeeJourneyService $journeyService): JsonResponse
     {
-        return (new EmployeeResource($employee))->response();
+        // Cờ cho tab "Hành trình": Admin/HR hoặc Trưởng phòng của nhân viên này (EmployeeJourneyService::canView()).
+        return (new EmployeeResource($employee))
+            ->additional(['meta' => ['can_view_journey' => $journeyService->canView($request->user(), $employee)]])
+            ->response();
     }
     public function store(StoreEmployeeRequest $request): JsonResponse
     {
