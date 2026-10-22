@@ -765,6 +765,13 @@ async function loadData() {
         opening.value = response.data.data;
         scheduleStageRefresh();
     } catch (e) {
+        // Đợt tuyển bị người khác xóa khi đang mở (trang tự tải lại qua realtime) -> về danh sách thay vì
+        // hiện câu lỗi kỹ thuật "No query results for model...".
+        if (e.response?.status === 404) {
+            toast.warning("Đợt tuyển này đã bị xóa.");
+            router.replace({ name: "recruitment" });
+            return;
+        }
         loadError.value = e.response?.data?.message ?? "Không thể tải đợt tuyển.";
     } finally {
         loading.value = false;

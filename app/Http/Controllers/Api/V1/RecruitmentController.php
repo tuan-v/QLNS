@@ -54,24 +54,24 @@ class RecruitmentController extends Controller
 
     public function update(SaveRecruitmentOpeningRequest $request, RecruitmentOpening $opening): RecruitmentOpeningResource
     {
-        $opening = $this->recruitmentService->updateOpening($opening, $request->validated());
+        $opening = $this->recruitmentService->updateOpening($opening, $request->validated(), $request->user());
 
         return new RecruitmentOpeningResource($this->recruitmentService->showOpening($opening));
     }
 
-    public function close(RecruitmentOpening $opening): RecruitmentOpeningResource
+    public function close(Request $request, RecruitmentOpening $opening): RecruitmentOpeningResource
     {
-        return new RecruitmentOpeningResource($this->recruitmentService->showOpening($this->recruitmentService->closeOpening($opening)));
+        return new RecruitmentOpeningResource($this->recruitmentService->showOpening($this->recruitmentService->closeOpening($opening, $request->user())));
     }
 
-    public function reopen(RecruitmentOpening $opening): RecruitmentOpeningResource
+    public function reopen(Request $request, RecruitmentOpening $opening): RecruitmentOpeningResource
     {
-        return new RecruitmentOpeningResource($this->recruitmentService->showOpening($this->recruitmentService->reopenOpening($opening)));
+        return new RecruitmentOpeningResource($this->recruitmentService->showOpening($this->recruitmentService->reopenOpening($opening, $request->user())));
     }
 
-    public function destroy(RecruitmentOpening $opening): JsonResponse
+    public function destroy(Request $request, RecruitmentOpening $opening): JsonResponse
     {
-        $this->recruitmentService->deleteOpening($opening);
+        $this->recruitmentService->deleteOpening($opening, $request->user());
 
         return response()->json(['message' => 'Đã xóa đợt tuyển.']);
     }

@@ -83,8 +83,16 @@ class RecruitmentService
         return $opening;
     }
 
-    // Mở đợt tuyển -> báo những người còn lại có quyền tuyển dụng (HR mở thì Admin biết và
-    // ngược lại, người dùng yêu cầu 2026-10-13). Gửi sau khi transaction đã commit.
+    // Thông báo 2 chiều về đợt tuyển: tạo / sửa / đóng / mở lại / xóa -> báo những người CÒN LẠI có quyền
+    // tuyển dụng (HR làm thì Admin biết và ngược lại — yêu cầu 2026-10-13, mở rộng 2026-10-22 cho sửa/đóng/
+    // mở lại/xóa). Các loại này bật toast ở NotificationCenter.vue. Gửi sau khi transaction đã commit.
+    private const CONTRACT_LABELS = [
+        'thu_viec' => 'Thử việc',
+        'chinh_thuc' => 'Chính thức',
+        'thuc_tap' => 'Thực tập',
+        RecruitmentOpening::CONTRACT_TYPE_ANY => 'Tất cả (chọn khi soạn offer)',
+    ];
+
     private function notifyOpeningCreated(RecruitmentOpening $opening, User $actor): void
     {
         $opening->loadMissing('department:id,name', 'position:id,name');
@@ -97,20 +105,58 @@ class RecruitmentService
             $opening->deadline ? 'hạn nộp CV '.$opening->deadline->format('d/m/Y') : null,
         ]));
 
-        $recipients = User::where('status', 'active')
+        $this->notifyOpeningWatchers(
+            $actor,
+            'recruitment.opening_created',
+            'Đợt tuyển dụng mới',
+            "{$actor->user_name} vừa mở đợt tuyển \"{$opening->title}\" ({$details}).",
+            ['recruitment_opening_id' => $opening->id]
+        );
+    }
+
+    private function notifyOpeningWatchers(User $actor, string $type, string $title, string $message, array $data): void
+    {
+        User::where('status', 'active')
             ->where('id', '!=', $actor->id)
             ->whereHas('roles.permissions', fn ($q) => $q->whereIn('code', ['recruitment.manage', 'recruitment.approve']))
-            ->get();
+            ->get()
+            ->each(fn (User $user) => $this->notificationService->send($user, $type, $title, $message, $data));
+    }
 
-        foreach ($recipients as $user) {
-            $this->notificationService->send(
-                $user,
-                'recruitment.opening_created',
-                'Đợt tuyển dụng mới',
-                "{$actor->user_name} vừa mở đợt tuyển \"{$opening->title}\" ({$details}).",
-                ['recruitment_opening_id' => $opening->id],
-            );
+    // Ảnh chụp các trường "đáng báo" của đợt tuyển, dạng chữ để so trước/sau khi sửa.
+    private function openingSnapshot(RecruitmentOpening $opening): array
+    {
+        $opening->loadMissing('department:id,name', 'position:id,name');
+
+        return [
+            'tên đợt tuyển' => $opening->title,
+            'phòng ban' => $opening->isGeneral() ? 'Tuyển dụng chung' : $opening->department?->name,
+            'chức vụ' => $opening->position?->name ?? '—',
+            'loại hợp đồng' => self::CONTRACT_LABELS[$opening->contract_type] ?? $opening->contract_type,
+            'số người cần tuyển' => $opening->headcount ? (string) $opening->headcount : 'không giới hạn',
+            'hạn nộp CV' => $opening->deadline?->format('d/m/Y') ?? 'không có',
+            'mô tả công việc' => md5((string) $opening->description), // chỉ báo "đã đổi", không chép nội dung
+        ];
+    }
+
+    private function notifyOpeningUpdated(RecruitmentOpening $opening, array $before, User $actor): void
+    {
+        $after = $this->openingSnapshot($opening->unsetRelation('department')->unsetRelation('position'));
+        $changes = collect($after)
+            ->filter(fn ($value, $field) => $before[$field] !== $value)
+            ->map(fn ($value, $field) => $field === 'mô tả công việc' ? 'mô tả công việc' : "{$field} {$before[$field]} → {$value}")
+            ->values();
+        if ($changes->isEmpty()) {
+            return;
         }
+
+        $this->notifyOpeningWatchers(
+            $actor,
+            'recruitment.opening_updated',
+            'Đợt tuyển dụng được sửa',
+            "{$actor->user_name} vừa sửa đợt tuyển \"{$before['tên đợt tuyển']}\": {$changes->join('; ')}.",
+            ['recruitment_opening_id' => $opening->id]
+        );
     }
 
     // Đợt tuyển chung (không phòng ban): không chức vụ, không giới hạn số lượng.
@@ -143,9 +189,11 @@ class RecruitmentService
         ])->all());
     }
 
-    public function updateOpening(RecruitmentOpening $opening, array $data): RecruitmentOpening
+    public function updateOpening(RecruitmentOpening $opening, array $data, ?User $actor = null): RecruitmentOpening
     {
-        return DB::transaction(function () use ($opening, $data) {
+        $before = $this->openingSnapshot($opening);
+
+        $opening = DB::transaction(function () use ($opening, $data) {
             $locked = $this->lockOpening($opening);
             $counted = $this->recruitmentRepository->countedCandidates($locked);
 
@@ -163,21 +211,40 @@ class RecruitmentService
 
             return $locked;
         });
+
+        if ($actor) {
+            $this->notifyOpeningUpdated($opening, $before, $actor);
+        }
+
+        return $opening;
     }
 
-    public function closeOpening(RecruitmentOpening $opening): RecruitmentOpening
+    public function closeOpening(RecruitmentOpening $opening, ?User $actor = null): RecruitmentOpening
     {
-        return DB::transaction(function () use ($opening) {
+        $wasClosed = $opening->status === RecruitmentOpening::STATUS_CLOSED;
+        $opening = DB::transaction(function () use ($opening) {
             $locked = $this->lockOpening($opening);
             $locked->forceFill(['status' => RecruitmentOpening::STATUS_CLOSED])->save();
 
             return $locked;
         });
+
+        if ($actor && ! $wasClosed) {
+            $this->notifyOpeningWatchers(
+                $actor,
+                'recruitment.opening_closed',
+                'Đợt tuyển dụng đã đóng',
+                "{$actor->user_name} vừa đóng đợt tuyển \"{$opening->title}\" — ngưng nhận CV mới.",
+                ['recruitment_opening_id' => $opening->id]
+            );
+        }
+
+        return $opening;
     }
 
-    public function reopenOpening(RecruitmentOpening $opening): RecruitmentOpening
+    public function reopenOpening(RecruitmentOpening $opening, ?User $actor = null): RecruitmentOpening
     {
-        return DB::transaction(function () use ($opening) {
+        $opening = DB::transaction(function () use ($opening) {
             $locked = $this->lockOpening($opening);
 
             if ($locked->status !== RecruitmentOpening::STATUS_CLOSED) {
@@ -190,6 +257,19 @@ class RecruitmentService
 
             return $locked;
         });
+
+        if ($actor) {
+            $full = $opening->status === RecruitmentOpening::STATUS_FULL;
+            $this->notifyOpeningWatchers(
+                $actor,
+                'recruitment.opening_reopened',
+                'Đợt tuyển dụng mở lại',
+                "{$actor->user_name} vừa mở lại đợt tuyển \"{$opening->title}\"".($full ? ' (đã đủ CV được duyệt nên chưa nhận thêm).' : ' — nhận CV trở lại.'),
+                ['recruitment_opening_id' => $opening->id]
+            );
+        }
+
+        return $opening;
     }
 
     // HR sửa thông tin ứng tuyển trước khi nhận việc: nguồn (mọi đợt), vị trí ứng tuyển + hình
@@ -218,7 +298,7 @@ class RecruitmentService
         return $candidate;
     }
 
-    public function deleteOpening(RecruitmentOpening $opening): void
+    public function deleteOpening(RecruitmentOpening $opening, ?User $actor = null): void
     {
         if ($opening->candidates()->withTrashed()->exists()) {
             throw ValidationException::withMessages([
@@ -227,6 +307,16 @@ class RecruitmentService
         }
 
         $opening->delete();
+
+        if ($actor) {
+            $this->notifyOpeningWatchers(
+                $actor,
+                'recruitment.opening_deleted',
+                'Đợt tuyển dụng đã xóa',
+                "{$actor->user_name} vừa xóa đợt tuyển \"{$opening->title}\" (chưa có CV nào).",
+                ['title' => $opening->title]
+            );
+        }
     }
 
     /* ---------------------------------- CV ---------------------------------- */

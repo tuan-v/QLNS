@@ -27,6 +27,11 @@ const TYPE_ROUTES = {
     "resignation.decided": "my-profile",
     "recruitment.cv_pending": "recruitment-detail",
     "recruitment.opening_created": "recruitment-detail",
+    "recruitment.opening_updated": "recruitment-detail",
+    "recruitment.opening_closed": "recruitment-detail",
+    "recruitment.opening_reopened": "recruitment-detail",
+    // Đợt tuyển đã xóa -> không còn trang chi tiết, mở danh sách.
+    "recruitment.opening_deleted": "recruitment",
     "recruitment.cv_reviewed": "recruitment-detail",
     "recruitment.interview_assigned": "recruitment-detail",
     "recruitment.offer_pending": "recruitment-detail",
@@ -67,6 +72,9 @@ const projectParams = (item) => ({ id: item.data?.project_id });
 const TYPE_PARAMS = {
     "recruitment.cv_pending": recruitmentParams,
     "recruitment.opening_created": recruitmentParams,
+    "recruitment.opening_updated": recruitmentParams,
+    "recruitment.opening_closed": recruitmentParams,
+    "recruitment.opening_reopened": recruitmentParams,
     "recruitment.cv_reviewed": recruitmentParams,
     "recruitment.interview_assigned": recruitmentParams,
     "recruitment.offer_pending": recruitmentParams,

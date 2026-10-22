@@ -495,4 +495,37 @@ class RecruitmentTest extends TestCase
         $toHr = Notification::where('type', 'recruitment.opening_created')->where('user_id', $hr->id)->firstOrFail();
         $this->assertStringContainsString('Tuyển dụng chung · không giới hạn số lượng', $toHr->message);
     }
+
+    // Sửa / đóng / mở lại / xóa đợt tuyển cũng báo 2 chiều (2026-10-22): áp dụng ngay, chỉ báo người còn lại.
+    public function test_opening_changes_notify_the_other_side(): void
+    {
+        $admin = User::where('email', 'admin@qlns.local')->firstOrFail();
+        $hr = User::where('email', 'hr@qlns.local')->firstOrFail();
+        $opening = $this->createOpening(3, ['title' => 'Ke toan']);
+        $payload = ['title' => 'Ke toan', 'department_id' => $opening->department_id, 'contract_type' => 'thuc_tap', 'headcount' => 3, 'deadline' => '2026-10-31'];
+
+        // Lưu mà không đổi gì -> không báo.
+        $this->putJson("/api/v1/recruitment/openings/{$opening->id}", $payload, $this->as('hr'))->assertOk();
+        $this->assertFalse(Notification::where('type', 'recruitment.opening_updated')->exists());
+
+        // HR đổi số lượng + hạn nộp -> Admin thấy cụ thể cũ -> mới.
+        $this->putJson("/api/v1/recruitment/openings/{$opening->id}", ['headcount' => 5, 'deadline' => '2026-11-15'] + $payload, $this->as('hr'))->assertOk();
+        $updated = Notification::where('type', 'recruitment.opening_updated')->where('user_id', $admin->id)->sole();
+        $this->assertStringContainsString('số người cần tuyển 3 → 5', $updated->message);
+        $this->assertStringContainsString('hạn nộp CV 31/10/2026 → 15/11/2026', $updated->message);
+        $this->assertSame($opening->id, $updated->data['recruitment_opening_id']);
+        $this->assertFalse(Notification::where('type', 'recruitment.opening_updated')->where('user_id', $hr->id)->exists());
+
+        // Admin đóng rồi mở lại -> HR được báo; đóng lần nữa khi đã đóng thì không báo lại.
+        $this->postJson("/api/v1/recruitment/openings/{$opening->id}/close", [], $this->as('admin'))->assertOk();
+        $this->postJson("/api/v1/recruitment/openings/{$opening->id}/close", [], $this->as('admin'))->assertOk();
+        $this->assertSame(1, Notification::where('type', 'recruitment.opening_closed')->where('user_id', $hr->id)->count());
+        $this->postJson("/api/v1/recruitment/openings/{$opening->id}/reopen", [], $this->as('admin'))->assertOk();
+        $this->assertStringContainsString('nhận CV trở lại', Notification::where('type', 'recruitment.opening_reopened')->where('user_id', $hr->id)->sole()->message);
+
+        // HR xóa (chưa có CV) -> Admin được báo, kèm tên đợt.
+        $this->deleteJson("/api/v1/recruitment/openings/{$opening->id}", [], $this->as('hr'))->assertOk();
+        $deleted = Notification::where('type', 'recruitment.opening_deleted')->where('user_id', $admin->id)->sole();
+        $this->assertSame('Ke toan', $deleted->data['title']);
+    }
 }

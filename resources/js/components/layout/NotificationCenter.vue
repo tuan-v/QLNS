@@ -189,8 +189,17 @@ const { openNotification } = useNotificationNavigation();
 const open = ref(false);
 
 // Loại thông báo cần người nhận biết NGAY -> bật toast kèm nút "Xem" (2026-10-21: HR đề xuất phụ cấp -> Admin;
-// Admin duyệt / từ chối -> HR). Loại khác chỉ tăng số trên chuông như trước.
-const TOAST_TYPES = ["allowance.pending", "allowance.decided"];
+// Admin duyệt / từ chối -> HR. 2026-10-22: đợt tuyển được tạo / sửa / đóng / mở lại / xóa -> người còn lại có
+// quyền tuyển dụng). Loại khác chỉ tăng số trên chuông như trước.
+const TOAST_TYPES = [
+    "allowance.pending",
+    "allowance.decided",
+    "recruitment.opening_created",
+    "recruitment.opening_updated",
+    "recruitment.opening_closed",
+    "recruitment.opening_reopened",
+    "recruitment.opening_deleted",
+];
 watch(
     () => store.incoming,
     (item) => {
@@ -198,7 +207,13 @@ watch(
             return;
         }
         const color =
-            item.type === "allowance.decided" ? (item.data?.status === "approved" ? "success" : "warning") : "info";
+            item.type === "allowance.decided"
+                ? item.data?.status === "approved"
+                    ? "success"
+                    : "warning"
+                : ["recruitment.opening_closed", "recruitment.opening_deleted"].includes(item.type)
+                  ? "warning"
+                  : "info";
         toast.push(`${item.title}: ${item.message}`, color, {
             duration: 10000,
             action: { label: "Xem", onClick: () => openNotification(item) },
@@ -231,6 +246,10 @@ const TYPE_CATEGORY = {
     "resignation.decided": "Nghỉ việc",
     "recruitment.cv_pending": "Tuyển dụng",
     "recruitment.opening_created": "Tuyển dụng",
+    "recruitment.opening_updated": "Tuyển dụng",
+    "recruitment.opening_closed": "Tuyển dụng",
+    "recruitment.opening_reopened": "Tuyển dụng",
+    "recruitment.opening_deleted": "Tuyển dụng",
     "recruitment.cv_reviewed": "Tuyển dụng",
     "recruitment.interview_assigned": "Tuyển dụng",
     "recruitment.offer_pending": "Tuyển dụng",
@@ -267,6 +286,11 @@ const TYPE_CATEGORY = {
 function systemIcon(item) {
     if (item.type === "allowance.pending") {
         return { icon: "mdi-hand-coin-outline", color: "warning" };
+    }
+    if (item.type?.startsWith("recruitment.opening_")) {
+        return ["recruitment.opening_closed", "recruitment.opening_deleted"].includes(item.type)
+            ? { icon: "mdi-briefcase-remove-outline", color: "warning" }
+            : { icon: "mdi-briefcase-outline", color: "primary" };
     }
     if (item.type === "allowance.decided" || item.type === "leave.decided" || item.type === "resignation.decided" || item.type === "bank_account.reviewed" || item.type === "recruitment.offer_reviewed" || item.type === "recruitment.offer_responded" || item.type === "recruitment.interview_confirmation") {
         return item.data?.status === "approved"
