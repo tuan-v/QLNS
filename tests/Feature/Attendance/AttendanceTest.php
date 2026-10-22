@@ -208,6 +208,41 @@ class AttendanceTest extends TestCase
         $this->assertSame('device', $log->method);
     }
 
+    // Khoảng cách thật tới công ty (2026-10-22): server tự tính, chấm ở đâu cũng được; đổi tọa độ công ty chỉ
+    // ảnh hưởng lượt chấm sau.
+    public function test_check_in_records_real_distance_to_office_and_hr_can_move_office(): void
+    {
+        [$employee, $user] = $this->makeEmployeeWithLogin();
+        $workShift = $this->makeWorkShift('CA001', '08:00', '17:00');
+        $this->assignShift($employee, $workShift, [1, 2, 3, 4, 5]);
+        $this->fakeNominatim();
+        $this->travelToMonday('08:00');
+        $headers = ['Authorization' => 'Bearer '.$this->loginAs($user->email, 'Secret@123')];
+
+        // Công ty mặc định 21.04125, 105.7321944 (migration). Chấm cách ~100m về phía bắc, máy báo độ chính xác 108m.
+        $this->postJson('/api/v1/attendances/check-in', [
+            'work_shift_id' => $workShift->id, 'latitude' => 21.04215, 'longitude' => 105.7321944, 'accuracy_meters' => 108,
+        ], $headers)->assertStatus(201);
+        $log = AttendanceLog::where('employee_id', $employee->id)->sole();
+        $this->assertEqualsWithDelta(100.1, $log->distance_meters, 0.5);
+        $this->assertEquals(108, $log->accuracy_meters); // giữ nguyên số máy báo, không nhầm với khoảng cách
+
+        // Nhân viên thường không sửa được; HR dời công ty tới đúng chỗ đã chấm -> lượt chấm cũ giữ số cũ.
+        $this->putJson('/api/v1/settings/office-location', ['latitude' => 21.04215, 'longitude' => 105.7321944], $headers)->assertForbidden();
+        $hr = ['Authorization' => 'Bearer '.$this->loginAs('hr@qlns.local', 'Hr@123456')];
+        $this->putJson('/api/v1/settings/office-location', ['latitude' => 91, 'longitude' => 105], $hr)
+            ->assertStatus(422)->assertJsonValidationErrors('latitude');
+        $this->putJson('/api/v1/settings/office-location', ['latitude' => 21.04215, 'longitude' => 105.7321944], $hr)
+            ->assertOk()->assertJsonPath('data.latitude', 21.04215);
+        $this->assertEqualsWithDelta(100.1, $log->fresh()->distance_meters, 0.5);
+
+        $this->travelTo(now()->setTime(17, 0));
+        $this->postJson('/api/v1/attendances/check-out', [
+            'work_shift_id' => $workShift->id, 'latitude' => 21.04215, 'longitude' => 105.7321944,
+        ], $headers)->assertSuccessful();
+        $this->assertEqualsWithDelta(0, AttendanceLog::where('employee_id', $employee->id)->where('event_type', 'check_out')->sole()->distance_meters, 0.1);
+    }
+
     public function test_check_in_without_location_permission_still_records_ip_and_device(): void
     {
         [$employee, $user] = $this->makeEmployeeWithLogin();

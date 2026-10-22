@@ -30,10 +30,16 @@
                     <span v-if="hasCoordinates(log)" class="d-block text-caption" style="opacity: 0.6">
                         {{ formatCoordinate(log.latitude) }}, {{ formatCoordinate(log.longitude) }}
                         <template v-if="log.accuracy_meters !== null">
-                            (sai số ~{{ Math.round(log.accuracy_meters) }}m)
+                            (thiết bị báo độ chính xác ±{{ Math.round(log.accuracy_meters) }}m)
                         </template>
                     </span>
                 </span>
+
+                <!-- Khoảng cách THẬT tới công ty do server tính (2026-10-22) — chỉ để xem, chấm ở đâu cũng được. -->
+                <template v-if="log.distance_meters !== null && log.distance_meters !== undefined">
+                    <span class="log-detail__label">Cách công ty</span>
+                    <span class="font-weight-medium">{{ formatDistance(log.distance_meters) }}</span>
+                </template>
             </div>
         </div>
     </div>
@@ -61,6 +67,14 @@ function hasCoordinates(log) {
 // Tọa độ hiện 5 chữ số thập phân (~1m) — đủ để đối chiếu mà không dài dòng.
 function formatCoordinate(value) {
     return Number(value).toFixed(5);
+}
+
+// "~1 m", "~250 m", "~3,4 km".
+function formatDistance(meters) {
+    const value = Number(meters);
+    return value < 1000
+        ? `~${Math.max(1, Math.round(value)).toLocaleString("vi-VN")} m`
+        : `~${(value / 1000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} km`;
 }
 
 function formatDateTime(value) {

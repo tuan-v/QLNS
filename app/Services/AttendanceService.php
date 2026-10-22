@@ -15,6 +15,7 @@ use App\Models\WorkShift;
 use App\Repositories\AttendanceLogRepository;
 use App\Repositories\AttendanceRepository;
 use App\Services\Attendance\DeviceInfoParser;
+use App\Services\Attendance\OfficeLocation;
 use App\Services\Attendance\ReverseGeocoder;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
@@ -45,6 +46,7 @@ class AttendanceService
         private readonly DeviceInfoParser $deviceInfoParser,
         private readonly ReverseGeocoder $reverseGeocoder,
         private readonly NotificationService $notificationService,
+        private readonly OfficeLocation $officeLocation,
     ) {
     }
 
@@ -794,6 +796,10 @@ class AttendanceService
             'address' => $hasCoordinates
                 ? $this->reverseGeocoder->addressFor((float) $data['latitude'], (float) $data['longitude'])
                 : null,
+            // Khoảng cách thật tới công ty (2026-10-22) — chỉ để xem, không chặn chấm công.
+            'distance_meters' => $hasCoordinates
+                ? $this->officeLocation->distanceFrom((float) $data['latitude'], (float) $data['longitude'])
+                : null,
             'device_name' => $this->deviceInfoParser->describe($userAgent),
             'user_agent' => $userAgent !== null ? mb_substr($userAgent, 0, 500) : null,
         ];
@@ -812,6 +818,7 @@ class AttendanceService
             'latitude' => $data['latitude'] ?? null,
             'longitude' => $data['longitude'] ?? null,
             'accuracy_meters' => $data['accuracy_meters'] ?? null,
+            'distance_meters' => $device['distance_meters'],
             'address' => $device['address'],
             'ip_address' => request()->ip(),
             'device_name' => $device['device_name'],

@@ -250,6 +250,7 @@ flowchart LR
   - Muộn/sớm ≤ 30 phút vẫn đủ công; quá 30 phút tính theo phút làm thực tế. Công 1 ngày tối đa 1,0.
   - Vào sớm tối đa 30 phút trước ca, chặn sau giờ ra. Tra địa chỉ (Nominatim) lỗi vẫn cho chấm công.
   - Khi chấm vào, nhân viên chọn "Tại công ty" (mặc định) / "Làm online" ([`WorkModeToggle.vue`](resources/js/components/attendance/WorkModeToggle.vue)) → `attendances.work_mode`. HR đổi lại ở Tổng hợp chấm công (`PUT /attendances/{id}/work-mode`, `attendance.approve`). Chỉ ảnh hưởng phụ cấp ăn trưa, không ảnh hưởng công.
+  - **Khoảng cách tới công ty** (2026-10-22): mỗi lượt chấm có tọa độ, server tính Haversine tới tọa độ công ty ([`Attendance/OfficeLocation`](app/Services/Attendance/OfficeLocation.php), lưu ở `system_settings` khóa `office_latitude/office_longitude`) → `attendance_logs.distance_meters` (chụp lúc chấm, đổi vị trí công ty không đổi số cũ). Chỉ để xem: không chặn, không gắn cờ (khác "Điểm chấm công" đã bỏ 2026-09-30). `accuracy_meters` là độ chính xác **trình duyệt tự báo**, không phải khoảng cách. Sửa vị trí ở Cài đặt hệ thống ([`OfficeLocationSettings.vue`](resources/js/components/settings/OfficeLocationSettings.vue), nhận cả dạng độ-phút-giây của Google Maps; `GET/PUT /settings/office-location`, `shift.manage`).
   - Tổng hợp (HR) và lịch sử (nhân viên) dùng chung `displayStatusFor()` — sửa trạng thái ở một chỗ.
   - Chạy qua Docker Desktop thì IP luôn là gateway của Docker (không phải lỗi).
 - **Lịch sử:** mục 16, 18, 24, 45, 46, 53, 61.

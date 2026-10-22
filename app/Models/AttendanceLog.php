@@ -24,6 +24,7 @@ class AttendanceLog extends Model
         'latitude',
         'longitude',
         'accuracy_meters',
+        'distance_meters',
         'address',
         'ip_address',
         'device_name',
@@ -38,6 +39,8 @@ class AttendanceLog extends Model
         'latitude' => 'float',
         'longitude' => 'float',
         'accuracy_meters' => 'float',
+        // Khoảng cách thật tới công ty lúc chấm (m) — OfficeLocation::distanceFrom().
+        'distance_meters' => 'float',
     ];
 
     public function employee()

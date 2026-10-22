@@ -2,7 +2,7 @@
     <div>
         <PageHeader
             title="Cài đặt hệ thống"
-            subtitle="Giờ làm việc mặc định áp dụng cho toàn bộ nhân viên."
+            subtitle="Giờ làm việc mặc định áp dụng cho toàn bộ nhân viên và vị trí công ty."
         />
 
         <v-alert
@@ -16,33 +16,24 @@
             {{ loadError }}
         </v-alert>
 
-        <v-sheet
-            v-if="loading"
-            class="border rounded-lg pa-5 glass-panel d-flex justify-center"
-            color="transparent"
-        >
+        <v-sheet v-if="loading" class="border rounded-lg pa-5 glass-panel d-flex justify-center" color="transparent">
             <v-progress-circular indeterminate size="24" />
         </v-sheet>
 
         <v-sheet v-else class="border rounded-lg pa-5 glass-panel" color="transparent">
             <FormSection title="Giờ làm việc mặc định">
                 <p class="text-body-2 mb-4" style="opacity: 0.75">
-                    Mọi nhân viên (kể cả người đã có sẵn) tự động làm việc
-                    theo đúng giờ giấc và ngày trong tuần cấu hình ở đây, tự
-                    động cập nhật ngay khi lưu — không cần HR vào "Gán ca làm
-                    việc" cho từng người nữa. Nhân viên muốn làm thêm/làm bù
-                    ngoài các ngày này thì gửi "Xin làm ngoài lịch/OT". Cần
-                    khung giờ RIÊNG cho một số nhân viên (ca đêm, part-time…)?
-                    Vào trang
+                    Mọi nhân viên (kể cả người đã có sẵn) tự động làm việc theo đúng giờ giấc và ngày trong tuần cấu
+                    hình ở đây, tự động cập nhật ngay khi lưu — không cần HR vào "Gán ca làm việc" cho từng người nữa.
+                    Nhân viên muốn làm thêm/làm bù ngoài các ngày này thì gửi "Xin làm ngoài lịch/OT". Cần khung giờ
+                    RIÊNG cho một số nhân viên (ca đêm, part-time…)? Vào trang
                     <RouterLink to="/work-shifts">Ca làm việc</RouterLink>
                     để tạo ca khác và gán riêng cho từng người.
                 </p>
 
                 <v-row dense>
                     <v-col cols="12" sm="6">
-                        <div class="text-body-2 font-weight-medium mb-1">
-                            Giờ vào <span class="text-error">*</span>
-                        </div>
+                        <div class="text-body-2 font-weight-medium mb-1">Giờ vào <span class="text-error">*</span></div>
                         <v-text-field
                             v-model="form.start_time"
                             type="time"
@@ -53,9 +44,7 @@
                         />
                     </v-col>
                     <v-col cols="12" sm="6">
-                        <div class="text-body-2 font-weight-medium mb-1">
-                            Giờ ra <span class="text-error">*</span>
-                        </div>
+                        <div class="text-body-2 font-weight-medium mb-1">Giờ ra <span class="text-error">*</span></div>
                         <v-text-field
                             v-model="form.end_time"
                             type="time"
@@ -71,19 +60,8 @@
                     <div class="text-body-2 font-weight-medium mb-1">
                         Ngày làm việc trong tuần <span class="text-error">*</span>
                     </div>
-                    <v-btn-toggle
-                        v-model="form.work_days"
-                        multiple
-                        density="comfortable"
-                        variant="outlined"
-                        divided
-                    >
-                        <v-btn
-                            v-for="day in WEEK_DAYS"
-                            :key="day.value"
-                            :value="day.value"
-                            size="small"
-                        >
+                    <v-btn-toggle v-model="form.work_days" multiple density="comfortable" variant="outlined" divided>
+                        <v-btn v-for="day in WEEK_DAYS" :key="day.value" :value="day.value" size="small">
                             {{ day.label }}
                         </v-btn>
                     </v-btn-toggle>
@@ -99,9 +77,7 @@
 
                 <v-row dense>
                     <v-col cols="12" sm="6">
-                        <div class="text-body-2 font-weight-medium mb-1">
-                            Nghỉ trưa từ
-                        </div>
+                        <div class="text-body-2 font-weight-medium mb-1">Nghỉ trưa từ</div>
                         <v-text-field
                             v-model="form.break_start_time"
                             type="time"
@@ -112,9 +88,7 @@
                         />
                     </v-col>
                     <v-col cols="12" sm="6">
-                        <div class="text-body-2 font-weight-medium mb-1">
-                            đến
-                        </div>
+                        <div class="text-body-2 font-weight-medium mb-1">đến</div>
                         <v-text-field
                             v-model="form.break_end_time"
                             type="time"
@@ -135,28 +109,21 @@
                     (tự tính = giờ ra − giờ vào − giờ nghỉ trưa)
                 </div>
 
-                <v-alert
-                    v-if="saveError"
-                    type="error"
-                    variant="tonal"
-                    density="compact"
-                    class="mt-4"
-                >
+                <v-alert v-if="saveError" type="error" variant="tonal" density="compact" class="mt-4">
                     {{ saveError }}
                 </v-alert>
 
                 <div class="d-flex justify-end mt-5">
-                    <v-btn
-                        color="primary"
-                        variant="flat"
-                        :loading="saving"
-                        :disabled="!canManage"
-                        @click="save"
-                    >
+                    <v-btn color="primary" variant="flat" :loading="saving" :disabled="!canManage" @click="save">
                         Lưu thay đổi
                     </v-btn>
                 </div>
             </FormSection>
+        </v-sheet>
+
+        <!-- Vị trí công ty (2026-10-22): tính khoảng cách thật lúc chấm công, không chặn chấm công. -->
+        <v-sheet class="border rounded-lg pa-5 glass-panel mt-4" color="transparent">
+            <OfficeLocationSettings :can-manage="canManage" />
         </v-sheet>
     </div>
 </template>
@@ -181,6 +148,7 @@ import { useAuthStore } from "../../stores/authStore";
 import { useResourceSyncStore } from "../../stores/useResourceSyncStore";
 import PageHeader from "../../components/common/PageHeader.vue";
 import FormSection from "../../components/common/FormSection.vue";
+import OfficeLocationSettings from "../../components/settings/OfficeLocationSettings.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useChangeGuard } from "../../composables/useChangeGuard";
 
@@ -263,9 +231,7 @@ async function loadData() {
         // NULL (chưa từng cấu hình, hoặc ca tạo trước khi có tính năng này)
         // -> hiện T2-T6 làm gợi ý ban đầu, khớp phương án dự phòng ở
         // EmployeeShiftAssignmentService::DEFAULT_WORK_DAYS.
-        form.work_days = currentShift.value?.work_days?.length
-            ? [...currentShift.value.work_days]
-            : [1, 2, 3, 4, 5];
+        form.work_days = currentShift.value?.work_days?.length ? [...currentShift.value.work_days] : [1, 2, 3, 4, 5];
         guard.takeSnapshot();
     } catch (e) {
         loadError.value = e.response?.data?.message ?? "Không thể tải cấu hình giờ làm việc.";
