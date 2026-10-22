@@ -110,19 +110,14 @@
                                 >
                             </div>
                             <div class="d-flex flex-wrap align-center ga-3 mt-3 pl-11">
-                                <v-rating
+                                <ScoreLevelPicker
                                     v-model="item.score"
-                                    :length="5"
+                                    :levels="INTERVIEW_LEVELS"
                                     :readonly="readonly"
-                                    hover
-                                    color="amber"
-                                    active-color="amber"
-                                    density="comfortable"
-                                    :item-labels="readonly ? undefined : ['Rất kém', 'Kém', 'Đạt', 'Tốt', 'Rất tốt']"
-                                    item-label-position="bottom"
+                                    :aria-label="`Điểm câu ${items.indexOf(item) + 1}`"
                                 />
                                 <span class="text-body-2" style="opacity: 0.75">{{
-                                    item.score ? `${item.score}/5` : "Chưa chấm"
+                                    item.score ? levelOf(INTERVIEW_LEVELS, item.score)?.hint : "Chưa chấm"
                                 }}</span>
                             </div>
                             <v-textarea
@@ -273,6 +268,8 @@ import recruitmentService from "../../services/recruitmentService";
 import { useToastStore } from "../../stores/useToastStore";
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
+import ScoreLevelPicker from "../../components/common/ScoreLevelPicker.vue";
+import { INTERVIEW_LEVELS, levelOf } from "../../composables/scoreLevels";
 import { INTERVIEW_CONFIRMATION_MAP } from "../../composables/recruitmentStatus";
 
 const route = useRoute();
@@ -300,7 +297,9 @@ const interview = computed(() => data.value?.interview);
 const scorecard = computed(() => data.value?.scorecard);
 const readonly = computed(() => scorecard.value?.status === "submitted");
 const subtitle = computed(() =>
-    interview.value ? `${interview.value.candidate?.full_name} — chấm 1–5 sao từng câu, điểm tính theo trọng số.` : "",
+    interview.value
+        ? `${interview.value.candidate?.full_name} — chọn mức cho từng câu (Rất kém → Rất tốt), điểm tính theo trọng số.`
+        : "",
 );
 
 const scoredCount = computed(() => items.value.filter((item) => item.score).length);

@@ -106,17 +106,17 @@
                             </div>
 
                             <template v-if="mode === 'approve'">
-                                <div class="quality-picker mb-3">
-                                    <v-rating
+                                <div class="mb-3">
+                                    <ScoreLevelPicker
                                         v-model="quality"
-                                        hover
-                                        color="amber"
-                                        active-color="amber"
-                                        size="large"
-                                        density="comfortable"
+                                        :levels="QUALITY_LEVELS"
+                                        aria-label="Chất lượng công việc"
                                     />
-                                    <div class="text-body-2" :class="quality ? '' : 'text-medium-emphasis'">
-                                        {{ QUALITY_LABELS[quality] ?? "Chọn số sao để chấm chất lượng" }}
+                                    <div class="text-body-2 mt-2" :class="quality ? '' : 'text-medium-emphasis'">
+                                        {{
+                                            levelOf(QUALITY_LEVELS, quality)?.hint ??
+                                            "Chọn mức chất lượng của công việc"
+                                        }}
                                     </div>
                                 </div>
                             </template>
@@ -167,14 +167,12 @@
                                         <div v-if="event.at" class="text-caption text-medium-emphasis">
                                             {{ formatDateTime(event.at) }}
                                         </div>
-                                        <v-rating
-                                            v-if="event.stars"
-                                            :model-value="event.stars"
-                                            readonly
-                                            density="compact"
-                                            size="small"
-                                            color="amber"
-                                            active-color="amber"
+                                        <ScoreLevelChip
+                                            v-if="event.quality"
+                                            :value="event.quality"
+                                            :levels="QUALITY_LEVELS"
+                                            size="x-small"
+                                            class="mt-1"
                                         />
                                         <div v-if="event.note" class="timeline__note">{{ event.note }}</div>
                                     </div>
@@ -229,23 +227,18 @@
                         </div>
                         <div v-if="task.status === 'done'" class="side-row">
                             <div class="side-row__label">Kết quả</div>
-                            <v-rating
-                                :model-value="task.quality_score"
-                                readonly
-                                density="compact"
-                                size="small"
-                                color="amber"
-                                active-color="amber"
-                            />
-                            <v-chip
-                                v-if="task.on_time !== null"
-                                size="x-small"
-                                :color="task.on_time ? 'success' : 'error'"
-                                variant="tonal"
-                                class="mt-1"
-                            >
-                                {{ task.on_time ? "Nộp đúng hạn" : "Nộp trễ hạn" }}
-                            </v-chip>
+                            <div class="d-flex flex-wrap ga-1">
+                                <ScoreLevelChip :value="task.quality_score" :levels="QUALITY_LEVELS" />
+                                <v-chip
+                                    v-if="task.on_time !== null"
+                                    size="small"
+                                    :color="task.on_time ? 'success' : 'error'"
+                                    variant="tonal"
+                                    label
+                                >
+                                    {{ task.on_time ? "Nộp đúng hạn" : "Nộp trễ hạn" }}
+                                </v-chip>
+                            </div>
                         </div>
                         <div class="side-row">
                             <div class="side-row__label">Người giao</div>
@@ -321,6 +314,9 @@ import { computed, ref, watch } from "vue";
 import { useDisplay } from "vuetify";
 import projectService from "../../services/projectService";
 import StatusChip from "../../components/common/StatusChip.vue";
+import ScoreLevelPicker from "../../components/common/ScoreLevelPicker.vue";
+import ScoreLevelChip from "../../components/common/ScoreLevelChip.vue";
+import { QUALITY_LEVELS, levelOf } from "../../composables/scoreLevels";
 import PersonAvatar from "./PersonAvatar.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import {
@@ -362,13 +358,6 @@ const STATUS_ICONS = {
     in_review: { icon: "mdi-timer-sand", color: "warning" },
     done: { icon: "mdi-check-decagram", color: "success" },
     cancelled: { icon: "mdi-cancel", color: "grey" },
-};
-const QUALITY_LABELS = {
-    1: "1 sao — Kém, phải làm lại nhiều",
-    2: "2 sao — Dưới yêu cầu",
-    3: "3 sao — Đạt yêu cầu",
-    4: "4 sao — Tốt",
-    5: "5 sao — Xuất sắc",
 };
 const MODES = {
     submit: {
@@ -451,7 +440,7 @@ const nextHint = computed(() => {
             icon: "mdi-account-check-outline",
             color: "warning",
             title: "Công việc đang chờ bạn duyệt",
-            text: "Xem kết quả rồi bấm “Duyệt” (chấm chất lượng 1–5 sao) hoặc “Trả lại” kèm lý do.",
+            text: "Xem kết quả rồi bấm “Duyệt” (chọn mức chất lượng, từ “Chưa đạt” tới “Xuất sắc”) hoặc “Trả lại” kèm lý do.",
         };
     }
     if (t.can?.start) {
@@ -518,7 +507,7 @@ const timeline = computed(() => {
             title: "Duyệt hoàn thành",
             actor: t.reviewer,
             at: t.completed_at,
-            stars: t.quality_score,
+            quality: t.quality_score,
             note: t.review_note,
         });
     } else if (t.return_count && t.review_note) {
@@ -805,12 +794,6 @@ function confirmMode() {
 .action-panel--error {
     background: rgba(var(--v-theme-error), 0.05);
     border-color: rgba(var(--v-theme-error), 0.35);
-}
-.quality-picker {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px 16px;
 }
 
 /* Dòng thời gian */

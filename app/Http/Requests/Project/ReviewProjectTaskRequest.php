@@ -26,7 +26,7 @@ class ReviewProjectTaskRequest extends FormRequest
         return [
             'decision.required' => 'Vui lòng chọn duyệt hoặc trả lại',
             'decision.in' => 'Quyết định không hợp lệ',
-            'quality_score.required_if' => 'Vui lòng chấm chất lượng (1-5 sao)',
+            'quality_score.required_if' => 'Vui lòng chọn mức chất lượng của công việc',
             'quality_score.between' => 'Điểm chất lượng từ 1 đến 5',
             'note.required_if' => 'Vui lòng ghi lý do trả lại để người làm biết cần sửa gì',
             'note.max' => 'Nhận xét không được vượt quá 2000 ký tự',

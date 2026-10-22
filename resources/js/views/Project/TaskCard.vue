@@ -28,14 +28,11 @@
                 <v-icon icon="mdi-clock-outline" size="13" />{{ due.text }}
             </span>
             <span v-else-if="task.status === 'done'" class="d-inline-flex align-center">
-                <v-rating
+                <ScoreLevelChip
                     v-if="task.quality_score"
-                    :model-value="task.quality_score"
-                    readonly
-                    density="compact"
+                    :value="task.quality_score"
+                    :levels="QUALITY_LEVELS"
                     size="x-small"
-                    color="amber"
-                    active-color="amber"
                 />
             </span>
             <span v-else class="due-tag">
@@ -50,6 +47,8 @@
 <script setup>
 import { computed } from "vue";
 import PersonAvatar from "./PersonAvatar.vue";
+import ScoreLevelChip from "../../components/common/ScoreLevelChip.vue";
+import { QUALITY_LEVELS } from "../../composables/scoreLevels";
 import { TASK_PRIORITY_MAP, dueLabel } from "../../composables/projectStatus";
 
 // Thẻ công việc trên bảng Kanban — viền trái màu theo độ ưu tiên.

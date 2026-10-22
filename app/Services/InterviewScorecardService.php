@@ -27,7 +27,7 @@ use Illuminate\Validation\ValidationException;
 //  - HR (manage) + Admin (approve) chấm. Mở phiếu chỉ khi buổi PV còn hẹn và ứng viên ĐÃ
 //    ĐỒNG Ý tham gia; đợt tuyển phải có bộ câu hỏi. Phiếu CHÉP câu hỏi/trọng số/tỉ trọng/% đạt
 //    — sửa bộ sau đó không đổi phiếu.
-//  - Điểm: % từng phần = Σ(trọng số × sao) / Σ(trọng số × 5); % tổng = Σ(% phần × tỉ trọng) /
+//  - Điểm: % từng phần = Σ(trọng số × điểm) / Σ(trọng số × 5); % tổng = Σ(% phần × tỉ trọng) /
 //    Σ tỉ trọng; % đạt của phiếu = trung bình % đạt các bộ theo tỉ trọng. % tổng >= % đạt ->
 //    Đạt, ngược lại Không đạt — ghi luôn kết quả buổi PV (email kết quả cho ứng viên).
 //  - Đợt tuyển có bộ câu hỏi thì KHÔNG ghi kết quả tay được nữa (kết quả luôn khớp điểm).
@@ -270,7 +270,7 @@ class InterviewScorecardService
     }
 
     /**
-     * % từng phần + % tổng theo tỉ trọng (câu chưa chấm tính 0 sao — dùng cho cả xem tạm lúc
+     * % từng phần + % tổng theo tỉ trọng (câu chưa chấm tính 0 điểm — dùng cho cả xem tạm lúc
      * đang chấm). Phiếu cũ (chưa có sections) = 1 phần tỉ trọng 100%.
      *
      * @return array{percent: float, sections: array<int, array{name: string, weight: int, pass_percent: float, percent: float}>}
@@ -298,7 +298,7 @@ class InterviewScorecardService
         return ['percent' => $percent, 'sections' => $rows];
     }
 
-    /** % của 1 nhóm câu: Σ(trọng số × sao) / Σ(trọng số × 5) × 100. */
+    /** % của 1 nhóm câu: Σ(trọng số × điểm) / Σ(trọng số × 5) × 100. */
     public function percent($items): float
     {
         $max = $items->sum(fn ($item) => $item->weight * InterviewScorecard::MAX_SCORE);

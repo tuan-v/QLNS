@@ -76,13 +76,10 @@
                             <span class="points-badge" :title="`Độ khó ${task.points} điểm`">{{ task.points }}đ</span>
                             <div class="due-col">
                                 <template v-if="task.status === 'done'">
-                                    <v-rating
-                                        :model-value="task.quality_score"
-                                        readonly
-                                        density="compact"
+                                    <ScoreLevelChip
+                                        :value="task.quality_score"
+                                        :levels="QUALITY_LEVELS"
                                         size="x-small"
-                                        color="amber"
-                                        active-color="amber"
                                     />
                                     <div class="text-caption" :class="task.on_time ? 'text-success' : 'text-error'">
                                         {{ task.on_time ? "Đúng hạn" : "Trễ hạn" }}
@@ -154,6 +151,8 @@ import { computed, onMounted, ref, watch } from "vue";
 import projectService from "../../services/projectService";
 import PageHeader from "../../components/common/PageHeader.vue";
 import StatusChip from "../../components/common/StatusChip.vue";
+import ScoreLevelChip from "../../components/common/ScoreLevelChip.vue";
+import { QUALITY_LEVELS } from "../../composables/scoreLevels";
 import TaskDetailDialog from "./TaskDetailDialog.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { TASK_PRIORITY_MAP, TASK_STATUS_MAP, daysLeft, dueLabel, formatDate } from "../../composables/projectStatus";

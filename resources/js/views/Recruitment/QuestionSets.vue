@@ -175,7 +175,8 @@
                         <span class="text-caption" style="opacity: 0.7">Tổng trọng số: {{ totalWeight }}</span>
                     </div>
                     <div class="text-caption mb-2" style="opacity: 0.7">
-                        Mỗi câu chấm 1–5 sao. Điểm = Σ(trọng số × sao) ÷ Σ(trọng số × 5). Từ
+                        Mỗi câu chấm 5 mức: Rất kém (1), Kém (2), Đạt (3), Tốt (4), Rất tốt (5). Điểm = Σ(trọng số ×
+                        mức) ÷ Σ(trọng số × 5). Từ
                         {{ editing.pass_percent || 0 }}% trở lên là Đạt.
                     </div>
 
