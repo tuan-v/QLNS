@@ -30,15 +30,17 @@ class ReportService
 
     private const NO_DEPARTMENT = 'Chưa có phòng ban';
 
-    public function __construct(private readonly AttendanceSheetService $attendanceSheetService)
-    {
+    public function __construct(
+        private readonly AttendanceSheetService $attendanceSheetService,
+        private readonly DepartmentScopeService $departmentScope,
+    ) {
     }
 
     // ------------------------------------------------------------------ phạm vi
 
     public function canViewCompany(User $user): bool
     {
-        return $user->hasPermission('payroll.view_all') || $user->hasPermission('department.manage');
+        return $this->departmentScope->canViewCompany($user);
     }
 
     /**
@@ -48,14 +50,7 @@ class ReportService
      */
     public function allowedDepartmentIds(User $user): ?array
     {
-        if ($this->canViewCompany($user)) {
-            return null;
-        }
-
-        $employeeId = $user->employee?->id;
-        $roots = $employeeId ? Department::where('manager_id', $employeeId)->pluck('id')->all() : [];
-
-        return $this->withDescendants($roots);
+        return $this->departmentScope->allowedDepartmentIds($user);
     }
 
     /** Danh sách phòng ban cho bộ lọc (theo phạm vi). */

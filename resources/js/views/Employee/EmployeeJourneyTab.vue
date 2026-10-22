@@ -23,8 +23,9 @@
                 </v-sheet>
             </div>
 
-            <!-- Diễn biến lương (2026-10-22): bậc lương theo hợp đồng + lương thực nhận từng tháng -->
-            <v-sheet class="border rounded-lg glass-panel pa-4" color="transparent">
+            <!-- Diễn biến lương (2026-10-22): bậc lương theo hợp đồng + lương thực nhận từng tháng.
+            Ẩn với người không có quyền xem lương (Trưởng phòng) — API cũng không trả số tiền. -->
+            <v-sheet v-if="journey.can_view_salary" class="border rounded-lg glass-panel pa-4" color="transparent">
                 <div class="d-flex flex-wrap align-baseline ga-2 mb-3">
                     <div class="text-subtitle-1 font-weight-bold">Diễn biến lương</div>
                     <div class="text-caption" style="opacity: 0.65">Mỗi bậc là 1 hợp đồng — cao hơn là lương cao hơn</div>
@@ -314,22 +315,24 @@ const highlights = computed(() => {
     );
 
     const change = s.total_change_amount;
-    tiles.push({
-        key: "salary",
-        icon: "mdi-cash-multiple",
-        label: "Lương hiện tại",
-        value: s.current_salary != null ? money(s.current_salary) : "—",
-        badge:
-            s.starting_salary == null
-                ? null
-                : !change
-                  ? { text: "Chưa thay đổi", tone: "neutral" }
-                  : { text: `${change > 0 ? "+" : "−"}${Math.abs(s.total_change_percent)}%`, tone: change > 0 ? "good" : "bad" },
-        detail:
-            s.starting_salary != null
-                ? `Khởi điểm ${money(s.starting_salary)} · ${s.contracts_count} hợp đồng`
-                : "Chưa có hợp đồng",
-    });
+    if (j.can_view_salary) {
+        tiles.push({
+            key: "salary",
+            icon: "mdi-cash-multiple",
+            label: "Lương hiện tại",
+            value: s.current_salary != null ? money(s.current_salary) : "—",
+            badge:
+                s.starting_salary == null
+                    ? null
+                    : !change
+                      ? { text: "Chưa thay đổi", tone: "neutral" }
+                      : { text: `${change > 0 ? "+" : "−"}${Math.abs(s.total_change_percent)}%`, tone: change > 0 ? "good" : "bad" },
+            detail:
+                s.starting_salary != null
+                    ? `Khởi điểm ${money(s.starting_salary)} · ${s.contracts_count} hợp đồng`
+                    : "Chưa có hợp đồng",
+        });
+    }
 
     const overall = j.kpi.overall;
     const scored = j.kpi.projects.filter((p) => p.metrics);

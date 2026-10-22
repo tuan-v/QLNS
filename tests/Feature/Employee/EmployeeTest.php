@@ -179,7 +179,7 @@ class EmployeeTest extends TestCase
         $this->makeEmployee(['employment_status' => 'active']);
         $this->makeEmployee(['employment_status' => 'probation']);
         $this->makeEmployee(['employment_status' => 'resigned']);
-        $token = $this->loginAs('manager@qlns.local', 'Manager@123');
+        $token = $this->loginAs('hr@qlns.local', 'Hr@123456');
 
         $response = $this->getJson('/api/v1/employees/stats', [
             'Authorization' => 'Bearer '.$token,
@@ -198,7 +198,7 @@ class EmployeeTest extends TestCase
     {
         $this->makeEmployee(['full_name' => 'Nguyen Van Anh']);
         $this->makeEmployee(['full_name' => 'Tran Thi Binh']);
-        $token = $this->loginAs('manager@qlns.local', 'Manager@123');
+        $token = $this->loginAs('hr@qlns.local', 'Hr@123456');
 
         $response = $this->getJson('/api/v1/employees?search=Anh', [
             'Authorization' => 'Bearer '.$token,
@@ -214,7 +214,7 @@ class EmployeeTest extends TestCase
     {
         $this->makeEmployee(['full_name' => 'Active One', 'employment_status' => 'active']);
         $this->makeEmployee(['full_name' => 'Probation One', 'employment_status' => 'probation']);
-        $token = $this->loginAs('manager@qlns.local', 'Manager@123');
+        $token = $this->loginAs('hr@qlns.local', 'Hr@123456');
 
         $response = $this->getJson('/api/v1/employees?employment_status=probation', [
             'Authorization' => 'Bearer '.$token,
@@ -663,13 +663,14 @@ class EmployeeTest extends TestCase
         $boss = $this->makeEmployee(['cccd' => '111122223333']);
         $subordinate = $this->makeEmployee(['manager_id' => $boss->id, 'user_id' => $subUser->id]);
 
-        // Gan quyen employee.view thong qua role Manager co san (role Employee
+        // Gan quyen employee.view thong qua role HR co san (role Employee
         // khong con employee.view - chi xem duoc chinh minh qua /employees/me,
         // xem RolePermissionSeeder.php). Test nay kiem logic an field theo
         // quan he cap tren/cap duoi trong EmployeeResource, khong phai kiem
-        // pham vi quyen cua role Employee, nen dung role nao co employee.view
-        // deu hop le.
-        \App\Models\Role::where('name', 'Manager')->first()
+        // pham vi quyen. Dung HR (xem ca cong ty) thay vi Manager: tu
+        // 2026-10-22 Manager chi mo duoc nhan vien phong minh quan ly
+        // (DepartmentScopeService) - xem DepartmentScopeTest.
+        \App\Models\Role::where('name', 'HR')->first()
             ->users()->attach($subUser->id);
 
         $token = $this->loginAs('sub-view@qlns.local', 'Secret@123');
@@ -767,7 +768,8 @@ class EmployeeTest extends TestCase
         ]), ['Authorization' => 'Bearer '.$adminToken])->json('data');
         $this->makeEmployee(['manager_id' => $boss['id'], 'user_id' => $subUser->id]);
 
-        \App\Models\Role::where('name', 'Manager')->first()
+        // HR (xem ca cong ty, co quyen xem luong) - van bi an vi la cap duoi cua boss.
+        \App\Models\Role::where('name', 'HR')->first()
             ->users()->attach($subUser->id);
 
         $token = $this->loginAs('sub-salary@qlns.local', 'Secret@123');
@@ -871,7 +873,8 @@ class EmployeeTest extends TestCase
         ]);
         $this->makeEmployee(['manager_id' => $boss->id, 'user_id' => $subUser->id]);
 
-        \App\Models\Role::where('name', 'Manager')->first()
+        // HR (xem ca cong ty) - van bi an vi la cap duoi cua boss.
+        \App\Models\Role::where('name', 'HR')->first()
             ->users()->attach($subUser->id);
 
         $token = $this->loginAs('sub-leave@qlns.local', 'Secret@123');

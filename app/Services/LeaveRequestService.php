@@ -242,12 +242,14 @@ class LeaveRequestService
     // số ngày nghỉ khác + không lương đã duyệt trong năm, số đơn đang chờ duyệt
     // và đợt nghỉ hiện tại/sắp tới. Phân trang phía server; `summary` tính trên
     // TOÀN BỘ nhân viên khớp bộ lọc (không chỉ trang đang xem).
-    public function overview(int $year, ?int $departmentId, ?string $search, int $perPage, int $page): array
+    // $allowedDepartmentIds: phạm vi phòng ban của người xem (DepartmentScopeService) — null = cả công ty.
+    public function overview(int $year, ?int $departmentId, ?string $search, int $perPage, int $page, ?array $allowedDepartmentIds = null): array
     {
         $today = now()->toDateString();
 
         $query = Employee::query()
             ->whereIn('employment_status', Employee::WORKING_STATUSES)
+            ->when($allowedDepartmentIds !== null, fn ($q) => $q->whereIn('department_id', $allowedDepartmentIds))
             ->when($departmentId, fn ($q, $id) => $q->where('department_id', $id))
             ->when($search, fn ($q, $term) => $q->where(fn ($w) => $w
                 ->where('full_name', 'like', "%{$term}%")

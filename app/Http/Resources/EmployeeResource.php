@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Repositories\EmployeeRepository;
+use App\Services\DepartmentScopeService;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Storage;
 
@@ -12,19 +13,21 @@ class EmployeeResource extends JsonResource
     // được tạo trong cùng 1 request (vd: mỗi dòng của index()). Không cache thì
     // mỗi dòng trong danh sách sẽ tự đi duyệt lại toàn bộ chuỗi quản lý của CÙNG
     // MỘT người xem — tốn N lần query giống hệt nhau cho N dòng, dù kết quả không đổi.
-    private static array $ancestorIdsCache = [];
-
-    private static function ancestorIdsFor(?\App\Models\Employee $viewer): array
+    // Lưu trên chính request (không dùng biến static): static sống qua nhiều request
+    // trong cùng tiến trình (test, Octane) nên trả nhầm chuỗi cấp trên đã cũ.
+    private static function ancestorIdsFor($request, ?\App\Models\Employee $viewer): array
     {
         if ($viewer === null) {
             return [];
         }
 
-        if (! array_key_exists($viewer->id, self::$ancestorIdsCache)) {
-            self::$ancestorIdsCache[$viewer->id] = app(EmployeeRepository::class)->ancestorIds($viewer);
+        $cache = $request->attributes->get('employee_resource.ancestor_ids', []);
+        if (! array_key_exists($viewer->id, $cache)) {
+            $cache[$viewer->id] = app(EmployeeRepository::class)->ancestorIds($viewer);
+            $request->attributes->set('employee_resource.ancestor_ids', $cache);
         }
 
-        return self::$ancestorIdsCache[$viewer->id];
+        return $cache[$viewer->id];
     }
 
     // Cùng công thức LeaveRequestService::remainingDays() (private ở đó, tách
@@ -53,7 +56,9 @@ class EmployeeResource extends JsonResource
         $this->resource->loadMissing(['department', 'position.suggestedRoles', 'manager', 'province', 'commune', 'user.roles', 'activeContract', 'currentYearLeaveBalance']);
 
         $viewer = $request->user()?->employee;
-        $hideSensitive = in_array($this->resource->id, self::ancestorIdsFor($viewer), true);
+        $hideSensitive = in_array($this->resource->id, self::ancestorIdsFor($request, $viewer), true);
+        // Lương: chỉ người có quyền xem lương toàn công ty hoặc chính chủ (2026-10-22 — Trưởng phòng không xem lương).
+        $hideSalary = $hideSensitive || ! app(DepartmentScopeService::class)->canViewSalary($request->user(), $this->resource->id);
 
         return [
             'id' => $this->id,
@@ -84,7 +89,7 @@ class EmployeeResource extends JsonResource
             // (2026-09-24, theo yêu cầu người dùng: thêm cột "Lương" ở danh
             // sách nhân viên — coi lương nhạy cảm y hệt CCCD/SĐT/ngày sinh,
             // cùng cơ chế ẩn ancestorIds() đã có, không thêm quyền riêng mới).
-            'agreed_salary' => $hideSensitive ? null : $this->activeContract?->agreed_salary,
+            'agreed_salary' => $hideSalary ? null : $this->activeContract?->agreed_salary,
             // Cột "Nghỉ phép" ở danh sách nhân viên (2026-09-24, theo yêu cầu
             // người dùng) — coi tương tự lương, cùng cơ chế ẩn với cấp dưới.
             // remaining = allocated + carried_forward + adjusted - used, GIỐNG

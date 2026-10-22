@@ -16,12 +16,16 @@ class SearchService
 {
     private const LIMIT = 8;
 
+    public function __construct(private readonly DepartmentScopeService $departmentScope)
+    {
+    }
+
     public function search(User $user, string $query): array
     {
         $results = [];
 
         if ($user->hasPermission('employee.view')) {
-            $results = array_merge($results, $this->searchEmployees($query));
+            $results = array_merge($results, $this->searchEmployees($query, $this->departmentScope->allowedDepartmentIds($user)));
         }
 
         return $results;
@@ -34,7 +38,8 @@ class SearchService
     // Cùng danh sách cột tìm (full_name/code/company_email) với
     // EmployeeRepository::paginate() để hành vi tìm kiếm nhất quán giữa
     // trang "Nhân viên" và Quick Search.
-    private function searchEmployees(string $query): array
+    // $departmentIds: Trưởng phòng chỉ tìm thấy nhân viên phòng mình (+ phòng con) — null = cả công ty.
+    private function searchEmployees(string $query, ?array $departmentIds): array
     {
         return Employee::query()
             ->where(function ($q) use ($query) {
@@ -42,6 +47,7 @@ class SearchService
                     ->orWhere('code', 'like', "%{$query}%")
                     ->orWhere('company_email', 'like', "%{$query}%");
             })
+            ->when($departmentIds !== null, fn ($q) => $q->whereIn('department_id', $departmentIds))
             ->with(['department', 'position'])
             ->limit(self::LIMIT)
             ->get()

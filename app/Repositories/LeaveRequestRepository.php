@@ -92,6 +92,11 @@ class LeaveRequestRepository
             ->when($filters['employee_id'] ?? null, fn ($query, $id) => $query->where('employee_id', $id))
             ->when($filters['leave_type_id'] ?? null, fn ($query, $id) => $query->where('leave_type_id', $id))
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
+            // Phạm vi phòng ban của người xem (DepartmentScopeService) — null = cả công ty.
+            ->when(isset($filters['department_ids']), fn ($query) => $query->whereHas(
+                'employee',
+                fn ($employeeQuery) => $employeeQuery->whereIn('department_id', $filters['department_ids']),
+            ))
             ->latest('from_date')
             ->paginate($perPage);
     }

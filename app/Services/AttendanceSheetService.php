@@ -49,7 +49,8 @@ class AttendanceSheetService
     ) {
     }
 
-    public function build(int $year, int $month, ?int $departmentId = null): array
+    // $allowedDepartmentIds: phạm vi phòng ban của người xuất (DepartmentScopeService) — null = cả công ty.
+    public function build(int $year, int $month, ?int $departmentId = null, ?array $allowedDepartmentIds = null): array
     {
         $start = Carbon::create($year, $month, 1)->startOfDay();
         $end = $start->copy()->endOfMonth();
@@ -62,6 +63,7 @@ class AttendanceSheetService
         // Cùng tập nhân viên như khi tính lương (đang làm / thử việc).
         $employees = Employee::whereIn('employment_status', Employee::WORKING_STATUSES)
             ->when($departmentId, fn ($query, $id) => $query->where('department_id', $id))
+            ->when($allowedDepartmentIds !== null, fn ($query) => $query->whereIn('department_id', $allowedDepartmentIds))
             ->with('department')
             ->orderBy('code')
             ->get();

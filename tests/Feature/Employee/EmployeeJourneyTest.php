@@ -163,7 +163,35 @@ class EmployeeJourneyTest extends TestCase
         $this->getJson("/api/v1/employees/{$employee->id}/journey", $this->as('manager'))->assertOk();
         $this->getJson("/api/v1/employees/{$employee->id}", $this->as('manager'))->assertJsonPath('meta.can_view_journey', true);
         $this->getJson("/api/v1/employees/{$other->id}/journey", $this->as('manager'))->assertForbidden();
-        $this->getJson("/api/v1/employees/{$other->id}", $this->as('manager'))->assertJsonPath('meta.can_view_journey', false);
+        // Từ 2026-10-22 Trưởng phòng không mở được hồ sơ nhân viên phòng khác (DepartmentScopeService).
+        $this->getJson("/api/v1/employees/{$other->id}", $this->as('manager'))->assertForbidden();
+    }
+
+    // 2026-10-22: Trưởng phòng xem lộ trình nhưng không thấy lương (lương hợp đồng, phiếu lương, lương offer).
+    public function test_department_head_sees_journey_without_salary(): void
+    {
+        $employee = $this->employeeWithHistory();
+        $managerUser = User::where('email', 'manager@qlns.local')->firstOrFail();
+        $head = Employee::create([
+            'full_name' => 'Truong Phong', 'company_email' => 'tp@qlns.local', 'hire_date' => '2025-01-01',
+            'code' => 'NV-TP', 'employment_status' => 'active', 'user_id' => $managerUser->id,
+        ]);
+        Department::where('id', $employee->department_id)->update(['manager_id' => $head->id]);
+
+        $data = $this->getJson("/api/v1/employees/{$employee->id}/journey", $this->as('manager'))->assertOk()->json('data');
+
+        $this->assertFalse($data['can_view_salary']);
+        $this->assertSame([], $data['salary_history']);
+        $this->assertSame([], $data['payslips']);
+        $this->assertNull($data['summary']['current_salary']);
+        $this->assertNull($data['summary']['starting_salary']);
+        $this->assertNull($data['summary']['recruitment']['offer_salary']);
+        $json = json_encode($data['events'], JSON_UNESCAPED_UNICODE);
+        $this->assertStringNotContainsString('₫', $json);
+        $this->assertContains('contract_started', array_column($data['events'], 'type'));
+
+        // HR vẫn thấy đủ.
+        $this->assertTrue($this->getJson("/api/v1/employees/{$employee->id}/journey", $this->as('hr'))->json('data.can_view_salary'));
     }
 
     // 2026-10-22: lộ trình đủ phỏng vấn (lý do), lý do tăng lương, dự án & KPI, phụ cấp, số liệu ô tóm tắt.

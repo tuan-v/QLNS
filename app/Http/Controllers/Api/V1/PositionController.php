@@ -6,19 +6,23 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Position\StorePositionRequest;
 use App\Http\Requests\Position\UpdatePositionRequest;
 use App\Models\Position;
+use App\Services\DepartmentScopeService;
 use App\Services\PositionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class PositionController extends Controller
 {
-    public function __construct(private readonly PositionService $positionService)
-    {
+    public function __construct(
+        private readonly PositionService $positionService,
+        private readonly DepartmentScopeService $departmentScope,
+    ) {
     }
 
     public function index(Request $request): JsonResponse
     {
         $filters = $request->only(['department_id']);
+        $filters['department_ids'] = $this->departmentScope->allowedDepartmentIds($request->user());
         $perPage = (int) $request->input('per_page', 15);
 
         return response()->json($this->positionService->list($filters, $perPage));

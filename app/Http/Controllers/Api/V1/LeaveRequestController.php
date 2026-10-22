@@ -8,6 +8,7 @@ use App\Http\Requests\Leave\DecideLeaveRequest;
 use App\Http\Requests\Leave\StoreLeaveRequest;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
+use App\Services\DepartmentScopeService;
 use App\Services\LeaveApprovalService;
 use App\Services\LeaveRequestService;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +20,8 @@ class LeaveRequestController extends Controller
 {
     public function __construct(
         private readonly LeaveRequestService $leaveRequestService,
-        private readonly LeaveApprovalService $leaveApprovalService
+        private readonly LeaveApprovalService $leaveApprovalService,
+        private readonly DepartmentScopeService $departmentScope,
     ) {
     }
 
@@ -53,6 +55,7 @@ class LeaveRequestController extends Controller
     public function index(Request $request): JsonResponse
     {
         $filters = $request->only(['employee_id', 'leave_type_id', 'status']);
+        $filters['department_ids'] = $this->departmentScope->allowedDepartmentIds($request->user());
         $perPage = (int) $request->input('per_page', 15);
 
         return response()->json($this->leaveRequestService->list($filters, $perPage));
@@ -75,6 +78,7 @@ class LeaveRequestController extends Controller
             $data['search'] ?? null,
             (int) ($data['per_page'] ?? 10),
             (int) ($data['page'] ?? 1),
+            $this->departmentScope->allowedDepartmentIds($request->user()),
         ));
     }
 
@@ -103,7 +107,10 @@ class LeaveRequestController extends Controller
         abort_if(! $leaveRequest->evidence_file_path, 404);
 
         $isOwnRecord = $request->user()->employee?->id === $leaveRequest->employee_id;
-        abort_unless($isOwnRecord || $request->user()->hasPermission('leave.view_all'), 403);
+        abort_unless($isOwnRecord || (
+            $request->user()->hasPermission('leave.view_all')
+            && $this->departmentScope->canViewEmployee($request->user(), $leaveRequest->employee)
+        ), 403);
 
         return Storage::disk('local')->download($leaveRequest->evidence_file_path);
     }

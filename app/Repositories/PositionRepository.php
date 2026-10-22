@@ -15,6 +15,8 @@ class PositionRepository
         // đổi lựa chọn trên dropdown.
         return Position::with(['department', 'suggestedRoles'])
             ->when($filters['department_id'] ?? null, fn ($query, $departmentId) => $query->where('department_id', $departmentId))
+            // Phạm vi phòng ban của người xem (DepartmentScopeService) — null = cả công ty.
+            ->when(isset($filters['department_ids']), fn ($query) => $query->whereIn('department_id', $filters['department_ids']))
             ->latest()
             ->paginate($perPage);
     }

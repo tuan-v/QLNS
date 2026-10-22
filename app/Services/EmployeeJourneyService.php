@@ -50,7 +50,9 @@ class EmployeeJourneyService
         return $headOf !== [] && in_array($employee->department_id, Department::withDescendantIds($headOf), true);
     }
 
-    public function build(Employee $employee): array
+    // $withSalary = false (người xem không có quyền xem lương, vd Trưởng phòng — 2026-10-22): bỏ mọi số tiền lương
+    // (ô tóm tắt, diễn biến lương, phiếu lương, lương offer, mô tả mốc hợp đồng); phụ cấp vẫn giữ.
+    public function build(Employee $employee, bool $withSalary = true): array
     {
         $employee->loadMissing('department:id,name', 'position:id,name');
 
@@ -71,11 +73,11 @@ class EmployeeJourneyService
             ->get();
         $currentAllowances = $this->allowanceService->currentForEmployee($employee)['items']->all();
         $interviews = $this->interviewDetails($candidate);
-        $summary = $this->summary($employee, $salaryHistory, $candidate);
+        $summary = $this->summary($employee, $salaryHistory, $candidate, $withSalary);
 
         $events = collect()
-            ->merge($this->recruitmentEvents($candidate, $employee))
-            ->merge($this->contractEvents($contracts, $salaryHistory))
+            ->merge($this->recruitmentEvents($candidate, $employee, $withSalary))
+            ->merge($this->contractEvents($contracts, $salaryHistory, $withSalary))
             ->merge($this->transferEvents($employee))
             ->merge($this->resignationEvents($employee))
             ->merge($this->projectEvents($kpi['projects']))
@@ -85,9 +87,10 @@ class EmployeeJourneyService
             ->map(fn (array $event) => collect($event)->except('order')->all());
 
         return [
+            'can_view_salary' => $withSalary,
             'summary' => $summary,
-            'salary_history' => $salaryHistory,
-            'payslips' => $this->payslips($employee),
+            'salary_history' => $withSalary ? $salaryHistory : [],
+            'payslips' => $withSalary ? $this->payslips($employee) : [],
             'interviews' => $interviews,
             'kpi' => $kpi,
             'attendance' => $attendance,
@@ -121,7 +124,7 @@ class EmployeeJourneyService
         })->values()->all();
     }
 
-    private function summary(Employee $employee, array $salaryHistory, ?RecruitmentCandidate $candidate): array
+    private function summary(Employee $employee, array $salaryHistory, ?RecruitmentCandidate $candidate, bool $withSalary): array
     {
         $hireDate = $employee->hire_date ? Carbon::parse($employee->hire_date) : null;
         $endDate = $employee->termination_date ? Carbon::parse($employee->termination_date) : today();
@@ -129,8 +132,8 @@ class EmployeeJourneyService
 
         // Lương hiện tại = hợp đồng đang hiệu lực; không có thì hợp đồng gần nhất.
         $current = collect($salaryHistory)->firstWhere('status', 'active') ?? collect($salaryHistory)->last();
-        $starting = $salaryHistory[0]['salary'] ?? null;
-        $currentSalary = $current['salary'] ?? null;
+        $starting = $withSalary ? ($salaryHistory[0]['salary'] ?? null) : null;
+        $currentSalary = $withSalary ? ($current['salary'] ?? null) : null;
 
         $scorecard = $candidate?->interviews->pluck('scorecard')->filter()->firstWhere('status', 'submitted');
         $acceptedOffer = $candidate?->offers->firstWhere('status', RecruitmentOffer::STATUS_ACCEPTED);
@@ -153,7 +156,7 @@ class EmployeeJourneyService
                 'score_percent' => $scorecard ? (float) $scorecard->score_percent : null,
                 'pass_percent' => $scorecard ? (float) $scorecard->pass_percent : null,
                 'interview_result' => $candidate->interviews->whereNotNull('result')->sortByDesc('scheduled_at')->first()?->result,
-                'offer_salary' => $acceptedOffer ? (float) $acceptedOffer->salary : null,
+                'offer_salary' => $acceptedOffer && $withSalary ? (float) $acceptedOffer->salary : null,
             ] : null,
         ];
     }
@@ -188,7 +191,7 @@ class EmployeeJourneyService
             ->all();
     }
 
-    private function recruitmentEvents(?RecruitmentCandidate $candidate, Employee $employee): array
+    private function recruitmentEvents(?RecruitmentCandidate $candidate, Employee $employee, bool $withSalary): array
     {
         if (! $candidate) {
             return [];
@@ -222,7 +225,9 @@ class EmployeeJourneyService
         foreach ($candidate->offers as $offer) {
             $label = self::CONTRACT_LABELS[$offer->contract_type] ?? $offer->contract_type;
             if ($offer->sent_at) {
-                $events[] = $this->event($offer->sent_at, 'recruitment', 'offer_sent', 'Gửi thư mời nhận việc', "{$label}, lương đề xuất ".$this->money($offer->salary).', bắt đầu '.$offer->start_date->format('d/m/Y').'.', 4, ['salary' => (float) $offer->salary]);
+                $events[] = $withSalary
+                    ? $this->event($offer->sent_at, 'recruitment', 'offer_sent', 'Gửi thư mời nhận việc', "{$label}, lương đề xuất ".$this->money($offer->salary).', bắt đầu '.$offer->start_date->format('d/m/Y').'.', 4, ['salary' => (float) $offer->salary])
+                    : $this->event($offer->sent_at, 'recruitment', 'offer_sent', 'Gửi thư mời nhận việc', "{$label}, bắt đầu ".$offer->start_date->format('d/m/Y').'.', 4);
             }
             if ($offer->responded_at) {
                 $accepted = $offer->status === RecruitmentOffer::STATUS_ACCEPTED;
@@ -235,7 +240,7 @@ class EmployeeJourneyService
         return $events;
     }
 
-    private function contractEvents(Collection $contracts, array $salaryHistory): array
+    private function contractEvents(Collection $contracts, array $salaryHistory, bool $withSalary): array
     {
         $byId = collect($salaryHistory)->keyBy('contract_id');
         $events = [];
@@ -243,25 +248,33 @@ class EmployeeJourneyService
         foreach ($contracts as $contract) {
             $row = $byId->get($contract->id);
             $label = self::CONTRACT_LABELS[$contract->contract_type] ?? $contract->contract_type;
-            $description = 'Lương '.$this->money($contract->agreed_salary);
-            if ($row['change_amount'] !== null) {
-                $direction = $row['change_amount'] > 0 ? 'tăng' : ($row['change_amount'] < 0 ? 'giảm' : 'giữ nguyên');
-                $description .= $row['change_amount'] == 0
-                    ? ' (giữ nguyên so với hợp đồng trước)'
-                    : " ({$direction} ".$this->money(abs($row['change_amount'])).", {$row['change_percent']}% so với hợp đồng trước)";
-                if ($row['change_amount'] != 0) {
-                    $description .= $contract->salary_change_note ? ". Lý do: {$contract->salary_change_note}" : '. Chưa ghi lý do';
-                }
-            }
-            $description .= $contract->end_date ? ', đến '.$contract->end_date->format('d/m/Y').'.' : ', không xác định thời hạn.';
+            $until = $contract->end_date ? 'đến '.$contract->end_date->format('d/m/Y').'.' : 'không xác định thời hạn.';
 
-            $events[] = $this->event($contract->start_date, 'contract', 'contract_started', "Hợp đồng {$label} ({$contract->contract_number})", $description, 7, [
-                'salary' => (float) $contract->agreed_salary,
-                'change_amount' => $row['change_amount'],
-                'change_percent' => $row['change_percent'],
-                'contract_status' => $contract->status,
-                'note' => $contract->salary_change_note,
-            ]);
+            if ($withSalary) {
+                $description = 'Lương '.$this->money($contract->agreed_salary);
+                if ($row['change_amount'] !== null) {
+                    $direction = $row['change_amount'] > 0 ? 'tăng' : ($row['change_amount'] < 0 ? 'giảm' : 'giữ nguyên');
+                    $description .= $row['change_amount'] == 0
+                        ? ' (giữ nguyên so với hợp đồng trước)'
+                        : " ({$direction} ".$this->money(abs($row['change_amount'])).", {$row['change_percent']}% so với hợp đồng trước)";
+                    if ($row['change_amount'] != 0) {
+                        $description .= $contract->salary_change_note ? ". Lý do: {$contract->salary_change_note}" : '. Chưa ghi lý do';
+                    }
+                }
+                $description .= ', '.$until;
+                $meta = [
+                    'salary' => (float) $contract->agreed_salary,
+                    'change_amount' => $row['change_amount'],
+                    'change_percent' => $row['change_percent'],
+                    'contract_status' => $contract->status,
+                    'note' => $contract->salary_change_note,
+                ];
+            } else {
+                $description = 'Hiệu lực '.$until;
+                $meta = ['contract_status' => $contract->status];
+            }
+
+            $events[] = $this->event($contract->start_date, 'contract', 'contract_started', "Hợp đồng {$label} ({$contract->contract_number})", $description, 7, $meta);
 
             if ($contract->status === 'terminated' && $contract->terminated_at) {
                 $events[] = $this->event($contract->terminated_at, 'contract', 'contract_terminated', "Chấm dứt hợp đồng {$contract->contract_number}", null, 8);

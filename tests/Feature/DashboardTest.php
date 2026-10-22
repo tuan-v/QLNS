@@ -150,8 +150,10 @@ class DashboardTest extends TestCase
     public function test_leave_pending_counts_split_by_manager_and_hr_correctly(): void
     {
         [$manager, $managerUser] = $this->makeEmployeeWithLogin('Manager');
-        [$subordinate] = $this->makeEmployeeWithLogin('Employee', ['manager_id' => $manager->id]);
-        [$noManagerEmployee] = $this->makeEmployeeWithLogin('Employee');
+        // Từ 2026-10-22 Trưởng phòng chỉ thấy số liệu phòng mình quản lý (DepartmentScopeService).
+        $department = Department::create(['name' => 'Phong Dash', 'code' => 'PB-DASH-'.uniqid(), 'manager_id' => $manager->id]);
+        [$subordinate] = $this->makeEmployeeWithLogin('Employee', ['manager_id' => $manager->id, 'department_id' => $department->id]);
+        [$noManagerEmployee] = $this->makeEmployeeWithLogin('Employee', ['department_id' => $department->id]);
         $leaveType = LeaveType::create([
             'code' => 'lt-'.uniqid(), 'name' => 'Loai phep', 'annual_entitlement_days' => 12,
             'is_paid' => true, 'allow_carry_forward' => false, 'is_active' => true,
@@ -269,7 +271,9 @@ class DashboardTest extends TestCase
     public function test_manager_only_sees_leave_action_item_not_attendance_ones(): void
     {
         [$manager, $managerUser] = $this->makeEmployeeWithLogin('Manager');
-        [$subordinate] = $this->makeEmployeeWithLogin('Employee', ['manager_id' => $manager->id]);
+        // Từ 2026-10-22 Trưởng phòng chỉ thấy số liệu phòng mình quản lý (DepartmentScopeService).
+        $department = Department::create(['name' => 'Phong Dash', 'code' => 'PB-DASH-'.uniqid(), 'manager_id' => $manager->id]);
+        [$subordinate] = $this->makeEmployeeWithLogin('Employee', ['manager_id' => $manager->id, 'department_id' => $department->id]);
         $workShift = WorkShift::create([
             'code' => 'CA-'.uniqid(), 'name' => 'Ca test',
             'start_time' => '08:00', 'end_time' => '17:00', 'standard_work_minutes' => 480,

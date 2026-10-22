@@ -11,7 +11,8 @@ use App\Http\Controllers\Api\V1\EmployeeTransferController;
 use App\Http\Controllers\Api\V1\PayrollController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('auth:api')->prefix('employees')->group(function (): void {
+// employee.scope: route có {employee} — Trưởng phòng chỉ mở được nhân viên phòng mình (+ phòng con).
+Route::middleware(['auth:api', 'employee.scope'])->prefix('employees')->group(function (): void {
     Route::get('/', [EmployeeController::class, 'index'])->middleware('permission:employee.view');
     Route::post('/', [EmployeeController::class, 'store'])->middleware('permission:employee.create');
     // Phải khai TRƯỚC "/{employee}" — Laravel khớp route theo thứ tự đăng ký,

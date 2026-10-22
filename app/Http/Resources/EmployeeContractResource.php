@@ -2,12 +2,16 @@
 
 namespace App\Http\Resources;
 
+use App\Services\DepartmentScopeService;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class EmployeeContractResource extends JsonResource
 {
     public function toArray($request)
     {
+        // Lương hợp đồng: chỉ người có quyền xem lương toàn công ty hoặc chính chủ (2026-10-22 — Trưởng phòng không xem lương).
+        $hideSalary = ! app(DepartmentScopeService::class)->canViewSalary($request->user(), $this->employee_id);
+
         return [
             'id' => $this->id,
             'contract_number' => $this->contract_number,
@@ -15,9 +19,9 @@ class EmployeeContractResource extends JsonResource
             'start_date' => $this->start_date,
             'end_date' => $this->end_date,
             'signed_at' => $this->signed_at,
-            'agreed_salary' => $this->agreed_salary,
-            'insurance_salary' => $this->insurance_salary,
-            'salary_change_note' => $this->salary_change_note,
+            'agreed_salary' => $hideSalary ? null : $this->agreed_salary,
+            'insurance_salary' => $hideSalary ? null : $this->insurance_salary,
+            'salary_change_note' => $hideSalary ? null : $this->salary_change_note,
             'status' => $this->status,
             'terminated_at' => $this->terminated_at,
             // Giao diện cần biết hợp đồng đã có tệp PDF chưa: để ẩn nút Xem

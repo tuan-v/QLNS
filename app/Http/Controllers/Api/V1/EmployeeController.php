@@ -8,6 +8,7 @@ use App\Http\Requests\Employee\UpdateEmployeeRequest;
 use App\Http\Requests\Employee\UpdateMyProfileRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Employee;
+use App\Services\DepartmentScopeService;
 use App\Services\EmployeeJourneyService;
 use App\Services\EmployeeService;
 use Illuminate\Http\JsonResponse;
@@ -23,12 +24,15 @@ class EmployeeController extends Controller
         'avatar' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
     ];
 
-    public function __construct(private readonly EmployeeService $employeeService)
-    {
+    public function __construct(
+        private readonly EmployeeService $employeeService,
+        private readonly DepartmentScopeService $departmentScope,
+    ) {
     }
     public function index(Request $request): AnonymousResourceCollection
     {
         $filters = $request->only(['search', 'department_id', 'employment_status']);
+        $filters['department_ids'] = $this->departmentScope->allowedDepartmentIds($request->user());
         $perPage = (int) $request->input('per_page', 15);
 
         return EmployeeResource::collection($this->employeeService->list($filters, $perPage));
@@ -53,9 +57,9 @@ class EmployeeController extends Controller
         return response()->json(['available' => ! $taken]);
     }
 
-    public function stats(): JsonResponse
+    public function stats(Request $request): JsonResponse
     {
-        return response()->json($this->employeeService->stats());
+        return response()->json($this->employeeService->stats($this->departmentScope->allowedDepartmentIds($request->user())));
     }
     // Hồ sơ của CHÍNH người đang đăng nhập — cố tình không gắn middleware
     // permission:employee.view (route riêng, xem routes/api/v1/employees.php):

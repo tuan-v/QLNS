@@ -4,7 +4,7 @@
             title="Tổng quan"
             :subtitle="activeSection === 'personal'
                 ? 'Thông tin chấm công và nghỉ phép của bạn.'
-                : 'Số liệu nhân sự cập nhật tới hôm nay.'"
+                : companySubtitle"
         />
 
         <v-alert
@@ -26,7 +26,7 @@
                  Employee thường (scope luôn là 'personal') không có tab này,
                  giữ nguyên giao diện cũ y hệt. -->
             <v-tabs v-if="showTabs" v-model="activeTab" color="primary" class="mb-4">
-                <v-tab value="company">Tổng quan công ty</v-tab>
+                <v-tab value="company">{{ dashboard?.department_scope ? "Tổng quan phòng ban" : "Tổng quan công ty" }}</v-tab>
                 <v-tab value="personal">Của tôi</v-tab>
             </v-tabs>
 
@@ -449,6 +449,13 @@ const activeSection = computed(() => {
         return "personal";
     }
     return showTabs.value ? activeTab.value : "company";
+});
+
+// Trưởng phòng chỉ thấy số liệu phòng mình quản lý + phòng con (department_scope = tên các phòng; null = cả công ty).
+const companySubtitle = computed(() => {
+    const scope = dashboard.value?.department_scope;
+    if (!scope) return "Số liệu nhân sự cập nhật tới hôm nay.";
+    return scope.length ? `Số liệu phòng ban bạn quản lý: ${scope.join(", ")}.` : "Bạn chưa quản lý phòng ban nào.";
 });
 
 async function loadDashboard() {

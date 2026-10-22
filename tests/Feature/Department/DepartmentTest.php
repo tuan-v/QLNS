@@ -249,7 +249,8 @@ class DepartmentTest extends TestCase
     {
         $parent = Department::create(['name' => 'Cha', 'code' => 'PB001']);
         Department::create(['name' => 'Con', 'code' => 'PB002', 'parent_id' => $parent->id]);
-        $token = $this->loginAs('manager@qlns.local', 'Manager@123');
+        // HR xem cả cây công ty; cây theo phạm vi Trưởng phòng — xem DepartmentScopeTest.
+        $token = $this->loginAs('hr@qlns.local', 'Hr@123456');
 
         $response = $this->getJson('/api/v1/departments/tree', [
             'Authorization' => 'Bearer '.$token,
@@ -363,8 +364,9 @@ class DepartmentTest extends TestCase
         $subordinate = $this->makeEmployee(['manager_id' => $boss->id, 'user_id' => $subUser->id]);
         Department::create(['name' => 'Phong Ke toan', 'code' => 'PB001', 'manager_id' => $boss->id]);
 
-        // Role "Manager" có sẵn cả department.view lẫn employee.view.
-        Role::where('name', 'Manager')->first()->users()->attach($subUser->id);
+        // Role "HR" có department.view + employee.view và xem cả công ty (từ 2026-10-22 role Manager
+        // chỉ thấy phòng mình quản lý — người này không quản lý phòng nào). Vẫn bị ẩn vì là cấp dưới.
+        Role::where('name', 'HR')->first()->users()->attach($subUser->id);
 
         $token = $this->loginAs('dept-sub@qlns.local', 'Secret@123');
 

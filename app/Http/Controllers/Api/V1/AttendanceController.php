@@ -13,6 +13,7 @@ use App\Models\Attendance;
 use App\Models\Employee;
 use App\Services\AttendanceService;
 use App\Services\AttendanceSheetService;
+use App\Services\DepartmentScopeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -20,8 +21,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AttendanceController extends Controller
 {
-    public function __construct(private readonly AttendanceService $attendanceService)
-    {
+    public function __construct(
+        private readonly AttendanceService $attendanceService,
+        private readonly DepartmentScopeService $departmentScope,
+    ) {
     }
 
     // Chấm công luôn là chấm cho CHÍNH người gọi API — không nhận employee_id
@@ -74,6 +77,7 @@ class AttendanceController extends Controller
     public function index(Request $request): JsonResponse
     {
         $filters = $request->only(['employee_id', 'date_from', 'date_to', 'status', 'approval_status']);
+        $filters['department_ids'] = $this->departmentScope->allowedDepartmentIds($request->user());
         $perPage = (int) $request->input('per_page', 15);
 
         return response()->json($this->attendanceService->list($filters, $perPage));
@@ -137,7 +141,12 @@ class AttendanceController extends Controller
         $departmentId = $request->validated('department_id');
 
         $spreadsheet = $export->toSpreadsheet(
-            $sheetService->build($year, $month, $departmentId !== null ? (int) $departmentId : null),
+            $sheetService->build(
+                $year,
+                $month,
+                $departmentId !== null ? (int) $departmentId : null,
+                $this->departmentScope->allowedDepartmentIds($request->user()),
+            ),
         );
 
         return response()->streamDownload(
@@ -156,7 +165,14 @@ class AttendanceController extends Controller
         $approvalStatus = $request->input('approval_status') ?: null;
 
         return response()->json([
-            'data' => $this->attendanceService->dailyOverview($date, $departmentId, $workShiftId, $status, $approvalStatus),
+            'data' => $this->attendanceService->dailyOverview(
+                $date,
+                $departmentId,
+                $workShiftId,
+                $status,
+                $approvalStatus,
+                $this->departmentScope->allowedDepartmentIds($request->user()),
+            ),
         ]);
     }
 

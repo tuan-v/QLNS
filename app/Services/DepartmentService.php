@@ -21,9 +21,10 @@ class DepartmentService
     ) {
     }
 
-    public function list(): LengthAwarePaginator
+    // $departmentIds: phạm vi phòng ban của người xem (DepartmentScopeService) — null = cả công ty.
+    public function list(?array $departmentIds = null): LengthAwarePaginator
     {
-        return $this->departmentRepository->paginate();
+        return $this->departmentRepository->paginate(departmentIds: $departmentIds);
     }
 
     public function create(array $data): Department
@@ -152,9 +153,9 @@ class DepartmentService
         ResourceChanged::dispatch('departments');
     }
 
-    public function tree(): \Illuminate\Support\Collection
+    public function tree(?array $departmentIds = null): \Illuminate\Support\Collection
     {
-        return $this->departmentRepository->tree();
+        return $this->departmentRepository->tree($departmentIds);
     }
 
 

@@ -114,6 +114,11 @@ class AttendanceRepository
             ->when($filters['date_to'] ?? null, fn ($query, $date) => $query->where('attendance_date', '<=', $date))
             ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
             ->when($filters['approval_status'] ?? null, fn ($query, $status) => $query->where('approval_status', $status))
+            // Phạm vi phòng ban của người xem (DepartmentScopeService) — null = cả công ty.
+            ->when(isset($filters['department_ids']), fn ($query) => $query->whereHas(
+                'employee',
+                fn ($employeeQuery) => $employeeQuery->whereIn('department_id', $filters['department_ids']),
+            ))
             ->latest('attendance_date')
             ->latest('id')
             ->paginate($perPage);

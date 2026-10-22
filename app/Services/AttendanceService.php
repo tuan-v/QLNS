@@ -310,7 +310,8 @@ class AttendanceService
     //
     // $status (lọc) và `status` mỗi dòng dùng CHUNG bộ giá trị với history()
     // — xem displayStatusFor().
-    public function dailyOverview(string $date, ?int $departmentId, ?int $workShiftId, ?string $status, ?string $approvalStatus): array
+    // $allowedDepartmentIds: phạm vi phòng ban của người xem (DepartmentScopeService) — null = cả công ty.
+    public function dailyOverview(string $date, ?int $departmentId, ?int $workShiftId, ?string $status, ?string $approvalStatus, ?array $allowedDepartmentIds = null): array
     {
         // Ngày đi làm bù (hoán đổi) được xét ca như chính ngày thường được nghỉ thay.
         $dayIso = Holiday::effectiveWeekdayIso($date);
@@ -376,6 +377,9 @@ class AttendanceService
             ->values();
 
         $rows = $rows->concat($orphanedRows)
+            ->when($allowedDepartmentIds !== null, fn (Collection $rows) => $rows->filter(
+                fn (array $row) => in_array($row['employee']->department_id, $allowedDepartmentIds, true),
+            ))
             ->when($status, fn (Collection $rows) => $rows->filter(fn (array $row) => $row['status'] === $status))
             ->when($approvalStatus, fn (Collection $rows) => $rows->filter(fn (array $row) => $row['attendance']?->approval_status === $approvalStatus))
             ->sortBy([

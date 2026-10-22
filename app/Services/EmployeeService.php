@@ -29,9 +29,10 @@ class EmployeeService
     // Đếm nhanh cho 4 thẻ thống kê đầu trang Employees.vue — chỉ đếm theo
     // employment_status đang có thật trong DB, không có "đang nghỉ phép" (đó
     // là trạng thái tạm thời theo ngày, thuộc module Nghỉ phép chưa xây).
-    public function stats(): array
+    // $departmentIds: phạm vi phòng ban của người xem (DepartmentScopeService) — null = cả công ty.
+    public function stats(?array $departmentIds = null): array
     {
-        $counts = $this->employeeRepository->countByStatus();
+        $counts = $this->employeeRepository->countByStatus($departmentIds);
 
         return [
             'total' => (int) $counts->sum(),

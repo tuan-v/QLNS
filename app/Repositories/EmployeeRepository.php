@@ -22,6 +22,8 @@ class EmployeeRepository
                 });
             })
             ->when($filters['department_id'] ?? null, fn ($query, $departmentId) => $query->where('department_id', $departmentId))
+            // Phạm vi phòng ban của người xem (DepartmentScopeService) — null = cả công ty.
+            ->when(isset($filters['department_ids']), fn ($query) => $query->whereIn('department_id', $filters['department_ids']))
             ->when($filters['employment_status'] ?? null, fn ($query, $status) => $query->where('employment_status', $status))
             ->latest()
             ->paginate($perPage);
@@ -33,9 +35,10 @@ class EmployeeRepository
 
     // Đếm nhân viên theo employment_status bằng 1 query group-by duy nhất,
     // thay vì gọi count() riêng cho từng trạng thái (4 query rời rạc).
-    public function countByStatus(): \Illuminate\Support\Collection
+    public function countByStatus(?array $departmentIds = null): \Illuminate\Support\Collection
     {
         return Employee::query()
+            ->when($departmentIds !== null, fn ($query) => $query->whereIn('department_id', $departmentIds))
             ->selectRaw('employment_status, count(*) as total')
             ->groupBy('employment_status')
             ->pluck('total', 'employment_status');

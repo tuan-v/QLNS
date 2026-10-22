@@ -19,6 +19,7 @@ class DashboardService
         private readonly PayrollService $payrollService,
         private readonly ProjectDashboardService $projectDashboard,
         private readonly HolidayService $holidayService,
+        private readonly DepartmentScopeService $departmentScope,
     ) {
     }
 
@@ -73,21 +74,28 @@ class DashboardService
         ];
     }
 
+    // 2026-10-22: Trưởng phòng chỉ thấy số liệu phòng mình quản lý + phòng con (DepartmentScopeService);
+    // HR/Admin vẫn cả công ty. $departmentIds = null nghĩa là không giới hạn.
     private function companyWide(User $user, string $date): array
     {
-        $employeeCounts = Employee::query()
+        $departmentIds = $this->departmentScope->allowedDepartmentIds($user);
+        $inScope = fn ($query) => $departmentIds === null ? $query : $query->whereIn('department_id', $departmentIds);
+
+        $employeeCounts = $inScope(Employee::query())
             ->selectRaw("count(*) as total, sum(case when employment_status = 'active' then 1 else 0 end) as active")
             ->first();
 
-        $newThisMonth = Employee::whereMonth('hire_date', now()->month)
+        $newThisMonth = $inScope(Employee::query())
+            ->whereMonth('hire_date', now()->month)
             ->whereYear('hire_date', now()->year)
             ->count();
 
-        $dateSummary = $this->attendanceService->dailyOverview($date, null, null, null, null)['summary'];
+        $dateSummary = $this->attendanceService->dailyOverview($date, null, null, null, null, $departmentIds)['summary'];
         $present = $dateSummary['present'];
         $totalForDate = max($dateSummary['total'], 1);
 
         return [
+            'department_scope' => $departmentIds === null ? null : Department::whereIn('id', $departmentIds)->orderBy('name')->pluck('name')->all(),
             'date' => $date,
             'employee_stats' => [
                 'total' => (int) $employeeCounts->total,
@@ -99,10 +107,10 @@ class DashboardService
                 'total' => $dateSummary['total'],
                 'rate' => round($present / $totalForDate * 100, 1),
             ],
-            'leave_pending' => $this->leavePendingCounts(),
-            'attendance_trend' => $this->attendanceTrend($date),
-            'department_distribution' => $this->departmentDistribution($date),
-            'action_items' => $this->actionItems($user),
+            'leave_pending' => $this->leavePendingCounts($departmentIds),
+            'attendance_trend' => $this->attendanceTrend($date, $departmentIds),
+            'department_distribution' => $this->departmentDistribution($date, $departmentIds),
+            'action_items' => $this->actionItems($user, $departmentIds),
         ];
     }
 
@@ -114,7 +122,7 @@ class DashboardService
     // (không có attendance.approve/attendance.adjust) chỉ thấy mục nghỉ
     // phép — tránh hiện số đếm cho việc họ không có quyền vào duyệt.
     // Mục nào count=0 thì ẩn hẳn (không hiện dòng "0 việc cần làm" vô nghĩa).
-    private function actionItems(User $user): array
+    private function actionItems(User $user, ?array $departmentIds): array
     {
         $items = [];
 
@@ -149,7 +157,7 @@ class DashboardService
         }
 
         if ($user->hasPermission('leave.approve_manager') || $user->hasPermission('leave.approve_hr')) {
-            $leavePending = $this->leavePendingCounts();
+            $leavePending = $this->leavePendingCounts($departmentIds);
             $count = ($user->hasPermission('leave.approve_manager') ? $leavePending['pending_manager'] : 0)
                 + ($user->hasPermission('leave.approve_hr') ? $leavePending['pending_hr'] : 0);
 
@@ -194,15 +202,19 @@ class DashboardService
     // nhân viên có quản lý (chờ cấp 1) và không có quản lý (bỏ qua thẳng
     // xuống cấp 2/HR) — tách đúng y hệt logic đó để số đếm khớp thật, không
     // suy đoán riêng.
-    private function leavePendingCounts(): array
+    private function leavePendingCounts(?array $departmentIds = null): array
     {
+        $inScope = fn ($q) => $departmentIds === null ? $q : $q->whereIn('department_id', $departmentIds);
+
         $pendingManager = LeaveRequest::where('status', 'pending')
-            ->whereHas('employee', fn ($q) => $q->whereNotNull('manager_id'))
+            ->whereHas('employee', fn ($q) => $inScope($q)->whereNotNull('manager_id'))
             ->count();
 
-        $pendingHr = LeaveRequest::where('status', 'manager_approved')->count()
+        $pendingHr = LeaveRequest::where('status', 'manager_approved')
+            ->when($departmentIds !== null, fn ($q) => $q->whereHas('employee', $inScope))
+            ->count()
             + LeaveRequest::where('status', 'pending')
-                ->whereHas('employee', fn ($q) => $q->whereNull('manager_id'))
+                ->whereHas('employee', fn ($q) => $inScope($q)->whereNull('manager_id'))
                 ->count();
 
         return [
@@ -219,9 +231,11 @@ class DashboardService
     // trong quá khứ — quá nặng cho 1 widget tổng quan, chấp nhận xấp xỉ vì
     // đây chỉ là biểu đồ xu hướng tham khảo, giống lý do đã chấp nhận trước
     // khi có bộ lọc ngày).
-    private function attendanceTrend(string $endDate): array
+    private function attendanceTrend(string $endDate, ?array $departmentIds = null): array
     {
-        $totalActive = Employee::whereIn('employment_status', Employee::WORKING_STATUSES)->count();
+        $totalActive = Employee::whereIn('employment_status', Employee::WORKING_STATUSES)
+            ->when($departmentIds !== null, fn ($q) => $q->whereIn('department_id', $departmentIds))
+            ->count();
         $totalActive = max($totalActive, 1);
 
         $days = [];
@@ -236,6 +250,7 @@ class DashboardService
 
         $presentCounts = Attendance::whereIn('attendance_date', $days)
             ->whereIn('status', ['completed', 'pending'])
+            ->when($departmentIds !== null, fn ($q) => $q->whereHas('employee', fn ($e) => $e->whereIn('department_id', $departmentIds)))
             ->select('attendance_date', DB::raw('count(distinct employee_id) as cnt'))
             ->groupBy('attendance_date')
             ->pluck('cnt', 'attendance_date');
@@ -261,9 +276,10 @@ class DashboardService
     // cho 1 widget tổng quan — vẫn dùng department_id HIỆN TẠI của nhân viên,
     // nên nhân viên từng điều chuyển qua nhiều phòng ban sẽ hiện ở phòng ban
     // MỚI NHẤT dù đang xem ngày trước khi họ điều chuyển.
-    private function departmentDistribution(string $date): array
+    private function departmentDistribution(string $date, ?array $departmentIds = null): array
     {
         $counts = Employee::query()
+            ->when($departmentIds !== null, fn ($q) => $q->whereIn('department_id', $departmentIds))
             ->where('hire_date', '<=', $date)
             ->where(fn ($q) => $q->whereNull('termination_date')->orWhere('termination_date', '>=', $date))
             ->select('department_id', DB::raw('count(*) as cnt'))

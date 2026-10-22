@@ -7,19 +7,24 @@ use App\Http\Requests\Department\StoreDepartmentRequest;
 use App\Http\Requests\Department\UpdateDepartmentRequest;
 use App\Http\Resources\DepartmentResource;
 use App\Models\Department;
+use App\Services\DepartmentScopeService;
 use App\Services\DepartmentService;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\JsonResponse;
 
 class DepartmentController extends Controller
 {
-    public function __construct(private readonly DepartmentService $departmentService)
-    {
+    public function __construct(
+        private readonly DepartmentService $departmentService,
+        private readonly DepartmentScopeService $departmentScope,
+    ) {
     }
 
-    public function index(): AnonymousResourceCollection
+    // Trưởng phòng chỉ thấy phòng mình quản lý + phòng con (DepartmentScopeService); HR/Admin thấy cả công ty.
+    public function index(Request $request): AnonymousResourceCollection
     {
-        return DepartmentResource::collection($this->departmentService->list());
+        return DepartmentResource::collection($this->departmentService->list($this->departmentScope->allowedDepartmentIds($request->user())));
     }
 
     public function store(StoreDepartmentRequest $request): JsonResponse
@@ -44,11 +49,13 @@ class DepartmentController extends Controller
 
         return response()->json(null, 204);
     }
-    public function tree(): JsonResponse
+    public function tree(Request $request): JsonResponse
     {
         // Trả mảng phẳng (không bọc "data") để không phá cấu trúc frontend
         // đang đọc trực tiếp response.data làm cây phòng ban.
-        return response()->json(DepartmentResource::collection($this->departmentService->tree()));
+        return response()->json(DepartmentResource::collection(
+            $this->departmentService->tree($this->departmentScope->allowedDepartmentIds($request->user())),
+        ));
     }
 
 }

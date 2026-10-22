@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: ['127.0.0.1', '::1', '172.19.0.0/16']);
         $middleware->alias([
             'permission' => \App\Http\Middleware\EnsurePermission::class,
+            'employee.scope' => \App\Http\Middleware\EnsureEmployeeInScope::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
