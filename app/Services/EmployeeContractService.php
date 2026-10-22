@@ -100,6 +100,16 @@ class EmployeeContractService
         $startsInFuture = $data['start_date'] > now()->toDateString();
         $data['status'] = $startsInFuture ? 'pending' : 'active';
 
+        // Lương khác hợp đồng trước -> bắt buộc lý do tăng/giảm (2026-10-22, hiện ở lộ trình nhân viên).
+        $data['salary_change_note'] = trim((string) ($data['salary_change_note'] ?? '')) ?: null;
+        $previous = $employee->contracts()->orderByDesc('start_date')->orderByDesc('id')->first();
+        if ($previous && round((float) $previous->agreed_salary) !== round((float) $data['agreed_salary']) && $data['salary_change_note'] === null) {
+            $direction = (float) $data['agreed_salary'] > (float) $previous->agreed_salary ? 'tăng' : 'giảm';
+            throw ValidationException::withMessages([
+                'salary_change_note' => "Lương {$direction} so với hợp đồng trước (".number_format((float) $previous->agreed_salary, 0, ',', '.').'đ) — vui lòng ghi lý do.',
+            ]);
+        }
+
         return DB::transaction(function () use ($employee, $data, $startsInFuture) {
             if (! $startsInFuture) {
                 // Hợp đồng mới ký thì hợp đồng active CŨ (nếu có) coi như đã bị
@@ -136,7 +146,10 @@ class EmployeeContractService
      */
     public function fillMissing(EmployeeContract $contract, array $data, ?UploadedFile $file = null): EmployeeContract
     {
-        $labels = ['end_date' => 'Ngày kết thúc', 'signed_at' => 'Ngày ký'];
+        $labels = ['end_date' => 'Ngày kết thúc', 'signed_at' => 'Ngày ký', 'salary_change_note' => 'Lý do điều chỉnh lương'];
+        if (isset($data['salary_change_note'])) {
+            $data['salary_change_note'] = trim($data['salary_change_note']) ?: null;
+        }
         $changes = [];
 
         foreach ($labels as $field => $label) {

@@ -221,6 +221,10 @@
                             formatCurrency(detailContract?.agreed_salary)
                         }}</strong>
                     </div>
+                    <div v-if="detailContract?.salary_change_note" class="d-flex justify-space-between ga-4">
+                        <span class="text-medium-emphasis text-no-wrap">Lý do điều chỉnh lương</span>
+                        <span class="text-right">{{ detailContract.salary_change_note }}</span>
+                    </div>
                     <div class="d-flex justify-space-between align-center">
                         <span class="text-medium-emphasis">Trạng thái</span>
                         <StatusChip
@@ -267,6 +271,18 @@
                     <InputDate
                         v-model="fillForm.signed_at"
                         :error-messages="fillErrors.signed_at"
+                    />
+                </div>
+
+                <div v-if="fillContract && needsSalaryNote(fillContract)" class="mb-3">
+                    <div class="text-body-2 font-weight-medium mb-1">Lý do điều chỉnh lương so với hợp đồng trước</div>
+                    <v-textarea
+                        v-model="fillForm.salary_change_note"
+                        rows="2"
+                        auto-grow
+                        variant="outlined"
+                        density="comfortable"
+                        :error-messages="fillErrors.salary_change_note"
                     />
                 </div>
 
@@ -458,6 +474,26 @@ ref="contractFormRef" validate-on="blur invalid-input lazy" class="v-card-text p
                             />
                         </v-col>
                     </v-row>
+                    <!-- Lương khác hợp đồng gần nhất -> bắt buộc lý do (hiện ở tab Hành trình), 2026-10-22. -->
+                    <div v-if="salaryChanged" class="mb-3">
+                        <div class="text-body-2 font-weight-medium mb-1">
+                            Lý do {{ createForm.agreed_salary > latestContract.agreed_salary ? "tăng" : "giảm" }} lương
+                            <span class="text-error">*</span>
+                            <span class="text-caption" style="opacity: 0.7">
+                                (hợp đồng trước {{ formatCurrency(latestContract.agreed_salary) }})
+                            </span>
+                        </div>
+                        <v-textarea
+                            v-model="createForm.salary_change_note"
+                            rows="2"
+                            auto-grow
+                            variant="outlined"
+                            density="comfortable"
+                            placeholder="Vd: Tăng lương sau đánh giá KPI quý 3, chuyển sang hợp đồng chính thức"
+                            :rules="[notEmpty('Lý do điều chỉnh lương')]"
+                            :error-messages="createErrors.salary_change_note"
+                        />
+                    </div>
                     <div>
                         <div class="text-body-2 font-weight-medium mb-1">
                             Tệp hợp đồng (PDF) <span class="text-error">*</span>
@@ -580,6 +616,24 @@ function formatCurrency(value) {
  * bảng; downloadContract() lấy đúng FILE nhị phân của 1 hợp đồng cụ thể.
  * ------------------------------------------------------------------------- */
 const contracts = ref([]);
+// Hợp đồng gần nhất (theo ngày bắt đầu) — so lương để biết có cần lý do tăng/giảm không.
+const latestContract = computed(() =>
+    [...contracts.value].sort((a, b) => String(b.start_date).localeCompare(String(a.start_date)) || b.id - a.id)[0] ?? null,
+);
+const salaryChanged = computed(
+    () =>
+        latestContract.value != null &&
+        createForm.agreed_salary != null &&
+        Math.round(Number(createForm.agreed_salary)) !== Math.round(Number(latestContract.value.agreed_salary)),
+);
+// Hợp đồng có lương khác hợp đồng ngay trước nó mà chưa ghi lý do -> cho bổ sung.
+function needsSalaryNote(contract) {
+    if (contract.salary_change_note) return false;
+    const previous = [...contracts.value]
+        .filter((c) => String(c.start_date) < String(contract.start_date) || (c.start_date === contract.start_date && c.id < contract.id))
+        .sort((a, b) => String(b.start_date).localeCompare(String(a.start_date)) || b.id - a.id)[0];
+    return previous != null && Math.round(Number(previous.agreed_salary)) !== Math.round(Number(contract.agreed_salary));
+}
 const contractsLoading = ref(false);
 const contractsError = ref("");
 const downloadingId = ref(null);
@@ -650,6 +704,7 @@ const createForm = reactive({
     start_date: "",
     end_date: "",
     agreed_salary: null,
+    salary_change_note: "",
     contract_file: null,
 });
 const createErrors = ref({});
@@ -666,6 +721,7 @@ function openCreateDialog() {
     createForm.start_date = "";
     createForm.end_date = "";
     createForm.agreed_salary = null;
+    createForm.salary_change_note = "";
     createForm.contract_file = null;
     createErrors.value = {};
     createGeneralError.value = "";
@@ -692,6 +748,7 @@ async function submitCreate() {
         if (createForm.end_date)
             formData.append("end_date", createForm.end_date);
         formData.append("agreed_salary", createForm.agreed_salary ?? "");
+        if (salaryChanged.value) formData.append("salary_change_note", createForm.salary_change_note.trim());
         const file = Array.isArray(createForm.contract_file)
             ? createForm.contract_file[0]
             : createForm.contract_file;
@@ -743,6 +800,7 @@ const fillForm = reactive({
     signed_at: null,
     contract_file: null,
     replace_reason: "",
+    salary_change_note: "",
 });
 
 // InputFile trả về File hoặc mảng File tuỳ cấu hình — chuẩn hoá về 1 File.
@@ -754,7 +812,7 @@ const fillGeneralError = ref("");
 const filling = ref(false);
 
 function isMissingData(contract) {
-    return !contract.has_file || !contract.end_date || !contract.signed_at;
+    return !contract.has_file || !contract.end_date || !contract.signed_at || needsSalaryNote(contract);
 }
 
 function openFillDialog(contract) {
@@ -763,6 +821,7 @@ function openFillDialog(contract) {
     fillForm.signed_at = null;
     fillForm.contract_file = null;
     fillForm.replace_reason = "";
+    fillForm.salary_change_note = "";
     fillErrors.value = {};
     fillGeneralError.value = "";
     fillDialog.value = true;
@@ -777,6 +836,7 @@ async function submitFill() {
     if (fillForm.signed_at) formData.append("signed_at", fillForm.signed_at);
     if (pickedFile.value) formData.append("contract_file", pickedFile.value);
     if (fillForm.replace_reason) formData.append("replace_reason", fillForm.replace_reason);
+    if (fillForm.salary_change_note.trim()) formData.append("salary_change_note", fillForm.salary_change_note.trim());
 
     filling.value = true;
     try {

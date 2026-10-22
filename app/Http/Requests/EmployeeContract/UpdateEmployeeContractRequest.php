@@ -32,6 +32,8 @@ class UpdateEmployeeContractRequest extends FormRequest
             // payload nên lấy từ route model), giữ đúng luật của lúc tạo mới.
             'end_date' => array_filter(['nullable', 'date', $startDate ? 'after:'.$startDate : null]),
             'signed_at' => ['nullable', 'date'],
+            // Bổ sung lý do tăng/giảm lương cho hợp đồng cũ chưa ghi (2026-10-22) — chỉ điền khi đang trống.
+            'salary_change_note' => ['nullable', 'string', 'max:500'],
             'contract_file' => ['nullable', 'file', 'mimes:pdf', 'max:5120'],
             // Tải tệp ĐẦU TIÊN thì không cần lý do; THAY tệp đã có thì bắt buộc
             // — đó là thứ duy nhất giải thích được vì sao bản ký đính kèm đổi,
@@ -49,6 +51,7 @@ class UpdateEmployeeContractRequest extends FormRequest
             'end_date.date' => 'Ngày kết thúc không đúng định dạng',
             'end_date.after' => 'Ngày kết thúc phải sau ngày bắt đầu hợp đồng',
             'signed_at.date' => 'Ngày ký không đúng định dạng',
+            'salary_change_note.max' => 'Lý do điều chỉnh lương không được vượt quá 500 ký tự',
             'contract_file.file' => 'Tệp đính kèm không hợp lệ',
             'contract_file.mimes' => 'File hợp đồng phải ở định dạng PDF',
             'contract_file.max' => 'Dung lượng file PDF không được vượt quá 5MB',

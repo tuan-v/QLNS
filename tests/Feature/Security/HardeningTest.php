@@ -208,6 +208,7 @@ class HardeningTest extends TestCase
         // Tuyển lại: ký hợp đồng mới -> tài khoản được mở lại.
         $service->create($employee->fresh(), [
             'contract_type' => 'chinh_thuc', 'start_date' => now()->toDateString(), 'agreed_salary' => 11000000,
+            'salary_change_note' => 'Tuyển lại với mức lương mới', // lương khác HĐ trước -> bắt buộc lý do
         ]);
         $this->assertSame('active', $employee->user->fresh()->status);
         $this->assertSame(2, EmployeeContract::where('employee_id', $employee->id)->count());

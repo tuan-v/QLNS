@@ -24,6 +24,8 @@ class StoreEmployeeContractRequest extends FormRequest
             // insurance_salary = agreed_salary, không nhận giá trị riêng từ
             // client nữa.
             'agreed_salary' => ['required', 'numeric', 'min:0'],
+            // Bắt buộc khi lương khác hợp đồng trước — kiểm ở EmployeeContractService::create().
+            'salary_change_note' => ['nullable', 'string', 'max:500'],
             // Client gửi lên bị bỏ qua hoàn toàn — EmployeeContractService::create()
             // luôn tự quyết định "active" hay "pending" dựa vào start_date, giữ rule
             // này chỉ để tài liệu hóa đủ giá trị hợp lệ của cột.
@@ -45,6 +47,7 @@ class StoreEmployeeContractRequest extends FormRequest
             'agreed_salary.required' => 'Lương thỏa thuận không được để trống',
             'agreed_salary.numeric' => 'Lương thỏa thuận phải là số',
             'agreed_salary.min' => 'Lương thỏa thuận không được nhỏ hơn 0',
+            'salary_change_note.max' => 'Lý do điều chỉnh lương không được vượt quá 500 ký tự',
             'status.in' => 'Trạng thái hợp đồng không hợp lệ',
             'contract_file.required' => 'Vui lòng đính kèm file PDF hợp đồng',
             'contract_file.file' => 'Tệp đính kèm không hợp lệ',

@@ -99,6 +99,7 @@ class InternAccountTest extends TestCase
 
         app(EmployeeContractService::class)->create($employee, [
             'contract_type' => 'thu_viec', 'start_date' => now()->toDateString(), 'agreed_salary' => 6_000_000,
+            'salary_change_note' => 'Hết thực tập, lên thử việc', // lương khác HĐ trước -> bắt buộc lý do
         ]);
 
         $this->assertSame('probation', $employee->fresh()->employment_status);

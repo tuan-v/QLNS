@@ -203,7 +203,7 @@ flowchart LR
 - **Kiểm thử:** [`tests/Feature/Employee/`](tests/Feature/Employee), [`tests/Feature/Console/`](tests/Feature/Console) (hợp đồng hết hạn / bắt đầu hiệu lực).
 - **Ràng buộc khi sửa:**
   - Tạo nhân viên trong 1 transaction: hồ sơ + hợp đồng đầu tiên + ca mặc định + dòng "Tiếp nhận"; trạng thái nhân viên suy từ loại hợp đồng (thử việc / chính thức / thực tập).
-  - Không sửa lương trong hồ sơ: đổi lương = ký hợp đồng mới. Hợp đồng chỉ "bổ sung" ô còn trống; thay tệp PDF bắt buộc lý do và giữ tệp cũ.
+  - Không sửa lương trong hồ sơ: đổi lương = ký hợp đồng mới. Hợp đồng chỉ "bổ sung" ô còn trống; thay tệp PDF bắt buộc lý do và giữ tệp cũ. Lương khác hợp đồng trước → bắt buộc `salary_change_note` (lý do tăng/giảm, 2026-10-22); hợp đồng cũ chưa ghi thì bổ sung qua "Bổ sung dữ liệu còn thiếu".
   - `EmployeeResource` ẩn CCCD, SĐT, lương với cấp dưới. Lọc "đang làm việc" dùng `Employee::WORKING_STATUSES`.
   - Giới hạn tải tệp khai ở `UPLOAD_LIMITS` ([`InputFile.vue`](resources/js/components/common/InputFile.vue)) phải khớp rule `max:` ở backend.
 - **Lịch sử:** mục 8, 9, 11, 48, 55, 65, 67.

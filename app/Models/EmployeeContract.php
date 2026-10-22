@@ -26,6 +26,7 @@ class EmployeeContract extends Model
         'signed_at',
         'agreed_salary',
         'insurance_salary',
+        'salary_change_note',
         'status',
         'terminated_at',
         'contract_file_path',

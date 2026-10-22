@@ -17,6 +17,7 @@ class EmployeeContractResource extends JsonResource
             'signed_at' => $this->signed_at,
             'agreed_salary' => $this->agreed_salary,
             'insurance_salary' => $this->insurance_salary,
+            'salary_change_note' => $this->salary_change_note,
             'status' => $this->status,
             'terminated_at' => $this->terminated_at,
             // Giao diện cần biết hợp đồng đã có tệp PDF chưa: để ẩn nút Xem
