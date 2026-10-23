@@ -27,6 +27,7 @@ class LogService
         'login_failed' => 'Đăng nhập sai',
         'login_locked' => 'Khóa tài khoản',
         'logout' => 'Đăng xuất',
+        'password_changed' => 'Đổi mật khẩu',
     ];
 
     // Tên dễ đọc của từng loại dữ liệu được ghi log.

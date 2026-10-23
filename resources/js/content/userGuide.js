@@ -30,20 +30,21 @@ export const GUIDE_CHAPTERS = [
         articles: [
             {
                 id: "dang-nhap",
-                title: "Đăng nhập, quên mật khẩu, tài khoản bị khóa",
+                title: "Đăng nhập, đổi / quên mật khẩu, tài khoản bị khóa",
                 icon: "mdi-login",
                 roles: ["employee", "lead", "hr", "admin"],
                 summary: "Đăng nhập bằng email công ty và mật khẩu được HR cấp.",
                 steps: [
                     "Mở trang đăng nhập, nhập email và mật khẩu.",
                     "Quên mật khẩu: bấm “Quên mật khẩu”, nhập email → mở thư và bấm liên kết (hiệu lực 60 phút) để đặt mật khẩu mới.",
-                    "Sau khi đặt lại mật khẩu, mọi phiên đăng nhập cũ trên thiết bị khác bị đăng xuất.",
+                    "Đổi mật khẩu khi đang đăng nhập: bấm tên mình ở góc phải trên → “Cài đặt” → nhập mật khẩu hiện tại và mật khẩu mới (ít nhất 8 ký tự).",
+                    "Sau khi đổi hoặc đặt lại mật khẩu, mọi phiên đăng nhập trên thiết bị khác bị đăng xuất.",
                 ],
                 notes: [
                     "Nhập sai mật khẩu 10 lần trong 15 phút, tài khoản bị khóa tạm 15 phút và bạn nhận email cảnh báo. Đặt lại mật khẩu sẽ mở khóa ngay.",
                     "Nếu nhận email cảnh báo mà không phải bạn đăng nhập, hãy đổi mật khẩu và báo quản trị viên.",
                 ],
-                keywords: ["mat khau", "khoa", "quen", "login"],
+                keywords: ["mat khau", "doi mat khau", "khoa", "quen", "login"],
             },
             {
                 id: "giao-dien",

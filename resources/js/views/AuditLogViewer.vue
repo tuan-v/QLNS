@@ -291,6 +291,7 @@ const ACTION_META = {
     login_failed: { icon: "mdi-alert-outline", color: "warning", verb: "đăng nhập sai" },
     login_locked: { icon: "mdi-lock-alert-outline", color: "error", verb: "bị khóa" },
     logout: { icon: "mdi-logout", color: "secondary", verb: "đăng xuất" },
+    password_changed: { icon: "mdi-lock-reset", color: "primary", verb: "đổi mật khẩu" },
 };
 const ACTION_OPTIONS = [
     { value: "created", label: "Thêm" },
@@ -300,6 +301,7 @@ const ACTION_OPTIONS = [
     { value: "login_failed", label: "Đăng nhập sai" },
     { value: "login_locked", label: "Bị khóa" },
     { value: "logout", label: "Đăng xuất" },
+    { value: "password_changed", label: "Đổi mật khẩu" },
 ];
 
 const userOptions = computed(() => [

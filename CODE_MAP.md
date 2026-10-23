@@ -119,15 +119,16 @@ flowchart LR
 
 ## 1. Xác thực & bảo mật
 
-**Vai trò:** đăng nhập JWT, làm mới token, quên/đặt lại mật khẩu, tự khóa tài khoản khi đoán mật khẩu, giới hạn số lần gọi API.
+**Vai trò:** đăng nhập JWT, làm mới token, quên/đặt lại mật khẩu, đổi mật khẩu khi đang đăng nhập, tự khóa tài khoản khi đoán mật khẩu, giới hạn số lần gọi API.
 
-- **Frontend:** [`Login.vue`](resources/js/views/Login.vue), [`ForgotPassword.vue`](resources/js/views/ForgotPassword.vue), [`ResetPassword.vue`](resources/js/views/ResetPassword.vue), [`authStore.js`](resources/js/stores/authStore.js), làm mới token tự động ở [`bootstrap.js`](resources/js/bootstrap.js).
+- **Frontend:** [`Login.vue`](resources/js/views/Login.vue), [`ForgotPassword.vue`](resources/js/views/ForgotPassword.vue), [`ResetPassword.vue`](resources/js/views/ResetPassword.vue), [`AccountSettings.vue`](resources/js/views/Settings/AccountSettings.vue) (mục "Cài đặt" ở menu tài khoản, ai cũng vào được), [`authStore.js`](resources/js/stores/authStore.js), làm mới token tự động ở [`bootstrap.js`](resources/js/bootstrap.js).
 - **Backend:** [`AuthController`](app/Http/Controllers/Api/V1/AuthController.php), [`AuthService`](app/Services/AuthService.php), [`PasswordResetService`](app/Services/PasswordResetService.php), [`LoginLockoutService`](app/Services/LoginLockoutService.php), [`Jwt/JwtService`](app/Services/Jwt/JwtService.php), [`Auth/JwtGuard`](app/Auth/JwtGuard.php); giới hạn số lần gọi ở [`AppServiceProvider`](app/Providers/AppServiceProvider.php) + [`config/rate_limits.php`](config/rate_limits.php).
 - **Dữ liệu & API:** `users`, `refresh_tokens`, `password_reset_tokens`, `password_histories` · [`auth.php`](routes/api/v1/auth.php).
 - **Kiểm thử:** [`tests/Feature/Auth/`](tests/Feature/Auth), [`AccountLockoutTest`](tests/Feature/Security/AccountLockoutTest.php), [`HardeningTest`](tests/Feature/Security/HardeningTest.php).
 - **Ràng buộc khi sửa:**
   - Refresh token xoay vòng, dùng 1 lần; nhiều tab phối hợp qua khóa `navigator.locks`. Token vừa xoay vòng được dùng lại trong `AuthService::ROTATION_GRACE_SECONDS` (30 giây) để F5 đúng lúc đang làm mới không bị đẩy ra đăng nhập (`refresh_tokens.rotated_at`, `replaced_by_id`); thu hồi vì bảo mật (đăng xuất, đổi mật khẩu, khóa tài khoản) thì không có ân hạn.
   - `JwtGuard` kiểm `users.status` mỗi request: khóa tài khoản là có hiệu lực ngay.
+  - Đổi mật khẩu (`POST /auth/change-password`, `AuthService::changePassword`): đúng mật khẩu hiện tại, mới khác cũ; thu hồi mọi refresh token rồi trả cặp token mới cho phiên đang dùng (máy khác bị đăng xuất), ghi `password_histories` và nhật ký `password_changed`.
   - Quên mật khẩu luôn trả thành công (chống dò email). Sai 10 lần/15 phút theo email → khóa 15 phút + email báo chủ tài khoản.
 - **Lịch sử:** mục 1, 57 trong [`CODE_MAP_LICH_SU.md`](docs/CODE_MAP_LICH_SU.md).
 

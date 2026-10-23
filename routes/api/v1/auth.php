@@ -14,5 +14,7 @@ Route::prefix('auth')->group(function (): void {
     Route::middleware('auth:api')->group(function (): void {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
+        // Cùng giới hạn với quên mật khẩu — chặn đoán mật khẩu hiện tại bằng phiên đã đăng nhập.
+        Route::post('/change-password', [AuthController::class, 'changePassword'])->middleware('throttle:password-reset');
     });
 });

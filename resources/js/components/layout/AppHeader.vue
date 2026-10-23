@@ -147,7 +147,7 @@ async function handleLogout() {
                     prepend-icon="mdi-cog-outline"
                     title="Cài đặt"
                     rounded="lg"
-                    disabled
+                    to="/cai-dat-tai-khoan"
                 />
                 <v-list-item
                     prepend-icon="mdi-logout"

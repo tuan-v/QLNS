@@ -34,6 +34,13 @@ const routes = [
         component: () => import("../views/Me/MyProfile.vue"),
     },
     {
+        // Mục "Cài đặt" ở menu tài khoản — ai đăng nhập cũng vào được (đổi mật khẩu...).
+        path: "/cai-dat-tai-khoan",
+        name: "account-settings",
+        meta: { title: "Cài đặt tài khoản" },
+        component: () => import("../views/Settings/AccountSettings.vue"),
+    },
+    {
         path: "/thong-bao",
         name: "notifications",
         // Không cần permission riêng — ai đăng nhập cũng xem được thông báo

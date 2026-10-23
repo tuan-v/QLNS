@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\ChangePasswordRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RefreshTokenRequest;
 use App\Models\User;
@@ -113,6 +114,39 @@ class AuthController extends Controller
         new OA\Response(response: 401, description: 'Refresh token không hợp lệ'),
     ],
     )]
+    #[OA\Post(
+        path: '/api/v1/auth/change-password',
+        summary: 'Đổi mật khẩu khi đang đăng nhập',
+        tags: ['Auth'],
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['current_password', 'password', 'password_confirmation'],
+                properties: [
+                    new OA\Property(property: 'current_password', type: 'string'),
+                    new OA\Property(property: 'password', type: 'string', minLength: 8),
+                    new OA\Property(property: 'password_confirmation', type: 'string'),
+                ],
+            ),
+        ),
+        responses: [
+        new OA\Response(response: 200, description: 'Đã đổi; trả cặp token mới, các phiên khác bị đăng xuất'),
+        new OA\Response(response: 422, description: 'Sai mật khẩu hiện tại hoặc mật khẩu mới không hợp lệ'),
+    ],
+    )]
+    public function changePassword(ChangePasswordRequest $request): JsonResponse
+    {
+        $result = $this->authService->changePassword(
+            $request->user(),
+            $request->string('current_password')->toString(),
+            $request->string('password')->toString(),
+            $request,
+        );
+
+        return response()->json($this->formatTokenResponse($result));
+    }
+
     public function logout(RefreshTokenRequest $request): JsonResponse
     {
         /** @var User $user */

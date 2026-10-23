@@ -35,6 +35,13 @@ const ALL_ITEMS = [
         keywords: ["profile", "ho so"],
     },
     {
+        name: "account-settings",
+        title: "Đổi mật khẩu (Cài đặt tài khoản)",
+        icon: "mdi-lock-reset",
+        permission: null,
+        keywords: ["doi mat khau", "mat khau", "password", "cai dat tai khoan"],
+    },
+    {
         name: "notifications",
         title: "Thông báo",
         icon: "mdi-bell-outline",

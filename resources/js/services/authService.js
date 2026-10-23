@@ -21,6 +21,10 @@ export default {
             { headers: { Authorization: `Bearer ${accessToken}` } },
         );
     },
+    // data: { current_password, password, password_confirmation } — trả cặp token mới (các phiên khác bị đăng xuất).
+    changePassword(data) {
+        return axios.post(`${API_BASE}/change-password`, data);
+    },
     forgotPassword(email) {
         return axios.post(`${API_BASE}/forgot-password`, { email });
     },

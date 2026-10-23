@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\PasswordHistory;
 use App\Models\User;
 use App\Repositories\RefreshTokenRepository;
 use App\Repositories\UserRepository;
@@ -10,6 +11,7 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class AuthService
 {
@@ -101,6 +103,30 @@ class AuthService
 
         $this->refreshTokenRepository->revoke($record);
         $this->logService->recordAuthEvent('logout', $user);
+    }
+
+    // Đổi mật khẩu khi đang đăng nhập: sai mật khẩu hiện tại -> 422. Đổi xong thu hồi MỌI phiên (máy khác phải đăng
+    // nhập lại bằng mật khẩu mới) rồi cấp cặp token mới cho chính phiên này để người dùng không bị đẩy ra.
+    public function changePassword(User $user, string $currentPassword, string $newPassword, Request $request): array
+    {
+        if (! Hash::check($currentPassword, $user->password)) {
+            throw ValidationException::withMessages(['current_password' => 'Mật khẩu hiện tại không đúng.']);
+        }
+
+        $pair = DB::transaction(function () use ($user, $newPassword, $request) {
+            PasswordHistory::create(['user_id' => $user->id, 'password_hash' => $user->password]);
+            $user->forceFill(['password' => Hash::make($newPassword), 'password_changed_at' => now()])->save();
+            $this->refreshTokenRepository->revokeAllForUser($user);
+
+            $pair = $this->issueTokenPair($user, $request);
+            unset($pair['refresh_record']);
+
+            return $pair;
+        });
+
+        $this->logService->recordAuthEvent('password_changed', $user);
+
+        return $pair;
     }
 
     private function issueTokenPair(User $user, Request $request): array

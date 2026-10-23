@@ -32,6 +32,12 @@ export const useAuthStore = defineStore('auth', () => {
         await fetchMe();
     }
 
+    // Đổi mật khẩu xong server thu hồi mọi refresh token cũ và trả cặp mới cho phiên này -> lưu lại ngay.
+    async function changePassword(data) {
+        const response = await authService.changePassword(data);
+        setTokens(response.data);
+    }
+
     // Router guard và App.vue cùng gọi lúc mở trang -> dùng chung 1 request đang chạy.
     let fetchMePromise = null;
     function fetchMe() {
@@ -72,6 +78,7 @@ export const useAuthStore = defineStore('auth', () => {
         permissions,
         isAuthenticated,
         login,
+        changePassword,
         fetchMe,
         refresh,
         logout,
