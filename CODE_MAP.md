@@ -442,7 +442,7 @@ flowchart LR
 - **Backend:** [`AuditObserver`](app/Observers/AuditObserver.php) + trait [`Auditable`](app/Models/Concerns/Auditable.php), [`LogService`](app/Services/LogService.php) (nhãn `MODULES`, `FIELD_LABELS`), cấu hình che dữ liệu ở [`config/audit.php`](config/audit.php).
 - **Dữ liệu & API:** `audit_logs` · [`logs.php`](routes/api/v1/logs.php) · quyền `system.audit_log` (chỉ Admin).
 - **Kiểm thử:** [`LogViewerTest`](tests/Feature/AuditLog/LogViewerTest.php).
-- **Ràng buộc khi sửa:** model mới muốn có nhật ký thì thêm `use Auditable;`. CCCD, MST, số tài khoản bị che. Log cũ hơn 24 tháng tự xóa.
+- **Ràng buộc khi sửa:** model mới muốn có nhật ký thì thêm `use Auditable;`. CCCD, MST, số tài khoản bị che. Log cũ hơn 24 tháng tự xóa. Sự kiện không gắn bản ghi: `recordAuthEvent()` (đăng nhập, đổi mật khẩu), `recordBackupEvent()` (tạo / tải bản sao lưu) — thêm action mới thì thêm nhãn ở `LogService::ACTIONS` và `ACTION_META` của `AuditLogViewer.vue`.
 - **Lịch sử:** mục 3, 70.
 
 <a id="m-dung-chung"></a>
@@ -474,6 +474,7 @@ Quy ước nút: nút chính `color="primary"`, nút phụ để trống màu; m
 - **Chất lượng code:** [`eslint.config.js`](eslint.config.js), [`.prettierrc.json`](.prettierrc.json), `vendor/bin/pint` (định dạng PHP bằng Pint, không dùng định dạng của VS Code).
 - **API docs:** Swagger tại `/api/documentation` ([`config/l5-swagger.php`](config/l5-swagger.php)).
 - **Log hệ thống:** mỗi ngày 1 file `storage/logs/laravel-YYYY-MM-DD.log`, giữ 30 ngày (`LOG_STACK=daily`, `LOG_DAILY_DAYS`, [`config/logging.php`](config/logging.php)); file tạo với quyền 0666 vì web (www-data) và queue/scheduler (root) cùng ghi. Môi trường thật nên `LOG_LEVEL=warning`.
+- **Sao lưu dữ liệu:** [`BackupService`](app/Services/BackupService.php) + [`Backup/MysqlDumper`](app/Services/Backup/MysqlDumper.php) (thư viện `ifsnop/mysqldump-php`, không cần lệnh mysqldump) → `qlns-backup-YYYY-MM-DD_HHMMSS.zip` (database.sql + files/ + manifest.json) trong [`config/backup.php`](config/backup.php) (`BACKUP_PATH`, `BACKUP_KEEP`=14, `BACKUP_TIME`=02:00). Lệnh `backup:run`, `backup:restore <file> [--database=] [--skip-files] [--force]` (khôi phục chỉ bằng lệnh). Giao diện: [`BackupSettings.vue`](resources/js/components/settings/BackupSettings.vue) ở Cài đặt hệ thống, API [`backups.php`](routes/api/v1/backups.php) quyền `system.backup` (Admin); "Sao lưu ngay" chạy qua queue ([`Jobs/RunBackup`](app/Jobs/RunBackup.php)), xong / lỗi có thông báo `backup.completed` / `backup.failed`. Test: [`BackupTest`](tests/Feature/Backup/BackupTest.php). Bản sao lưu nằm cùng máy chủ — nên đặt `BACKUP_PATH` sang ổ / thư mục đồng bộ khác.
 - **Lịch sử:** mục 10, 66, 68, 74.
 
 <a id="lich-tu-dong"></a>
@@ -492,6 +493,7 @@ Khai ở [`routes/console.php`](routes/console.php), chạy bởi container `sch
 | 00:08 | `resignations:apply` | Đơn nghỉ việc tới ngày cuối |
 | 00:15 | `kpi:lock-months` | Chốt KPI các tháng đã qua ngày chốt (ngày 6 tháng sau) |
 | 01:30 | `logs:prune` | Xóa nhật ký cũ hơn 24 tháng |
+| 02:00 | `backup:run` | Sao lưu CSDL + file tải lên, giữ 14 bản gần nhất |
 | 08:00 | `holidays:notify` | Nhắc HR xác nhận lịch lễ, báo nhân viên dịp nghỉ sắp tới |
 | 08:05 | `projects:remind-tasks` | Nhắc hạn việc và dự án |
 | Ngày 1 hằng tháng 00:30 | `holidays:generate` | Sinh lịch lễ năm nay và năm sau |

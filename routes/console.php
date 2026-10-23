@@ -44,3 +44,5 @@ Schedule::command('projects:remind-tasks')->dailyAt('08:05');
 Schedule::command('logs:prune')->dailyAt('01:30');
 // KPI dự án: chốt các tháng đã hết + KpiService::LOCK_AFTER_DAYS ngày.
 Schedule::command('kpi:lock-months')->dailyAt('00:15');
+// Sao lưu CSDL + file tải lên mỗi ngày, giữ config('backup.keep') bản gần nhất (config/backup.php).
+Schedule::command('backup:run')->dailyAt(config('backup.time'))->withoutOverlapping();

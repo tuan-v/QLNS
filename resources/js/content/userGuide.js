@@ -517,6 +517,26 @@ export const GUIDE_CHAPTERS = [
                 keywords: ["ca", "cai dat", "chuyen phep"],
             },
             {
+                id: "sao-luu",
+                title: "Sao lưu dữ liệu",
+                icon: "mdi-database-export-outline",
+                roles: ["admin"],
+                route: "settings",
+                permission: "system.backup",
+                summary:
+                    "Hệ thống tự sao lưu toàn bộ dữ liệu và file tải lên lúc 2 giờ sáng mỗi ngày, giữ 14 bản gần nhất.",
+                steps: [
+                    "Mở “Cài đặt hệ thống”, kéo xuống mục “Sao lưu dữ liệu” để xem các bản đã có.",
+                    "Bấm “Sao lưu ngay” trước khi làm việc lớn (vd tính lương, nhập nhiều dữ liệu); xong sẽ có thông báo ở chuông.",
+                    "Bấm biểu tượng tải về để lưu 1 bản ra máy, nên cất định kỳ ở nơi khác phòng khi máy chủ hỏng.",
+                ],
+                notes: [
+                    "Sao lưu thất bại thì Admin nhận thông báo ngay.",
+                    "Khôi phục dữ liệu do kỹ thuật viên chạy lệnh trên máy chủ, không có nút trên web để tránh bấm nhầm.",
+                ],
+                keywords: ["sao luu", "backup", "khoi phuc", "du lieu"],
+            },
+            {
                 id: "nhat-ky",
                 title: "Nhật ký hoạt động",
                 icon: "mdi-history",

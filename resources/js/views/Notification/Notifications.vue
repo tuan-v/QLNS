@@ -180,6 +180,8 @@ const TYPE_LABELS = {
     "bank_account.reviewed": "Kết quả xác nhận tài khoản ngân hàng",
     "allowance.pending": "Đề xuất phụ cấp chờ duyệt",
     "allowance.decided": "Kết quả duyệt đề xuất phụ cấp",
+    "backup.completed": "Sao lưu dữ liệu xong",
+    "backup.failed": "Sao lưu dữ liệu thất bại",
     "project.lead_assigned": "Được chọn làm Lead dự án",
     "project.member_added": "Được thêm vào dự án",
     "task.assigned": "Được giao việc",

@@ -194,6 +194,8 @@ const open = ref(false);
 const TOAST_TYPES = [
     "allowance.pending",
     "allowance.decided",
+    "backup.completed",
+    "backup.failed",
     "recruitment.opening_created",
     "recruitment.opening_updated",
     "recruitment.opening_closed",
@@ -260,6 +262,8 @@ const TYPE_CATEGORY = {
     "bank_account.reviewed": "Tài khoản ngân hàng",
     "allowance.pending": "Phụ cấp",
     "allowance.decided": "Phụ cấp",
+    "backup.completed": "Sao lưu dữ liệu",
+    "backup.failed": "Sao lưu dữ liệu",
     "project.lead_assigned": "Dự án",
     "project.member_added": "Dự án",
     "task.assigned": "Công việc",
@@ -284,6 +288,11 @@ const TYPE_CATEGORY = {
 
 // Thông báo hệ thống (không có actor) — icon + màu theo loại.
 function systemIcon(item) {
+    if (item.type === "backup.completed" || item.type === "backup.failed") {
+        return item.type === "backup.completed"
+            ? { icon: "mdi-database-check-outline", color: "success" }
+            : { icon: "mdi-database-alert-outline", color: "error" };
+    }
     if (item.type === "allowance.pending") {
         return { icon: "mdi-hand-coin-outline", color: "warning" };
     }

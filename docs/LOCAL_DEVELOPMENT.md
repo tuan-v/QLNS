@@ -41,10 +41,14 @@ docker compose logs -f app nginx
 docker compose exec app php artisan test
 docker compose exec app composer lint:test
 docker compose exec app php artisan migrate:fresh --seed
+docker compose exec app php artisan backup:run
+docker compose exec app php artisan backup:restore qlns-backup-YYYY-MM-DD_HHMMSS.zip --database=qlns_kiem_tra --skip-files
 docker compose down
 ```
 
 Không dùng `docker compose down -v` nếu muốn giữ dữ liệu MySQL và Redis local.
+
+Sao lưu tự động chạy 02:00 mỗi ngày vào `storage/app/backups` (đổi bằng `BACKUP_PATH`). Lệnh `backup:restore` thứ hai ở trên nạp bản sao lưu vào CSDL riêng để kiểm tra mà không đụng dữ liệu đang dùng; bỏ `--database` để khôi phục thật (nên `php artisan down` trước). Sau khi cài thư viện PHP mới hoặc sửa code job, chạy `php artisan queue:restart` để worker nạp lại code.
 
 ## Kết nối từ Laravel
 

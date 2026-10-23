@@ -71,6 +71,7 @@ class PermissionSeeder extends Seeder
             // RBAC & System
             ['code' => 'rbac.manage', 'name' => 'Quản lý vai trò & phân quyền'],
             ['code' => 'system.audit_log', 'name' => 'Xem nhật ký hệ thống (audit log)'],
+            ['code' => 'system.backup', 'name' => 'Sao lưu dữ liệu (xem, tạo, tải bản sao lưu)'],
 
             // Notification
             ['code' => 'notification.view_all', 'name' => 'Xem toàn bộ thông báo trong công ty'],

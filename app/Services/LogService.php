@@ -19,6 +19,8 @@ class LogService
 {
     public const AUTH_TYPE = 'auth';
 
+    public const BACKUP_TYPE = 'backup';
+
     public const ACTIONS = [
         'created' => 'Thêm',
         'updated' => 'Sửa',
@@ -28,11 +30,14 @@ class LogService
         'login_locked' => 'Khóa tài khoản',
         'logout' => 'Đăng xuất',
         'password_changed' => 'Đổi mật khẩu',
+        'backup_created' => 'Sao lưu dữ liệu',
+        'backup_downloaded' => 'Tải bản sao lưu',
     ];
 
     // Tên dễ đọc của từng loại dữ liệu được ghi log.
     public const MODULES = [
         self::AUTH_TYPE => 'Đăng nhập',
+        self::BACKUP_TYPE => 'Sao lưu dữ liệu',
         'App\Models\Employee' => 'Nhân viên',
         'App\Models\EmployeeContract' => 'Hợp đồng',
         'App\Models\EmployeeBankAccount' => 'Tài khoản ngân hàng',
@@ -157,6 +162,26 @@ class LogService
         ]);
     }
 
+    /** Sự kiện sao lưu dữ liệu (tạo / tải bản sao lưu). $user null = lịch tự động. */
+    public function recordBackupEvent(string $action, ?User $user, string $file): void
+    {
+        $request = request();
+
+        AuditLog::create([
+            'action' => $action,
+            'auditable_type' => self::BACKUP_TYPE,
+            'auditable_id' => null,
+            'old_data' => null,
+            'new_data' => ['file' => $file],
+            'user_id' => $user?->id,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'http_method' => $request->method(),
+            'url' => $request->fullUrl(),
+            'request_id' => AuditObserver::requestId(),
+        ]);
+    }
+
     /** Xóa log cũ hơn số tháng lưu trữ (config audit.retention_months). Trả về số dòng đã xóa. */
     public function prune(?Carbon $now = null): int
     {
@@ -271,6 +296,9 @@ class LogService
     {
         if ($log->auditable_type === self::AUTH_TYPE) {
             return $new['email'] ?? '—';
+        }
+        if ($log->auditable_type === self::BACKUP_TYPE) {
+            return $new['file'] ?? '—';
         }
 
         $date = $new['attendance_date'] ?? $old['attendance_date'] ?? null;

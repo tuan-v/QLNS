@@ -43,6 +43,9 @@ const TYPE_ROUTES = {
     // Đề xuất phụ cấp (HR -> Admin duyệt) — tab "Đề xuất" của trang Phụ cấp.
     "allowance.pending": "allowances",
     "allowance.decided": "allowances",
+    // Sao lưu dữ liệu — mục cuối trang Cài đặt hệ thống.
+    "backup.completed": "settings",
+    "backup.failed": "settings",
     // Dự án & công việc — mở trang dự án, kèm ?task= để mở thẳng công việc.
     "project.lead_assigned": "project-detail",
     "project.member_added": "project-detail",

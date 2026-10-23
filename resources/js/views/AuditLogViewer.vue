@@ -292,6 +292,8 @@ const ACTION_META = {
     login_locked: { icon: "mdi-lock-alert-outline", color: "error", verb: "bị khóa" },
     logout: { icon: "mdi-logout", color: "secondary", verb: "đăng xuất" },
     password_changed: { icon: "mdi-lock-reset", color: "primary", verb: "đổi mật khẩu" },
+    backup_created: { icon: "mdi-database-export-outline", color: "success", verb: "sao lưu dữ liệu" },
+    backup_downloaded: { icon: "mdi-download-outline", color: "warning", verb: "tải bản sao lưu" },
 };
 const ACTION_OPTIONS = [
     { value: "created", label: "Thêm" },
@@ -302,6 +304,8 @@ const ACTION_OPTIONS = [
     { value: "login_locked", label: "Bị khóa" },
     { value: "logout", label: "Đăng xuất" },
     { value: "password_changed", label: "Đổi mật khẩu" },
+    { value: "backup_created", label: "Sao lưu dữ liệu" },
+    { value: "backup_downloaded", label: "Tải bản sao lưu" },
 ];
 
 const userOptions = computed(() => [

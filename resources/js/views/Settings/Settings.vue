@@ -122,6 +122,11 @@
         <v-sheet class="border rounded-lg pa-5 glass-panel mt-4" color="transparent">
             <OfficeLocationSettings :can-manage="canManage" />
         </v-sheet>
+
+        <!-- Sao lưu dữ liệu (2026-10-23): chỉ Admin (system.backup). -->
+        <v-sheet v-if="canBackup" class="border rounded-lg pa-5 glass-panel mt-4" color="transparent">
+            <BackupSettings />
+        </v-sheet>
     </div>
 </template>
 
@@ -146,6 +151,7 @@ import { useResourceSyncStore } from "../../stores/useResourceSyncStore";
 import PageHeader from "../../components/common/PageHeader.vue";
 import FormSection from "../../components/common/FormSection.vue";
 import OfficeLocationSettings from "../../components/settings/OfficeLocationSettings.vue";
+import BackupSettings from "../../components/settings/BackupSettings.vue";
 import { useToastStore } from "../../stores/useToastStore";
 import { useChangeGuard } from "../../composables/useChangeGuard";
 
@@ -154,6 +160,7 @@ const toast = useToastStore();
 const guard = useChangeGuard(() => ({ ...form, work_days: [...form.work_days].sort((a, b) => a - b) }));
 const resourceSync = useResourceSyncStore();
 const canManage = computed(() => auth.permissions.includes("shift.manage"));
+const canBackup = computed(() => auth.permissions.includes("system.backup"));
 
 const loading = ref(true);
 const loadError = ref("");

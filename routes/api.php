@@ -36,4 +36,5 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     require __DIR__ . '/api/v1/kpi.php';
     require __DIR__ . '/api/v1/allowances.php';
     require __DIR__ . '/api/v1/settings.php';
+    require __DIR__ . '/api/v1/backups.php';
 });
