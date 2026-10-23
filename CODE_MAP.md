@@ -472,6 +472,7 @@ Quy ước nút: nút chính `color="primary"`, nút phụ để trống màu; m
 - **CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — backend (`pint --test`, `php artisan test` trên SQLite) và frontend (`npm run lint`, `npm run build`). Test phải chạy được trên máy sạch.
 - **Chất lượng code:** [`eslint.config.js`](eslint.config.js), [`.prettierrc.json`](.prettierrc.json), `vendor/bin/pint` (định dạng PHP bằng Pint, không dùng định dạng của VS Code).
 - **API docs:** Swagger tại `/api/documentation` ([`config/l5-swagger.php`](config/l5-swagger.php)).
+- **Log hệ thống:** mỗi ngày 1 file `storage/logs/laravel-YYYY-MM-DD.log`, giữ 30 ngày (`LOG_STACK=daily`, `LOG_DAILY_DAYS`, [`config/logging.php`](config/logging.php)); file tạo với quyền 0666 vì web (www-data) và queue/scheduler (root) cùng ghi. Môi trường thật nên `LOG_LEVEL=warning`.
 - **Lịch sử:** mục 10, 66, 68, 74.
 
 <a id="lich-tu-dong"></a>

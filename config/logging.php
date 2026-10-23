@@ -54,7 +54,8 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'single')),
+            // Mặc định ghi theo ngày (laravel-YYYY-MM-DD.log) để file log không phình mãi.
+            'channels' => explode(',', (string) env('LOG_STACK', 'daily')),
             'ignore_exceptions' => false,
         ],
 
@@ -69,7 +70,11 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => env('LOG_DAILY_DAYS', 14),
+            // Giữ 30 file gần nhất, file cũ hơn tự xóa khi sang ngày mới.
+            'days' => env('LOG_DAILY_DAYS', 30),
+            // app (www-data) và queue/scheduler (root) cùng ghi 1 file: ai tạo file của ngày trước cũng phải để
+            // người kia ghi được, nếu không log của web sẽ lỗi Permission denied.
+            'permission' => 0666,
             'replace_placeholders' => true,
         ],
 
