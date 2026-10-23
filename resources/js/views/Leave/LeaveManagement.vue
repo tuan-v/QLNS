@@ -144,7 +144,7 @@ const actions = computed(() => [
         icon: "mdi-check",
         tooltip: "Duyệt",
         color: "success",
-        hidden: (item) => !["pending", "manager_approved"].includes(item.status),
+        hidden: (item) => !itemSelectableForBulk(item),
         confirm: {
             title: "Duyệt đơn nghỉ phép",
             message: (item) =>
@@ -165,7 +165,7 @@ const actions = computed(() => [
         icon: "mdi-close",
         tooltip: "Từ chối",
         color: "error",
-        hidden: (item) => !["pending", "manager_approved"].includes(item.status),
+        hidden: (item) => !itemSelectableForBulk(item),
         confirm: {
             title: "Từ chối đơn nghỉ phép",
             message: () => "Bạn có chắc muốn từ chối đơn này không?",
@@ -186,8 +186,9 @@ const actions = computed(() => [
 // Chọn nhiều đơn để Duyệt/Từ chối hàng loạt (2026-09-25, theo yêu cầu người
 // dùng, kèm ảnh tham khảo "Bulk Actions") — CÙNG điều kiện với `hidden` của 2
 // nút duyệt từng dòng ở trên (đơn đã ở trạng thái cuối thì không cho chọn).
+// can_decide (server): false với đơn của chính mình, hoặc đơn của HR khi người xem không phải Admin.
 function itemSelectableForBulk(item) {
-    return ["pending", "manager_approved"].includes(item.status);
+    return ["pending", "manager_approved"].includes(item.status) && item.can_decide !== false;
 }
 
 const bulkActions = computed(() => [

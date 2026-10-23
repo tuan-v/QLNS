@@ -138,7 +138,7 @@ flowchart LR
 **Vai trò:** vai trò, quyền, ma trận gán quyền, cấp bậc vai trò (chặn gán vai trò cao hơn mình).
 
 - **Frontend:** [`Roles.vue`](resources/js/views/Role/Roles.vue), [`RoleForm.vue`](resources/js/views/Role/RoleForm.vue), [`RolePermissionsDialog.vue`](resources/js/views/Role/RolePermissionsDialog.vue), [`roleLevels.js`](resources/js/composables/roleLevels.js). Menu và route ẩn theo `can()` / `meta.permission` (chỉ là lớp giao diện).
-- **Backend:** [`EnsurePermission`](app/Http/Middleware/EnsurePermission.php) (`permission:` trên route), [`RoleService`](app/Services/RoleService.php), [`PermissionService`](app/Services/PermissionService.php), [`Role`](app/Models/Role.php) (`LEVELS`, `SYSTEM_ADMIN`). Phạm vi phòng ban: [`DepartmentScopeService`](app/Services/DepartmentScopeService.php) + [`EnsureEmployeeInScope`](app/Http/Middleware/EnsureEmployeeInScope.php) (`employee.scope` trên route có `{employee}`).
+- **Backend:** [`EnsurePermission`](app/Http/Middleware/EnsurePermission.php) (`permission:` trên route), [`RoleService`](app/Services/RoleService.php), [`PermissionService`](app/Services/PermissionService.php), [`Role`](app/Models/Role.php) (`LEVELS`, `SYSTEM_ADMIN`). Phạm vi phòng ban: [`DepartmentScopeService`](app/Services/DepartmentScopeService.php) + [`EnsureEmployeeInScope`](app/Http/Middleware/EnsureEmployeeInScope.php) (`employee.scope` trên route có `{employee}`). Ai duyệt đơn của ai (phép, chấm công, điều chỉnh công): [`ApprovalPolicy`](app/Services/ApprovalPolicy.php).
 - **Dữ liệu & API:** `roles`, `permissions`, `role_permissions`, `user_roles` · [`roles.php`](routes/api/v1/roles.php), [`permissions.php`](routes/api/v1/permissions.php) · seed: [`PermissionSeeder`](database/seeders/PermissionSeeder.php), [`RolePermissionSeeder`](database/seeders/RolePermissionSeeder.php).
 - **Kiểm thử:** [`tests/Feature/Role/`](tests/Feature/Role), [`PermissionCrudTest`](tests/Feature/Permission/PermissionCrudTest.php), [`PermissionMiddlewareTest`](tests/Feature/PermissionMiddlewareTest.php), [`DepartmentScopeTest`](tests/Feature/Security/DepartmentScopeTest.php).
 - **Ràng buộc khi sửa:**
@@ -246,10 +246,11 @@ flowchart LR
 
 - **Frontend:** [`CheckIn.vue`](resources/js/views/Attendance/CheckIn.vue) (chuyển bản desktop/mobile) + [`useCheckIn.js`](resources/js/composables/useCheckIn.js), [`AttendanceOverview.vue`](resources/js/views/Attendance/AttendanceOverview.vue), [`AttendanceHistoryPanel.vue`](resources/js/views/Attendance/AttendanceHistoryPanel.vue), [`AttendanceSheetExportDialog.vue`](resources/js/views/Attendance/AttendanceSheetExportDialog.vue), nhãn trạng thái ở [`attendanceStatus.js`](resources/js/composables/attendanceStatus.js).
 - **Backend:** [`AttendanceService`](app/Services/AttendanceService.php) (`checkIn/checkOut`, `decideApproval`, `dailyOverview`, `history`, `displayStatusFor`), [`WorkTimeCalculationService`](app/Services/WorkTimeCalculationService.php) (công 1 ngày, dùng chung với lương), [`AttendanceSheetService`](app/Services/AttendanceSheetService.php) + [`AttendanceSheetExport`](app/Exports/AttendanceSheetExport.php), [`Attendance/ReverseGeocoder`](app/Services/Attendance/ReverseGeocoder.php).
-- **Dữ liệu & API:** `attendances` (1 dòng / ca / ngày), `attendance_logs` · [`attendances.php`](routes/api/v1/attendances.php) · quyền `attendance.check`, `view_own`, `view_all`, `approve`.
+- **Dữ liệu & API:** `attendances` (1 dòng / ca / ngày), `attendance_logs` · [`attendances.php`](routes/api/v1/attendances.php) · quyền `attendance.check`, `view_own` (Nhân viên, Trưởng phòng, HR), `view_all`, `approve`.
 - **Kiểm thử:** [`tests/Feature/Attendance/`](tests/Feature/Attendance), [`AttendanceServiceCalculationTest`](tests/Unit/Services/AttendanceServiceCalculationTest.php), [`WorkTimeCalculationServiceTest`](tests/Unit/Services/WorkTimeCalculationServiceTest.php).
 - **Ràng buộc khi sửa:**
   - Chỉ bản ghi **đã duyệt** mới có công. Chấm ra xong thì giờ ra quay lại "chờ duyệt".
+  - Duyệt / đổi nơi làm việc qua `ApprovalPolicy`: không ai duyệt chấm công của chính mình; chấm công của HR (không kiêm Admin) chỉ Admin duyệt và báo "chờ duyệt" chỉ gửi Admin. `/attendances/overview` trả `can_decide` từng dòng để ẩn nút / ô chọn hàng loạt.
   - Muộn/sớm ≤ 30 phút vẫn đủ công; quá 30 phút tính theo phút làm thực tế. Công 1 ngày tối đa 1,0.
   - Vào sớm tối đa 30 phút trước ca, chặn sau giờ ra. Tra địa chỉ (Nominatim) lỗi vẫn cho chấm công.
   - Khi chấm vào, nhân viên chọn "Tại công ty" (mặc định) / "Làm online" ([`WorkModeToggle.vue`](resources/js/components/attendance/WorkModeToggle.vue)) → `attendances.work_mode`. HR đổi lại ở Tổng hợp chấm công (`PUT /attendances/{id}/work-mode`, `attendance.approve`). Chỉ ảnh hưởng phụ cấp ăn trưa, không ảnh hưởng công.
@@ -271,6 +272,7 @@ flowchart LR
 - **Ràng buộc khi sửa:**
   - OT chỉ trả lương khi đã duyệt và ≥ 25 phút (sau 5 phút ân hạn). Hệ số: ngày thường 150%, T7/CN 200%, lễ 300%.
   - "Làm ngoài lịch" duyệt xong chỉ tạo bản gán ca 1 ngày (tối đa 31 ngày liền), nhân viên vẫn tự chấm công.
+  - Cùng luật `ApprovalPolicy` như Chấm công: đơn của HR chỉ Admin duyệt / được báo, không tự duyệt; danh sách trả `can_decide`.
 - **Lịch sử:** mục 17, 41, 56.
 
 <a id="m-nghi-phep"></a>
@@ -285,6 +287,7 @@ flowchart LR
 - **Kiểm thử:** [`tests/Feature/Leave/`](tests/Feature/Leave), [`LeaveAccrualServiceTest`](tests/Unit/Services/LeaveAccrualServiceTest.php).
 - **Ràng buộc khi sửa:**
   - Luồng: chờ → Trưởng phòng duyệt → HR duyệt; không có quản lý thì HR duyệt thẳng. Chỉ trừ quỹ khi duyệt cấp cuối.
+  - HR cũng xin phép được: đơn của HR (không kiêm Admin) bỏ cấp Trưởng phòng, **chỉ Admin** duyệt 1 bước và chỉ Admin nhận báo; không ai tự duyệt đơn của mình (`ApprovalPolicy`). `GET /leave-requests` trả `can_decide` để `LeaveManagement.vue` ẩn nút / ô chọn.
   - Số ngày nghỉ không tính T7/CN. Chỉ loại `annual` bị giới hạn quỹ; loại `other` bắt buộc giấy tờ (sửa cả backend lẫn form).
   - Năm đầu: đủ 30 ngày làm việc được 1 ngày phép; từ năm 2 cấp đủ + thâm niên mỗi 5 năm thêm 1 ngày. Job tích lũy chỉ **tăng**, không tự giảm.
   - Chuyển phép tối đa N ngày, hết hạn 31/03; điều chỉnh tay bắt buộc lý do; phép âm không trừ lương.

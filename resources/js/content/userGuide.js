@@ -140,7 +140,7 @@ export const GUIDE_CHAPTERS = [
                 steps: [
                     "Mở “Nghỉ phép” → “Tạo đơn xin nghỉ phép”.",
                     "Chọn loại phép, từ ngày – đến ngày (nghỉ nửa ngày thì chọn buổi), nhập lý do; đính kèm minh chứng nếu có.",
-                    "Đơn được duyệt 2 cấp: quản lý trực tiếp → HR (không có quản lý trực tiếp thì chuyển thẳng HR).",
+                    "Đơn được duyệt 2 cấp: quản lý trực tiếp → HR (không có quản lý trực tiếp thì chuyển thẳng HR). Đơn của nhân viên HR do Admin duyệt một lần là xong.",
                     "Theo dõi trạng thái ở “Đơn của tôi”; bạn nhận thông báo và email khi có kết quả.",
                 ],
                 notes: [
@@ -343,7 +343,10 @@ export const GUIDE_CHAPTERS = [
                     "“Duyệt điều chỉnh công”: xem lý do từng yêu cầu rồi duyệt/từ chối.",
                     "Trên Tổng quan, mục “Cần bạn xử lý” cho biết còn bao nhiêu việc chờ.",
                 ],
-                notes: ["Không tính được bảng lương khi kỳ đó còn bản ghi chấm công chờ duyệt."],
+                notes: [
+                    "Không tính được bảng lương khi kỳ đó còn bản ghi chấm công chờ duyệt.",
+                    "Chấm công và đơn điều chỉnh công của nhân viên HR chỉ Admin duyệt. Bản ghi của chính bạn cũng không có nút duyệt.",
+                ],
                 keywords: ["duyet", "cham cong", "dieu chinh"],
             },
             {
@@ -359,6 +362,7 @@ export const GUIDE_CHAPTERS = [
                     "“Tổng hợp nghỉ phép”: mỗi dòng là một nhân viên, cho biết còn bao nhiêu phép, ai đang nghỉ và có đơn nào chờ duyệt.",
                     "Bấm biểu tượng lịch ở cột Thao tác để xem cách tính số dư, rồi bấm “Điều chỉnh số dư” để cộng hoặc trừ ngày phép. Lần nào cũng phải ghi lý do, ví dụ khi nhập số dư ban đầu từ file Excel cũ.",
                 ],
+                notes: ["Đơn của nhân viên HR chỉ Admin duyệt; đơn của chính bạn cũng không có nút duyệt."],
                 keywords: ["phep", "so du", "dieu chinh"],
             },
             {

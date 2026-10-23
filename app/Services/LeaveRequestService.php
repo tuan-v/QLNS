@@ -8,7 +8,6 @@ use App\Models\EmployeeShiftAssignment;
 use App\Models\LeaveBalance;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
-use App\Models\User;
 use App\Repositories\LeaveBalanceRepository;
 use App\Repositories\LeaveRequestRepository;
 use Carbon\Carbon;
@@ -31,6 +30,7 @@ class LeaveRequestService
         private readonly LeaveBalanceRepository $leaveBalanceRepository,
         private readonly LeaveAccrualService $leaveAccrualService,
         private readonly NotificationService $notificationService,
+        private readonly ApprovalPolicy $approvalPolicy,
     ) {
     }
 
@@ -175,13 +175,14 @@ class LeaveRequestService
         $message = "{$employee->full_name} vừa gửi đơn xin {$leaveType->name} ({$leaveRequest->total_days} ngày).";
         $data = ['leave_request_id' => $leaveRequest->id];
 
-        if ($manager?->user !== null) {
+        // Đơn của HR: chỉ Admin duyệt -> báo Admin, bỏ qua Trưởng phòng (ApprovalPolicy, 2026-10-23).
+        if ($manager?->user !== null && ! $this->approvalPolicy->needsAdmin($employee)) {
             $this->notificationService->send($manager->user, 'leave.pending_manager', $title, $message, $data);
 
             return;
         }
 
-        foreach (User::withPermission('leave.approve_hr')->get() as $hrUser) {
+        foreach ($this->approvalPolicy->approvers($employee, 'leave.approve_hr') as $hrUser) {
             $this->notificationService->send($hrUser, 'leave.pending_hr', $title, $message, $data);
         }
     }

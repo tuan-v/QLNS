@@ -16,6 +16,7 @@ class LeaveApprovalService
         private readonly LeaveApprovalRepository $leaveApprovalRepository,
         private readonly LeaveRequestService $leaveRequestService,
         private readonly NotificationService $notificationService,
+        private readonly ApprovalPolicy $approvalPolicy,
     ) {
     }
 
@@ -40,7 +41,13 @@ class LeaveApprovalService
             ]);
         }
 
-        if ($leaveRequest->status === 'pending' && $leaveRequest->employee->manager_id !== null) {
+        // Không tự duyệt đơn của mình; đơn của nhân viên HR chỉ Admin duyệt (ApprovalPolicy, 2026-10-23).
+        $this->approvalPolicy->assertCanDecide($decidingUser, $leaveRequest->employee);
+
+        if ($this->approvalPolicy->needsAdmin($leaveRequest->employee)) {
+            // Đơn của HR: Admin duyệt 1 lần là xong (bỏ cấp Trưởng phòng) — Admin luôn có leave.approve_hr.
+            $approvalLevel = 2;
+        } elseif ($leaveRequest->status === 'pending' && $leaveRequest->employee->manager_id !== null) {
             $approvalLevel = 1;
 
             $isDirectManager = $decidingEmployee && $decidingEmployee->id === $leaveRequest->employee->manager_id;
@@ -143,7 +150,7 @@ class LeaveApprovalService
         $message = "Đơn xin {$leaveRequest->leaveType->name} của {$leaveRequest->employee->full_name} đã qua duyệt cấp quản lý, đang chờ HR.";
         $data = ['leave_request_id' => $leaveRequest->id];
 
-        foreach (User::withPermission('leave.approve_hr')->get() as $hrUser) {
+        foreach ($this->approvalPolicy->approvers($leaveRequest->employee, 'leave.approve_hr') as $hrUser) {
             if ($decidingUser && $hrUser->id === $decidingUser->id) {
                 continue;
             }

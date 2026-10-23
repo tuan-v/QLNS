@@ -6,14 +6,17 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Attendance\DecideAttendanceAdjustmentRequest;
 use App\Http\Requests\Attendance\StoreAttendanceAdjustmentRequest;
 use App\Models\AttendanceAdjustment;
+use App\Services\ApprovalPolicy;
 use App\Services\AttendanceAdjustmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AttendanceAdjustmentController extends Controller
 {
-    public function __construct(private readonly AttendanceAdjustmentService $attendanceAdjustmentService)
-    {
+    public function __construct(
+        private readonly AttendanceAdjustmentService $attendanceAdjustmentService,
+        private readonly ApprovalPolicy $approvalPolicy,
+    ) {
     }
 
     // Xin điều chỉnh công CHO CHÍNH MÌNH — không nhận employee_id từ client,
@@ -48,7 +51,10 @@ class AttendanceAdjustmentController extends Controller
         $filters = $request->only(['status']);
         $perPage = (int) $request->input('per_page', 15);
 
-        return response()->json($this->attendanceAdjustmentService->list($filters, $perPage));
+        $adjustments = $this->attendanceAdjustmentService->list($filters, $perPage);
+        $this->approvalPolicy->flagModels($adjustments->getCollection(), $request->user());
+
+        return response()->json($adjustments);
     }
 
     public function decide(DecideAttendanceAdjustmentRequest $request, AttendanceAdjustment $adjustment): JsonResponse

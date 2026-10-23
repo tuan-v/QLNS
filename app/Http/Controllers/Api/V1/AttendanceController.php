@@ -11,6 +11,7 @@ use App\Http\Requests\Attendance\DecideAttendanceApprovalRequest;
 use App\Http\Requests\Attendance\ExportAttendanceSheetRequest;
 use App\Models\Attendance;
 use App\Models\Employee;
+use App\Services\ApprovalPolicy;
 use App\Services\AttendanceService;
 use App\Services\AttendanceSheetService;
 use App\Services\DepartmentScopeService;
@@ -24,6 +25,7 @@ class AttendanceController extends Controller
     public function __construct(
         private readonly AttendanceService $attendanceService,
         private readonly DepartmentScopeService $departmentScope,
+        private readonly ApprovalPolicy $approvalPolicy,
     ) {
     }
 
@@ -92,6 +94,9 @@ class AttendanceController extends Controller
             'work_mode.required' => 'Vui lòng chọn nơi làm việc',
             'work_mode.in' => 'Nơi làm việc không hợp lệ',
         ]);
+
+        // Nơi làm việc quyết định phụ cấp ăn trưa -> cùng luật như duyệt chấm công (không tự đổi cho mình, HR chỉ Admin).
+        $this->approvalPolicy->assertCanDecide($request->user(), $attendance->employee, 'work_mode');
 
         return response()->json($this->attendanceService->setWorkMode($attendance, $data['work_mode']));
     }
@@ -164,16 +169,17 @@ class AttendanceController extends Controller
         $status = $request->input('status') ?: null;
         $approvalStatus = $request->input('approval_status') ?: null;
 
-        return response()->json([
-            'data' => $this->attendanceService->dailyOverview(
-                $date,
-                $departmentId,
-                $workShiftId,
-                $status,
-                $approvalStatus,
-                $this->departmentScope->allowedDepartmentIds($request->user()),
-            ),
-        ]);
+        $overview = $this->attendanceService->dailyOverview(
+            $date,
+            $departmentId,
+            $workShiftId,
+            $status,
+            $approvalStatus,
+            $this->departmentScope->allowedDepartmentIds($request->user()),
+        );
+        $overview['rows'] = $this->approvalPolicy->flagRows($overview['rows'], $request->user());
+
+        return response()->json(['data' => $overview]);
     }
 
     // Báo cáo "Lịch sử chấm công" (mục 18) CHÍNH MÌNH — chỉ hiển thị, không

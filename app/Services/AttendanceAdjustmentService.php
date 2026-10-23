@@ -35,6 +35,7 @@ class AttendanceAdjustmentService
         private readonly EmployeeShiftAssignmentService $employeeShiftAssignmentService,
         private readonly WorkShiftService $workShiftService,
         private readonly NotificationService $notificationService,
+        private readonly ApprovalPolicy $approvalPolicy,
     ) {
     }
 
@@ -176,7 +177,7 @@ class AttendanceAdjustmentService
 
     // Đơn mới nộp -> báo mọi người có quyền duyệt (attendance.adjust, cùng
     // quyền gate route PUT /attendances/adjustments/{id}). Bỏ qua chính người
-    // nộp — HR/Admin tự nộp đơn của mình thì không cần tự báo cho mình.
+    // nộp — HR/Admin tự nộp đơn của mình thì không cần tự báo cho mình. Đơn của HR -> chỉ báo Admin (ApprovalPolicy).
     private function notifyApprovers(Employee $employee, AttendanceAdjustment $adjustment, int $requestedBy): void
     {
         $label = self::TYPE_LABELS[$adjustment->type] ?? 'điều chỉnh công';
@@ -188,7 +189,7 @@ class AttendanceAdjustmentService
         $message = "{$employee->full_name} vừa gửi đơn xin {$label} {$dateText}.";
         $data = ['attendance_adjustment_id' => $adjustment->id];
 
-        $approvers = User::withPermission('attendance.adjust')->where('id', '!=', $requestedBy)->get();
+        $approvers = $this->approvalPolicy->approvers($employee, 'attendance.adjust')->where('id', '!=', $requestedBy);
 
         foreach ($approvers as $approver) {
             $this->notificationService->send($approver, 'attendance_adjustment.pending', $title, $message, $data);
@@ -321,6 +322,9 @@ class AttendanceAdjustmentService
                 'status' => 'Yêu cầu này đã được xử lý trước đó, không thể duyệt lại.',
             ]);
         }
+
+        // Không tự duyệt đơn của mình; đơn của HR chỉ Admin duyệt (ApprovalPolicy).
+        $this->approvalPolicy->assertCanDecide(User::find($approvedBy), $adjustment->employee);
 
         $adjustment = DB::transaction(function () use ($adjustment, $status, $decisionNote, $approvedBy) {
             $adjustment->forceFill([

@@ -459,7 +459,8 @@ const canApprove = computed(() =>
 // mục đích là xác nhận lượt chấm công vào có thật hay không (giờ vào/thiết
 // bị/vị trí), không cần chờ chấm công ra. Xem cùng lý do ở
 // AttendanceService::decideApproval().
-const canDecide = (item) => Boolean(item.attendance?.first_check_in_at);
+// can_decide (server): false khi là chấm công của chính mình, hoặc của HR mà người xem không phải Admin.
+const canDecide = (item) => Boolean(item.attendance?.first_check_in_at) && item.can_decide !== false;
 
 // Giờ VÀO và giờ RA được duyệt RIÊNG (2 nút Duyệt + 2 nút Từ chối, mỗi cặp
 // áp dụng cho đúng 1 phần). Duyệt = xác nhận lượt chấm công có thật; từ chối
@@ -494,6 +495,7 @@ function partActions(part, label, icon) {
             color: "success",
             hidden: (item) =>
                 !canApprove.value ||
+                !canDecide(item) ||
                 !partExists(item, part) ||
                 partStatus(item, part) === "approved",
             confirm: {
@@ -522,6 +524,7 @@ function partActions(part, label, icon) {
             color: "error",
             hidden: (item) =>
                 !canApprove.value ||
+                !canDecide(item) ||
                 !partExists(item, part) ||
                 partStatus(item, part) === "rejected",
             confirm: {
@@ -561,7 +564,7 @@ const actions = computed(() => [
         tooltip: (item) =>
             item.attendance?.work_mode === "online" ? "Đổi sang Tại công ty" : "Đổi sang Làm online",
         color: "info",
-        hidden: (item) => !canApprove.value || !item.attendance?.first_check_in_at,
+        hidden: (item) => !canApprove.value || !canDecide(item),
         confirm: {
             title: "Đổi nơi làm việc",
             message: (item) =>

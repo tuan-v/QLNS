@@ -231,7 +231,7 @@ const actions = computed(() => [
         icon: "mdi-check",
         tooltip: "Duyệt",
         color: "success",
-        hidden: (item) => item.status !== "pending",
+        hidden: (item) => item.status !== "pending" || item.can_decide === false,
         confirm: {
             title: "Duyệt điều chỉnh công",
             message: (item) =>
@@ -256,7 +256,7 @@ const actions = computed(() => [
         icon: "mdi-close",
         tooltip: "Từ chối",
         color: "error",
-        hidden: (item) => item.status !== "pending",
+        hidden: (item) => item.status !== "pending" || item.can_decide === false,
         confirm: {
             title: "Từ chối điều chỉnh công",
             message: () => "Bạn có chắc muốn từ chối yêu cầu này không?",

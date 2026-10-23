@@ -8,6 +8,7 @@ use App\Http\Requests\Leave\DecideLeaveRequest;
 use App\Http\Requests\Leave\StoreLeaveRequest;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
+use App\Services\ApprovalPolicy;
 use App\Services\DepartmentScopeService;
 use App\Services\LeaveApprovalService;
 use App\Services\LeaveRequestService;
@@ -22,6 +23,7 @@ class LeaveRequestController extends Controller
         private readonly LeaveRequestService $leaveRequestService,
         private readonly LeaveApprovalService $leaveApprovalService,
         private readonly DepartmentScopeService $departmentScope,
+        private readonly ApprovalPolicy $approvalPolicy,
     ) {
     }
 
@@ -58,7 +60,10 @@ class LeaveRequestController extends Controller
         $filters['department_ids'] = $this->departmentScope->allowedDepartmentIds($request->user());
         $perPage = (int) $request->input('per_page', 15);
 
-        return response()->json($this->leaveRequestService->list($filters, $perPage));
+        $leaveRequests = $this->leaveRequestService->list($filters, $perPage);
+        $this->approvalPolicy->flagModels($leaveRequests->getCollection(), $request->user());
+
+        return response()->json($leaveRequests);
     }
 
     // "Tổng hợp nghỉ phép" của HR/Manager — xem LeaveRequestService::overview().

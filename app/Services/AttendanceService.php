@@ -47,6 +47,7 @@ class AttendanceService
         private readonly ReverseGeocoder $reverseGeocoder,
         private readonly NotificationService $notificationService,
         private readonly OfficeLocation $officeLocation,
+        private readonly ApprovalPolicy $approvalPolicy,
     ) {
     }
 
@@ -488,6 +489,9 @@ class AttendanceService
             ]);
         }
 
+        // Không tự duyệt chấm công của mình; chấm công của HR chỉ Admin duyệt (ApprovalPolicy).
+        $this->approvalPolicy->assertCanDecide(User::find($decidedBy), $attendance->employee);
+
         $targets = $part === 'both' ? self::APPROVAL_PARTS : [$part];
 
         // Giờ ra chỉ duyệt được khi đã chấm ra: gọi riêng 'check_out' mà chưa ra thì
@@ -722,7 +726,7 @@ class AttendanceService
             : "{$employee->full_name} vừa chấm công vào lúc {$time}.";
         $data = ['attendance_id' => $attendance->id, 'part' => $part];
 
-        foreach (User::withPermission('attendance.approve')->get() as $approver) {
+        foreach ($this->approvalPolicy->approvers($employee, 'attendance.approve') as $approver) {
             $this->notificationService->send($approver, 'attendance.pending_approval', $title, $message, $data);
         }
     }
